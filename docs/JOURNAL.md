@@ -315,6 +315,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Effet : en mode `remove`, un point au sondage vide est retiré immédiatement, y compris au tout premier sondage de la session. Si la projection est fausse, ou si la zone n'a plus aucun nœud actif, **toute la route peut être vidée** point après point ; rester en `report` tant que la projection n'est pas vue juste en jeu (`/hr verify scan` en renfort). La vérification en avance n'attend plus non plus un premier nœud confirmé.
 - Code : `Verify.lua` (`nearbyCandidates`, `checkStep`, état `checking`, constantes `CHECK_*` supprimés), tests 3 et 3b remplacés par un test de retrait immédiat. Inchangés : un sondage inconclusif ne retire jamais, les garde-fous de conditions (pistage, calibration, combat, souris), la base jamais modifiée.
 
+### 2026-11-19 — Demande : points des gisements de fer depuis Wowhead (objet 1735), bloquée
+- Demande du joueur : ajouter les positions des gisements de fer de la carte interactive de `wowhead.com/forever/fr/object=1735`, au format de la base.
+- Constat : l'hôte `www.wowhead.com` était refusé par la politique réseau de la session ; un environnement personnel `gather-route` autorisant **uniquement cet hôte** a été créé (approuvé par le joueur) et la session l'utilise. La page répond ensuite par un **défi anti-robot** du pare-feu (HTTP 202, corps vide, `x-amzn-waf-action: challenge`) : aucune donnée récupérable depuis la session. Le défi n'a pas été contourné (navigateur automatisé écarté).
+- Rappel : le minerai « Iron Deposit » existe déjà dans `OreDataGatherMate.lua` (828 points, GatherMate). Un ajout Wowhead devrait suivre D17/D18 : fichier séparé, ajout seulement, doublon à moins de 0,5 %.
+- Suite : le joueur fournit les coordonnées (export depuis son navigateur ou page enregistrée) ; non fait.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
