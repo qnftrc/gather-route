@@ -3,8 +3,8 @@
 Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en bas, du plus essentiel au plus accessoire. Références F = [FONCTIONNALITES.md](FONCTIONNALITES.md), D = décisions et B = besoins du [JOURNAL.md](JOURNAL.md) et de [BESOINS.md](BESOINS.md). Légende : ✅ validé en jeu · 🟦 livré, testé hors jeu seulement · 🟧 livré, défaut constaté en jeu, correctif à retester · 💡 idée · ⛔ hors périmètre · ✖ annulé.
 
 ## Colonne vertébrale (activités du joueur)
-| 1. Choisir sa récolte | 2. Générer la route | 3. Suivre la route | 4. Voir la route | 5. Vérifier les points | 6. Ajuster en route | 7. Entretenir les données | 8. Diagnostiquer |
-|---|---|---|---|---|---|---|---|
+| 1. Choisir sa récolte | 2. Générer la route | 3. Suivre la route | 4. Voir la route | 5. Vérifier les points | 6. Ajuster en route | 7. Entretenir les données |
+|---|---|---|---|---|---|---|
 
 ## Détail par activité et par tranche
 
@@ -55,10 +55,7 @@ Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en
 | **Plus tard** | ⛔ Recalage de la base d'après les écarts mesurés (F43) |
 
 ### 8. Diagnostiquer
-| Tranche | Histoires |
-|---|---|
-| **Essentiel** | 🟦 `/hr debug` : régions résolues, état du tracé de la carte · ✅ `/hr probe`, `watch`, `blink world` (F20, F36, F38) |
-| **Confort** | 🟦 `/hr verify probe`, `scan` (carte ASCII, groupes de cases, décalages), `arming` (F45, F46, F48) |
+Archivée : voir [archives/STORY_MAP_DIAGNOSTIC.md](archives/STORY_MAP_DIAGNOSTIC.md).
 
 ## Tranches de livraison
 | Tranche | Contenu |

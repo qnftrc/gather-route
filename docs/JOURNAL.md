@@ -420,6 +420,9 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 ### 2026-11-19 — Story map
 - Demande du joueur : story map de toutes les fonctions. Livrée : [STORY_MAP.md](STORY_MAP.md) : huit activités (choisir, générer, suivre, voir, vérifier, ajuster, entretenir les données, diagnostiquer), trois tranches par activité, légende d'état (validé en jeu, livré non testé, défaut à retester, idée, hors périmètre, annulé) et tranches de livraison.
 
+### 2026-11-19 — Archivage de l'activité « Diagnostiquer » de la story map
+- Demande du joueur : archiver la partie « Diagnostiquer ». Interprétation retenue : l'activité 8 de la story map. Déplacée dans [archives/STORY_MAP_DIAGNOSTIC.md](archives/STORY_MAP_DIAGNOSTIC.md), avec un renvoi dans [STORY_MAP.md](STORY_MAP.md). **Seule la documentation est touchée** : `/hr debug`, `/hr probe`, `/hr verify probe|scan|arming` et leurs statuts dans `FONCTIONNALITES.md` sont inchangés.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
