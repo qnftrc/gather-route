@@ -76,6 +76,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr stop | skip | debug")
+    HR:Print("/hr probe [world|minimap|zoom|copy] - test minimap reading")
     HR:Print("/hr setmap <region>: <mapID> - force the map ID of a region")
 end
 
@@ -94,6 +95,8 @@ local function handleSlash(msg)
         HR:SkipPoint()
     elseif cmd == "debug" then
         HR:DebugRegions()
+    elseif cmd == "probe" then
+        HR.Probe:Run(rest)
     elseif cmd == "setmap" then
         local region, id = rest:match("^(.-)%s*:%s*#?(%d+)$")
         local real = region and findRegion(region)

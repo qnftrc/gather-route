@@ -26,7 +26,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 
 ## 4. Conception envisagée
 
-### 4.1 Sonde de validation (`/hr probe`) — première étape
+### 4.1 Sonde de validation (`/hr probe`) — première étape (écrite, à lancer en jeu)
 Teste en jeu : existence de `UpdateMouseoverAtPoint` et `GetMinimapMouseover`, nom d'herbe renvoyé quand un point jaune est sous le point interrogé (curseur dans le monde et sur la minimap), durée d'une passe, effet du zoom, points hors disque. Selon le résultat, on retient la lecture de la minimap (4.2), ou la mémoire de récolte seule (4.4).
 
 ### 4.2 Interroger la minimap aux candidats connus

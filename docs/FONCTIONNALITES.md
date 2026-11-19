@@ -29,7 +29,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 ## Cadré (vérification des points sur la minimap)
 | Réf. | Fonctionnalité | Statut | Dépend de | Fichiers prévus |
 |---|---|---|---|---|
-| F20 | `/hr probe` : diagnostic de la lecture de la minimap (fonctions, valeurs secrètes, balayage, curseur, zoom, hors disque, étalonnage) | Cadré, **prochaine étape** | Test en jeu | `Probe.lua` |
+| F20 | `/hr probe` : diagnostic de la lecture de la minimap (fonctions, valeurs secrètes, balayage avec 2 conventions de coordonnées et curseur logiciel, curseur monde/minimap, zoom, hors disque, étalonnage, écart à la base) avec rapport dans le chat, dans `HerbRouteDB` et dans une fenêtre à copier | **Livré** (testé hors jeu sur faux minimap, **à lancer en jeu**) | Test en jeu | `Probe.lua` |
 | F21 | Activation automatique du pistage « Trouver les herbes » | Cadré | F20 | `Probe.lua` ou `Verify.lua` |
 | F22 | Sondage aux points connus avec croix de 17 positions, arrêt à la première réponse, dédoublonnage | Cadré | F20 | `Probe.lua` |
 | F23 | Déclenchement à l'entrée d'un point dans le disque (seuil 85 % du rayon), 2 à 3 interrogations par point | Cadré | F22 | `Verify.lua` |

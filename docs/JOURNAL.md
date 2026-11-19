@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. Écrire `/hr probe` (validation de la lecture de la minimap en jeu) — en attente de feu vert.
+1. **Lancer `/hr probe` en jeu** (près d'une herbe, « Trouver les herbes » actif) et renvoyer le rapport : `/hr probe`, `/hr probe world`, `/hr probe minimap`, `/hr probe zoom`. Le résultat décide de la suite (R1).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -24,6 +24,13 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Limites réseau de la session : `www.curseforge.com` et `warcraft.wiki.gg` inaccessibles ; GitHub accessible.
 - Add-on Lueur (capture des réglages) : introuvable en ligne, raison du plafond de 15 yd inconnue. Hypothèse non vérifiée : plafond du système d'interaction du client.
 - Besoin simplifié formulé (B6) : garder la route d'origine, vérifier chaque point sur la minimap, retirer les waypoints sans correspondance.
+
+### 2026-11-19 — `/hr probe` écrit (F20)
+- Feu vert donné ; fenêtre à copier-coller incluse (le choix n'avait pas été tranché explicitement).
+- Contenu : environnement, fonctions présentes, balayage dans deux conventions de coordonnées (écran/curseur et unités d'interface), avec et sans curseur logiciel, détection des valeurs secrètes, étalonnage de la zone qui répond, distance entre un point lu et le point de la base le plus proche (rotation désactivée), test du zoom et des points hors disque.
+- Effets de bord limités : curseur logiciel remis à faux, zoom restauré, base jamais touchée.
+- Vérifié hors jeu sur un faux minimap (lecture seulement avec curseur logiciel et convention écran, écart mesuré 0,4 yd, cas sans lecture, valeurs secrètes, fonction absente, zoom). Cela confirme aussi la cohérence de la projection inverse avec celle de `Overlay.lua`, sur le faux monde seulement.
+- Pas implémenté : `/hr probe blink` (déplacement furtif de la minimap, F30), volontairement laissé à plus tard.
 
 ## Décisions
 | Réf. | Décision | Date | Statut |

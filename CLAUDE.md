@@ -30,10 +30,11 @@ HerbRoute/
   RouteMath.lua      distance / nearest / improve / pathLength / solve
   Runner.lua         génération (coroutine + C_Timer) et pilotage TomTom
   Overlay.lua        tracé carte du monde + minimap
+  Probe.lua          /hr probe : diagnostic de la lecture de la minimap
   UI.lua             fenêtre (région, herbes, départ, mode, rayon, boutons)
 tools/               génération des données et tests (voir tools/README.md)
 ```
-Ordre de chargement (toc) : Data, Core, Resolver, RouteMath, Runner, Overlay, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
+Ordre de chargement (toc) : Data, Core, Resolver, RouteMath, Runner, Overlay, Probe, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
 
 ## Vérification
 Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` au JS du planner (4 cas, identiques) ; `tools/test_addon.py` exécute Core/Resolver/Runner/Overlay/UI sur un faux environnement WoW/TomTom (lupa).
