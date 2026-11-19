@@ -640,6 +640,159 @@ local function runBlink(hidden)
     nextStep()
 end
 
+-- /hr probe blink world: the way NodeRadar documents it. Phase A: the mouse is
+-- on a blip, its offset from the minimap center is captured. Phase B: the
+-- mouse rests in the world; the minimap is moved so that the blip lands under
+-- the cursor (hit) or away from it (controls), and the reading is compared.
+local WORLD_WAIT = 5
+local blinkWorld
+
+local function mouseOverWorld()
+    local focus
+    if GetMouseFoci then
+        local foci = GetMouseFoci()
+        focus = foci and foci[1]
+    elseif GetMouseFocus then
+        focus = GetMouseFocus()
+    else
+        return true
+    end
+    return focus == nil or focus == WorldFrame
+end
+
+local function runBlinkWorldB(hidden, ox, oy)
+    local steps, finished = {}, false
+    local pts, alpha
+
+    local function conclude(msg)
+        if finished then return end
+        finished = true
+        if pts then
+            pcall(placeMinimap, pts, 0, 0)
+            pcall(Minimap.SetAlpha, Minimap, alpha)
+            add("Minimap anchors and alpha restored.")
+        end
+        if msg then add("ABORTED: %s", msg) end
+        local control, hit, misses = nil, nil, {}
+        for _, st in ipairs(steps) do
+            if st.r6 ~= nil then
+                add("  %s (%d,%d): +1 frame %s, +3 frames %s, +6 frames %s, back %s", st.kind, st.dx, st.dy,
+                    st.r1 and "present" or "absent", st.r3 and "present" or "absent",
+                    st.r6 and "present" or "absent", st.back and "present" or "absent")
+                if st.kind == "control" then control = st
+                elseif st.kind == "hit" then hit = st
+                else misses[#misses + 1] = st end
+            end
+        end
+        if control and hit and #misses > 0 then
+            local function any(st) return st.r1 or st.r3 or st.r6 end
+            local missPresent = false
+            for _, m in ipairs(misses) do if any(m) then missPresent = true end end
+            local latency = hit.r1 and "1 frame" or (hit.r3 and "3 frames" or "6 frames")
+            if any(control) then
+                add("RESULT: data is present even with the minimap in place and the cursor in the world: the reading is not tied to a blip position.")
+            elseif any(hit) and not missPresent then
+                add("RESULT: presence of a blip can be sampled by moving the minimap under a resting cursor (answer after %s).", latency)
+                add("  Hit present, controls absent: positional verification is feasible.")
+            elseif any(hit) and missPresent then
+                add("RESULT: the reading is present wherever the minimap lies under the cursor: not tied to the blip.")
+            elseif not any(hit) then
+                add("RESULT: the blip did not show up under the cursor after the minimap was moved: no positional sampling with this method on this build.")
+            else
+                add("RESULT: inconclusive.")
+            end
+        elseif not msg then
+            add("RESULT: inconclusive (not enough steps completed).")
+        end
+        finish()
+    end
+
+    if InCombatLockdown and InCombatLockdown() then return conclude("in combat") end
+    if buttonDown() then return conclude("a mouse button is held") end
+    if not GetCursorPosition or cursorInside() ~= false then return conclude("the cursor must rest in the world, outside the minimap") end
+    if not mouseOverWorld() then return conclude("the mouse is over a UI element, not the world") end
+
+    local sx, sy = GetCursorPosition()
+    local es = Minimap:GetEffectiveScale()
+    local cx0, cy0 = Minimap:GetCenter()
+    local halfW = Minimap:GetWidth() / 2
+    local hx, hy = (sx / es - ox) - cx0, (sy / es - oy) - cy0
+    if math.abs(hx) > 3000 or math.abs(hy) > 3000 then return conclude("the shift needed is too large") end
+
+    steps[1] = {kind = "control", dx = 0, dy = 0}
+    steps[2] = {kind = "hit", dx = hx, dy = hy}
+    local controls = 0
+    for _, c in ipairs({{SHIFT, 0}, {-SHIFT, 0}, {0, SHIFT}, {0, -SHIFT}}) do
+        local rx, ry = ox - c[1], oy - c[2]
+        if controls < 3 and rx * rx + ry * ry <= (0.8 * halfW) ^ 2 then
+            controls = controls + 1
+            steps[#steps + 1] = {kind = "miss", dx = hx + c[1], dy = hy + c[2]}
+        end
+    end
+    if controls < 1 then return conclude("no control shift keeps the cursor inside the minimap") end
+
+    pts, alpha = savePoints(), Minimap:GetAlpha()
+    C_Timer.After(30, function() conclude("timeout") end)
+
+    local function stillOk()
+        if InCombatLockdown and InCombatLockdown() then conclude("combat started") return false end
+        if buttonDown() then conclude("a mouse button was pressed") return false end
+        local x, y = GetCursorPosition()
+        if math.abs(x - sx) > 3 or math.abs(y - sy) > 3 then conclude("the mouse moved") return false end
+        return true
+    end
+
+    local i = 0
+    local function nextStep()
+        if finished then return end
+        i = i + 1
+        local st = steps[i]
+        if not st then return conclude() end
+        if not stillOk() then return end
+        placeMinimap(pts, st.dx, st.dy)
+        if hidden then Minimap:SetAlpha(0) end
+        waitFrames(1, function()
+            if finished then return end
+            st.r1 = present()
+            waitFrames(2, function()
+                if finished then return end
+                st.r3 = present()
+                waitFrames(3, function()
+                    if finished then return end
+                    st.r6 = present()
+                    placeMinimap(pts, 0, 0)
+                    Minimap:SetAlpha(alpha)
+                    waitFrames(3, function()
+                        if finished then return end
+                        st.back = present()
+                        nextStep()
+                    end)
+                end)
+            end)
+        end)
+    end
+    nextStep()
+end
+
+blinkWorld = function(hidden)
+    lines = {}
+    add("HerbRoute probe blink world%s %s", hidden and " (hidden)" or "", date("%Y-%m-%d %H:%M:%S"))
+    if InCombatLockdown and InCombatLockdown() then add("ABORTED: in combat") return finish() end
+    if buttonDown() then add("ABORTED: a mouse button is held") return finish() end
+    if not GetCursorPosition or cursorInside() ~= true then
+        add("ABORTED: phase A needs the cursor on a herb blip inside the minimap")
+        return finish()
+    end
+    if not present() then add("ABORTED: phase A found no data under the cursor: rest the mouse on a herb blip") return finish() end
+    local sx, sy = GetCursorPosition()
+    local cx, cy = Minimap:GetCenter()
+    local es = Minimap:GetEffectiveScale()
+    local ox, oy = sx / es - cx, sy / es - cy
+    add("Phase A: blip under the cursor, offset from the minimap center (%.1f, %.1f) units.", ox, oy)
+    HR:Print(("Blip captured. Move the mouse into the world (not over the minimap or a window) and keep it still: test in %d s."):format(WORLD_WAIT))
+    C_Timer.After(WORLD_WAIT, function() runBlinkWorldB(hidden, ox, oy) end)
+end
+
 function Probe:Run(arg)
     arg = (arg or ""):lower()
     if arg == "copy" then
@@ -648,6 +801,10 @@ function Probe:Run(arg)
         return self:ShowReport(saved.text)
     elseif arg == "zoom" then
         return runZoom()
+    elseif arg == "blink world" or arg == "blink world hidden" then
+        HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap and keep it still."):format(COUNTDOWN))
+        C_Timer.After(COUNTDOWN, function() blinkWorld(arg == "blink world hidden") end)
+        return
     elseif arg == "blink" or arg == "blink hidden" then
         HR:Print(("Blink test in %d s: put the mouse ON a herb blip of the minimap, near its center, and keep it still."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() runBlink(arg == "blink hidden") end)

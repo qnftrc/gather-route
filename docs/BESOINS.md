@@ -31,6 +31,13 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 - Conséquence : pour sonder la position d'un candidat, il faut que le vrai curseur s'y trouve. Piste : déplacer brièvement la minimap pour amener le candidat sous un curseur au repos (technique décrite pour NodeRadar), avec le risque d'effet visible et de clics interceptés. À tester dans la sonde v2b, en option volontaire.
 - Un contrôle par présence ne distingue pas un autre type de nœud au même endroit (faux positifs possibles, accepté).
 
+### 3 ter Ce que documente NodeRadar sur les builds récents
+Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/main/docs/FOREVER-PROBE.md) et [README](https://github.com/Spotnick2/NodeRadar) (récits d'un auteur, non officiels).
+- Build 70862 : `UpdateMouseoverAtPoint` n'a plus d'effet. Build 70888 : avec le vrai curseur sur un nœud, la lecture renvoie ce nœud, pas le point demandé. Build 70938 : le texte d'infobulle est secret, mais « une lecture vide reste simple » : on sait si quelque chose est sous le point, pas quoi. Pas de document sur le build 70959.
+- Méthode de NodeRadar : curseur au repos **dans le monde**, minimap déplacée sous le curseur quelques images, lecture, remise en place. Conditions de blocage : combat, bouton enfoncé, lancer de sort, fenêtre de butin, créature ou joueur sous le curseur, bouton de minimap, infobulle ou fenêtre ouverts ; autre add-on ancré à la minimap.
+- Zone de réponse d'un nœud : environ 25 sur 25 unités (16 px à l'écran sur 70888).
+- Toute la minimap peut répondre pour des objets non-herbes (quêtes, PNJ, joueurs) : sans le nom, un faux positif est possible (D10).
+
 ## 4. Conception envisagée
 
 ### 4.1 Sonde de validation (`/hr probe`) — première étape (écrite, à lancer en jeu)
@@ -38,7 +45,7 @@ Teste en jeu : existence de `UpdateMouseoverAtPoint` et `GetMinimapMouseover`, n
 
 ### 4.2 Interroger la minimap aux candidats connus
 - Candidats = points de notre base dans le disque de la minimap, pour les herbes sélectionnées. La position sur la minimap vient de la projection de `Overlay.lua` (rayon de vue, rotation, facteur 0,9).
-- Motif par candidat : centre puis 2 pas dans chacune des 8 directions, soit 17 interrogations. Pas défini en yards (par exemple 3 puis 6) et converti en pixels selon le zoom.
+- Motif par candidat : centre puis 2 pas dans chacune des 8 directions, soit 17 interrogations. Pas défini en yards (par exemple 3 puis 6) et converti en pixels selon le zoom. *À réévaluer : la zone de réponse rapportée (environ 25 unités) est grande devant l'erreur de nos coordonnées, un sondage au centre pourrait suffire.*
 - Arrêt à la première réponse (centre, puis premier anneau, puis second).
 - Positions interrogées dédoublonnées sur une grille de pixels (les doublons du JSON sont à 0,1 % les uns des autres).
 - Une réponse est rattachée au candidat le plus proche de la position interrogée ; en cas d'égalité, tous les voisins sont marqués actifs.

@@ -4,6 +4,7 @@ lua.execute(r'''
 -- Minimal WoW / TomTom mock
 local timers, now, seq = {}, 0, 0
 C_Timer = {After = function(d, f) seq = seq + 1; timers[#timers+1] = {t = now + (d or 0), s = seq, f = f} end}
+function Now() return now end
 function RunTimers()
   local n = 0
   while #timers > 0 do
@@ -114,7 +115,13 @@ local soft, last, zoom = false, nil, 3
 local sx, sy, alphaV, fresh, cached, bl = 0, 0, 1, false, false, nil
 local curx, cury, mouseDown, inCombat = (cxm + 20) * es, (cym + 10) * es, false, false
 UIParent = {}
-GetCursorPosition = function() return curx, cury end
+local worldAfter, worldCursor, foci, t0 = false, {100, 100}, nil, 0
+WorldFrame = {}
+GetMouseFoci = function() return foci or {WorldFrame} end
+GetCursorPosition = function()
+  if worldAfter and Now() >= t0 + 4 then return worldCursor[1], worldCursor[2] end
+  return curx, cury
+end
 IsMouseButtonDown = function() return mouseDown end
 InCombatLockdown = function() return inCombat end
 local blips, mode = {}, "ok"
@@ -134,7 +141,8 @@ Minimap = {
 local function blinkPresent()
   if not bl then return false end
   local bx, by = (cxm + sx + bl[1]) * es, (cym + sy + bl[2]) * es
-  return (bx - curx) ^ 2 + (by - cury) ^ 2 <= 100
+  local cu, cv = GetCursorPosition()
+  return (bx - cu) ^ 2 + (by - cv) ^ 2 <= 100
 end
 C_Minimap = {GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 2 end,
   GetTrackingInfo = function(i) if i == 1 then return {name = "Find Herbs", active = true} end return {name = "Find Minerals", active = false} end}
@@ -142,6 +150,7 @@ C_TooltipInfo = {GetMinimapMouseover = function()
   local hit = {lines = {{leftText = "Wild Steelbloom"}}}
   if mode == "blink" then return blinkPresent() and hit or nil end
   if mode == "blink_stale" then return hit end
+  if mode == "blink_dead" then return Now() < t0 + 4 and hit or nil end
   if mode == "blink_update" then
     if fresh then cached = blinkPresent(); fresh = false end
     return cached and hit or nil
@@ -248,5 +257,34 @@ curx = savedCur
 bl = nil
 assert(blink("blink"):find("ABORTED: no data under the cursor", 1, true))
 bl = {20, 10}
+
+-- blink world: phase A on the blip (t=3), phase B with the mouse in the world (t=8)
+worldAfter = true
+local function bw(m, arg)
+  mode = m; fresh = true; sx, sy, alphaV = 0, 0, 1; t0 = Now()
+  local r = run("probe " .. (arg or "blink world"))
+  assert(sx == 0 and sy == 0 and alphaV == 1, "minimap not restored")
+  return r
+end
+local w = bw("blink")
+assert(w:find("Phase A: blip under the cursor, offset from the minimap center (20.0, 10.0)", 1, true), w)
+assert(w:find("RESULT: presence of a blip can be sampled by moving the minimap under a resting cursor (answer after 1 frame)", 1, true), w)
+assert(w:find("  hit (", 1, true) and w:find("  control (0,0): +1 frame absent", 1, true), w)
+assert(bw("blink", "blink world hidden"):find("(hidden)", 1, true))
+assert(bw("blink_stale"):find("RESULT: data is present even with the minimap in place", 1, true))
+assert(bw("blink_dead"):find("RESULT: the blip did not show up under the cursor", 1, true))
+foci = {{}}
+assert(bw("blink"):find("ABORTED: the mouse is over a UI element", 1, true))
+foci = nil
+worldCursor = {500 * 2, 400 * 2}
+assert(bw("blink"):find("ABORTED: the cursor must rest in the world, outside the minimap", 1, true))
+worldCursor = {100, 100}
+inCombat = true
+assert(bw("blink"):find("ABORTED: in combat", 1, true))
+inCombat = false
+worldAfter = false
+curx = 5000
+assert(bw("blink"):find("ABORTED: phase A needs the cursor on a herb blip", 1, true))
+curx = (cxm + 20) * es
 io.write("PROBE TESTS OK\n")
 ''')

@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Lancer `/hr probe blink`** en jeu (souris immobile sur un point jaune, près du centre de la minimap), puis `/hr probe blink hidden` si la première version gêne, et renvoyer les rapports. Le résultat décide de la suite (R1, R12). Relancer aussi `/hr probe minimap` (sonde v2a) pour obtenir la structure des données.
+1. **Lancer `/hr probe blink world`** en jeu (phase A : souris sur un point jaune ; phase B : souris dans le monde, immobile, hors de toute fenêtre), puis `/hr probe blink world hidden` si l'effet visible gêne, et renvoyer les rapports. Faire aussi `/hr probe minimap` avec la souris sur un sol **vide** de la minimap pour savoir si la présence dépend d'un point jaune (R13).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -57,6 +57,16 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Vérifié hors jeu sur un moteur simulé (quatre comportements et six cas d'abandon). Le comportement réel du moteur est inconnu.
 - Risques : effet visible sur la minimap pendant l'essai (quelques dixièmes de seconde), clic intercepté si un bouton est pressé (d'où la garde), conflit avec un autre add-on de minimap (position réancrée).
 
+### 2026-11-19 — Résultat de `/hr probe blink` et recherche sur NodeRadar
+- Rapport en jeu : contrôle présent, puis lecture **présente et inchangée** (1 image, 3 images, retour) pour les 4 déplacements, avec et sans `UpdateMouseoverAtPoint`. Verdict de la sonde : le survol n'est pas rafraîchi sans mouvement réel de la souris. Minimap restaurée.
+- Ce test n'est pas équivalent à la méthode documentée par NodeRadar : il part d'un curseur **déjà sur la minimap** (même cadre survolé avant et après le déplacement). NodeRadar part d'un curseur **au repos dans le monde** et amène la minimap dessous, ce qui change le cadre survolé. Le test n'est donc pas concluant pour cette méthode (voir ci-dessous).
+- Source : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/main/docs/FOREVER-PROBE.md) et [README](https://github.com/Spotnick2/NodeRadar) de NodeRadar. Constats rapportés par son auteur : build 70862, `UpdateMouseoverAtPoint` n'a plus d'effet (« Minimap is off limits », API à supprimer) ; build 70888, avec le vrai curseur sur un nœud la lecture renvoie le nœud sous le curseur et non le point demandé (**exactement notre écho**) ; build 70938, le texte devient secret mais « une lecture vide reste simple », donc on peut savoir **si** quelque chose est sous le point, pas quoi. NodeRadar arrête son balayage à partir de 70938 faute de noms.
+- Conséquence : la vérification par **présence** (D10) est précisément le cas que NodeRadar n'exploite pas ; elle est plausible mais non démontrée sur le build 70959.
+- Méthode de NodeRadar (README) : curseur au repos sur le monde, minimap déplacée sous le curseur quelques images, lecture, remise en place ; pas en combat, pas de bouton enfoncé, pas pendant un lancer de sort ni une fenêtre de butin, pas sur une créature ou un joueur, pas sur un bouton de la minimap, pas avec une infobulle, un menu ou une fenêtre ouverts ; un autre add-on ancré à la minimap arrête le balayage.
+- Zone de réponse rapportée : environ 25 sur 25 unités autour du point (16 px à l'écran sur le build 70888). Elle est grande devant l'erreur de nos coordonnées : un sondage au centre pourrait suffire, la croix de 17 positions est à réévaluer après mesure.
+- Idée notée, non retenue pour l'instant : identifier un point d'herbe par différence en coupant puis rétablissant le pistage (round 3 de NodeRadar), mais le rétablissement lance un sort de pistage avec temps de recharge sur la barre d'actions.
+- Écrit : `/hr probe blink world` (F36), qui reproduit la méthode : phase A, la souris sur un point jaune (décalage mémorisé) ; phase B, la souris au repos dans le monde, la minimap est déplacée pour amener le point sous le curseur (cas « touché ») ou à côté (contrôles), lecture à 1, 3 et 6 images, remise en place. Verdict : sondage de présence faisable, ou non. Tests hors jeu sur moteur simulé (cinq comportements, cinq abandons).
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -85,7 +95,9 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R9 | Coût d'une passe de 17 interrogations par candidat | À mesurer |
 | R10 | Tracé minimap (rotation, zoom) jamais vu en jeu | Non testé |
 | R11 | Noms d'infobulle secrets : pas de contrôle du type d'herbe, faux positifs possibles entre nœuds voisins | Accepté (D10) |
-| R12 | `UpdateMouseoverAtPoint` ne semble pas déplacer le survol : sans autre moyen de sonder une position, la vérification automatique est impossible | Ouvert, test = sonde v2b (déplacement furtif de la minimap) |
+| R12 | `UpdateMouseoverAtPoint` n'a pas d'effet positionnel (confirmé par la documentation de NodeRadar : sans effet dès le build 70862). Seule piste connue : déplacer la minimap sous un curseur au repos dans le monde | Ouvert, test = `/hr probe blink world` |
+| R13 | La présence de données est-elle liée à un point jaune sous le curseur, ou à la seule présence du curseur sur la minimap ? Jamais testé sur un sol vide | Ouvert, test = `/hr probe minimap` sur sol vide |
+| R14 | Le build 70959 (postérieur à 70938, dernier build documenté par NodeRadar) peut restreindre davantage | Ouvert |
 
 ## Commits
 | Commit | Contenu |
