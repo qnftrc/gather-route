@@ -6,6 +6,7 @@
 ## SavedVariables: HerbRouteDB
 
 Data\HerbData.lua
+Data\HerbDataGatherMate.lua
 Core.lua
 Tracking.lua
 Resolver.lua

@@ -8,6 +8,7 @@ Rappel : **aucune fonctionnalité de l'add-on de route n'a encore été testée 
 | Réf. | Fonctionnalité | Choix de conception | Test hors jeu | Tests à faire en jeu |
 |---|---|---|---|---|
 | F1 | Base des points (45 régions, 29 herbes, 13 256 points) | Générée depuis le JSON, aucun point supprimé ni dédupliqué ; jamais modifiée (D8) | Comptage identique au JSON | Une route passe bien sur un Goldthorn connu de Wild Shore (point de la base à 27,6 / 81,8) |
+| F15 | Enrichissement par GatherMate (D17) | Ajout seulement, fichier séparé, tolérance de doublon 0,5 % de la carte, zones rattachées par recouvrement, Felwood nommée à la main | Livré, vérifié hors jeu | En jeu : `/hr debug` (Felwood résolue ?), routes plus longues sans gêne, points ajoutés cohérents avec la minimap |
 | F2 | Région vers mapID | Réutilise `TomTom.NameToMapId` (correspondance normalisée, repli par préfixe), surcharge `/hr setmap`, aucun mapID en dur | Faux TomTom (4 régions) | `/hr debug` : combien des 45 régions sont résolues, notamment Riverglades, Shen'dralas, Zephras Isle |
 | F3 | Position et région courantes | Position via `TomTom:GetCurrentPlayerPosition`, remontée aux cartes parentes | Faux TomTom | Région pré-sélectionnée correcte dans plusieurs zones et sous-zones, comportement en ville ou en grotte |
 | F4 | Route optimisée | Port à l'identique du planner HTML (plus proche voisin puis 2-opt à fenêtre, distance en % sans correction d'aspect) (D2) | 4 cas identiques au JS (dont 702 et 742 points) | Comparer une route réelle avec le planner HTML sur la même zone |

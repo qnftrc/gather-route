@@ -17,6 +17,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B7 | La vérification peut se faire par **présence** d'un point : le nom lu est secret, mais l'herbe attendue est celle du waypoint, donc le nom n'est pas nécessaire | Second rapport de la sonde |
 | B8 | Pendant une route, ne garder actif que « Trouver les herbes » parmi les pistages ; rétablir la configuration d'origine à l'arrêt de la route | Demande du joueur |
 | B9 | Limiter la gêne visuelle du déplacement de la minimap pendant la vérification | Retour du joueur après `blink world` |
+| B10 | Alimenter la base avec les données de GatherMate (Forever) sans toucher aux données présentes : vérifier la concordance, garder les doublons (les nôtres), ajouter les points qui n'existent que dans GatherMate | Demande du joueur (archive `AddOns.rar`) |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.
@@ -63,6 +64,10 @@ Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/ma
 ### 3 octies Choix du joueur : vérification ciblée (livrée)
 - Choix (B9) : vérification **ciblée sur le prochain waypoint**, automatique en mode Suivi ; la variante cachée n'est pas moins gênante.
 - Livrée dans `Verify.lua` (F39) : un sondage par candidat, environ 4 images dont une avec la minimap déplacée, uniquement quand la souris repose dans le monde et que les garde-fous sont réunis ; mode `report` par défaut, retrait en `remove` après un premier point confirmé. Détail et risques dans le journal (R21 à R23).
+
+### 3 nonies Enrichissement par GatherMate (B10, livré)
+- Résultat chiffré : 14 605 points GatherMate, 12 761 doublons de la base (à moins de 0,5 %), 458 doublons entre eux, **1 386 ajouts** (dont 199 pour Felwood, région nouvelle). Détail par région dans [DONNEES_GATHERMATE.md](DONNEES_GATHERMATE.md).
+- Ajout seulement, dans `Data/HerbDataGatherMate.lua` ; `Data/HerbData.lua` inchangé. Voir la décision D17 du journal.
 
 ## 4. Conception envisagée
 

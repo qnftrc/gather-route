@@ -8,6 +8,7 @@ Réponse apportée : un add-on **séparé**, `HerbRoute/`, qui dépend de TomTom
 ## Entrées d'origine (non versionnées ici)
 - `TomTom.zip` : TomTom v4.4.1-release (Interface 120105, 120007, 120100, 11509, 16001, 20506, 38002, 40402, 50504). Sert de référence d'API.
 - `WoW_Forever_Herb_Planner.html` : le planner. Ligne 3 = les données (`REGIONS`) ; l'algorithme = `nearest` (plus proche voisin depuis la position), `improve` (inversion de segments type 2-opt, fenêtre bornée : 5 passes max, 2 si n>700, 1 si n>1800 ; fenêtre 60 si n>700 sinon min(n,220)), `pathLength`. Sortie : lignes `/way x, y`.
+- `AddOns.rar` (GatherMate2 + GatherMate2_Data, dossier `Forever`) : source de `Data/HerbDataGatherMate.lua`, non versionnée.
 - `wowhead_forever_herbes_regions_waypoints.json` : `regions -> région -> herbs -> herbe -> waypoints[{x,y}]`. 45 régions, 29 herbes, 13 256 points, coordonnées en pourcentage (0-100), doublons conservés volontairement. Noms de zones en anglais.
 
 ## Décisions de conception (validées avec l'utilisateur)
@@ -24,7 +25,8 @@ Réponse apportée : un add-on **séparé**, `HerbRoute/`, qui dépend de TomTom
 ```
 HerbRoute/
   HerbRoute.toc      Dependencies: TomTom ; SavedVariables: HerbRouteDB
-  Data/HerbData.lua  GÉNÉRÉ (tools/gen_data.py), ne pas éditer à la main
+  Data/HerbData.lua  GÉNÉRÉ (tools/gen_data.py), ne pas éditer à la main ; jamais modifié (D8)
+  Data/HerbDataGatherMate.lua  GÉNÉRÉ (tools/merge_gathermate.py) : points GatherMate ajoutés en fin de liste, base d'origine intacte (D17)
   Core.lua           init, SavedVariables, slash /herbroute et /hr
   Tracking.lua       isolement du pistage pendant une route (sauvegarde et rétablissement)
   Resolver.lua       région <-> mapID, position et région courantes
@@ -37,7 +39,7 @@ HerbRoute/
   UI.lua             fenêtre (région, herbes, départ, mode, rayon, boutons)
 tools/               génération des données et tests (voir tools/README.md)
 ```
-Ordre de chargement (toc) : Data, Core, Tracking, Resolver, MinimapUtil, RouteMath, Runner, Overlay, Probe, Verify, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
+Ordre de chargement (toc) : Data (HerbData puis HerbDataGatherMate), Core, Tracking, Resolver, MinimapUtil, RouteMath, Runner, Overlay, Probe, Verify, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
 
 ## Vérification
 Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` au JS du planner (4 cas, identiques) ; `tools/test_addon.py` exécute Core/Resolver/Runner/Overlay/UI sur un faux environnement WoW/TomTom (lupa).
@@ -53,7 +55,7 @@ Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` 
 La vérification du prochain waypoint sur la minimap (F39) est **implémentée** (`Verify.lua`) et validée hors jeu ; le besoin et les décisions sont dans `docs/BESOINS.md`. Elle repose sur la détection par lignes d'infobulle validée en jeu par `/hr probe` (`blink world`) ; la projection d'un point de la base sur la minimap reste à vérifier en jeu. Le suivi courant est dans `docs/JOURNAL.md` (décisions, risques, prochaines actions) et `docs/FONCTIONNALITES.md` (état de chaque fonctionnalité) : les mettre à jour à chaque séance. Contrainte : la base `HerbRoute_Data` n'est jamais modifiée, seuls les waypoints TomTom du trajet en cours sont retirés.
 
 ## Règle de travail (demandée par le joueur)
-Avant de répondre à une question sur le projet ou de modifier quoi que ce soit, **relire** `docs/BESOINS.md`, `docs/JOURNAL.md` et `docs/FONCTIONNALITES.md`, puis vérifier que la réponse ou le changement ne contredit ni une décision (D1 à D9, dont « base intacte »), ni une demande déjà formulée. En cas de contradiction, la signaler au joueur avant d'agir. À la fin d'un échange qui fait avancer le sujet, mettre à jour les trois fichiers (besoin, journal, statut des fonctionnalités), puis committer et pousser.
+Avant de répondre à une question sur le projet ou de modifier quoi que ce soit, **relire** `docs/BESOINS.md`, `docs/JOURNAL.md` et `docs/FONCTIONNALITES.md`, puis vérifier que la réponse ou le changement ne contredit ni une décision (D1 à D17, dont « base d'origine intacte, ajouts seulement »), ni une demande déjà formulée. En cas de contradiction, la signaler au joueur avant d'agir. À la fin d'un échange qui fait avancer le sujet, mettre à jour les trois fichiers (besoin, journal, statut des fonctionnalités), puis committer et pousser.
 
 ## Conventions
 - Pas de commentaires sauf contrainte non évidente. Pas de dépendance Ace.

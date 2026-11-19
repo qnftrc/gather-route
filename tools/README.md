@@ -8,6 +8,13 @@ python3 -I tools/gen_data.py wowhead_forever_herbes_regions_waypoints.json HerbR
 ```
 Produit `HerbRoute_Data[région][herbe] = {{x,y}, ...}` (pourcentages). Affiche `regions 45 herbs 29 points 13256` : ces nombres doivent rester identiques à ceux du JSON.
 
+## merge_gathermate.py et check_data.py — enrichir la base par ajout
+```bash
+python3 -I tools/merge_gathermate.py <dossier GatherMate2> <dossier GatherMate2_Data/Forever> --zone 1448=Felwood --report docs/DONNEES_GATHERMATE.md
+python3 -I tools/check_data.py
+```
+Le premier lit `HerbData.lua` sans le modifier, rattache chaque zone GatherMate à une région par recouvrement (les zones sans recouvrement demandent `--zone ID=Région`), écarte les points à moins de `--tol` % (0,5 par défaut) d'un point existant de la même herbe, fusionne les doublons internes et écrit `HerbRoute/Data/HerbDataGatherMate.lua`. Le second vérifie que les points d'origine sont inchangés à leur indice et que les ajouts sont distincts.
+
 ## test_math.py — fidélité de l'algorithme
 ```bash
 python3 -I tools/test_math.py WoW_Forever_Herb_Planner.html wowhead_forever_herbes_regions_waypoints.json
