@@ -86,6 +86,7 @@ function HR:Advance()
     if r.current then removeUID(r.current) end
     r.current = nil
     r.index = r.index + 1
+    while r.removed[r.index] do r.index = r.index + 1 end
     if r.index > #r.points then return finish(self) end
     showCurrent(r)
     self:RouteChanged()
@@ -112,6 +113,21 @@ function HR:SkipPoint()
         if not pointArrowAll(r) then return finish(self) end
         self:RouteChanged()
     end
+end
+
+-- Drops a point from the running route (never from the database).
+function HR:DropPoint(i)
+    local r = self.route
+    if not r or r.removed[i] then return end
+    r.removed[i] = true
+    r.removedCount = (r.removedCount or 0) + 1
+    if r.mode == "follow" then
+        if i == r.index then self:Advance() end
+    else
+        r.done[i] = true
+        removeUID(r.uids[i])
+    end
+    self:RouteChanged()
 end
 
 function HR:OnWaypointRemoved(uid)
@@ -181,10 +197,12 @@ function HR:StartRoute(region, mapID, points, start, length)
         length = length,
         index = 1,
         mode = self.db.mode,
+        removed = {},
     }
     self.route = r
     self:IsolateHerbTracking()
     if r.mode == "follow" then showCurrent(r) else showAll(r) end
+    self:StartVerify()
     self:Print(("%s: %d points, map distance %.1f."):format(region, #points, length))
     self:RouteChanged()
 end

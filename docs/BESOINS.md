@@ -60,6 +60,10 @@ Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/ma
 - Leviers : lecture à +1 image seulement (environ 2 images par sondage), minimap cachée, vérification **ciblée** du prochain waypoint (F39), déclenchement manuel, souris au repos près de la minimap, test `blink chain` (F44).
 - Choix d'usage à trancher avec le joueur : manuel (`/hr verify`), ciblé en mode Suivi, ou passe complète automatique.
 
+### 3 octies Choix du joueur : vérification ciblée (livrée)
+- Choix (B9) : vérification **ciblée sur le prochain waypoint**, automatique en mode Suivi ; la variante cachée n'est pas moins gênante.
+- Livrée dans `Verify.lua` (F39) : un sondage par candidat, environ 4 images dont une avec la minimap déplacée, uniquement quand la souris repose dans le monde et que les garde-fous sont réunis ; mode `report` par défaut, retrait en `remove` après un premier point confirmé. Détail et risques dans le journal (R21 à R23).
+
 ## 4. Conception envisagée
 
 ### 4.1 Sondes de validation (`/hr probe`) — première étape (écrites, jouées en partie)

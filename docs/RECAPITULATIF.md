@@ -35,7 +35,7 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 | Réf. | Fonctionnalité | Choix de conception | État | Tests à prévoir |
 |---|---|---|---|---|
 | F21 | Isolement du pistage pendant une route (D11) | Seul « Trouver les herbes » reste actif, configuration d'origine sauvegardée dans `HerbRouteDB` et rétablie à l'arrêt, au chargement, après combat ; « Trouver les herbes » jamais touché s'il est déjà actif (évite un temps de recharge) | **Livré**, testé hors jeu sur API simulée | En jeu : `/hr` puis vérifier les pistages du menu de la minimap ; `/hr stop` : configuration identique ; `/reload` pendant une route : rétablie ; barre d'actions sans temps de recharge parasite ; `/hr tracking off/on` |
-| F22 | Sondage des candidats (D5 révisée) | **Un sondage par candidat** par `blink` (minimap amenée sous un curseur au repos dans le monde, lecture à +1 image) ; la croix de 17 positions est abandonnée | **Débloqué** par F36 | Précision selon le zoom (R19), flicker (R18), conditions d'usage (R17) |
+| F22 | Sondage d'un candidat (D5 révisée) | Un sondage par `blink`, intégré à F39 | **Livré** (dans F39) | Précision selon le zoom (R19), flicker (R18), conditions d'usage (R17) |
 | F23 | Déclenchement à l'entrée dans le disque (D6) | Test de distance léger toutes les 0,25 à 0,5 s, 2 à 3 interrogations par point (à l'entrée, +1,5 s, avant 30 yd) | Cadré | Délai d'apparition d'un point (R8), coût par passe (R9) |
 | F24 | Retrait des waypoints sans correspondance | `TomTom:RemoveWaypoint` + état du trajet en cours seulement ; **base intacte** (D8) ; K échecs consécutifs avant retrait (D7) | Cadré | Faux négatifs (R2), reprise après `/hr restore` |
 | F25 | `/hr restore` | Remet la route d'origine conservée | Cadré | Aller-retour complet après plusieurs retraits |
@@ -44,7 +44,7 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 | F28 | Tracés | Ignorer les points retirés, couleur des confirmés | Cadré | Rendu carte et minimap |
 | F29 | Faux minimap dans les tests | Étendre `tools/test_addon.py` | Cadré | États, retraits, garde-fous |
 | F34 | Vérification par **présence** (D10) | Noms secrets acceptés ; présence = au moins une ligne d'infobulle | **Validée en principe en jeu** | Confirmer sur des points de la base (voir F22) |
-| F39 | Vérification ciblée du prochain waypoint (mode Suivi) | 1 à 2 sondages par point, retrait et passage au suivant si aucune ligne ; limite la gêne visuelle (R18) | Cadré, proposé, en attente de décision | Gêne réelle, fiabilité, comportement quand tous les candidats voisins sont vides |
+| F39 | Vérification ciblée du prochain waypoint (D12) | Un sondage = minimap déplacée une image sous un curseur au repos ; absence après 2 sondages vides ; dernier contrôle à 35 yd ; `report` par défaut, `remove` après un premier point confirmé ; base intacte | **Livré**, testé hors jeu sur moteur simulé | En jeu : messages `report` conformes à la minimap ; projection correcte (premier point confirmé) ; gêne visuelle ; fréquence des passes ; puis `/hr verify remove` |
 | F37 | ~~Cartographie par grille~~ | Abandonné : un sondage par candidat suffit | Abandonné | Aucun |
 
 **Repli si rien ne distingue un point du sol** : abandon de la vérification par la minimap, mémoire de récolte (F32).

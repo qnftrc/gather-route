@@ -9,8 +9,10 @@ Data\HerbData.lua
 Core.lua
 Tracking.lua
 Resolver.lua
+MinimapUtil.lua
 RouteMath.lua
 Runner.lua
 Overlay.lua
 Probe.lua
+Verify.lua
 UI.lua

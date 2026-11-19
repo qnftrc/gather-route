@@ -76,25 +76,29 @@ local function refreshMap()
     local prev = first == 1 and r.start or pts[first - 1]
     for i = first, last do
         local p = pts[i]
-        used = used + 1
-        local line = getLine(mapLines, mapFrame, used)
-        local c = color(i, r.index)
-        line:SetColorTexture(c[1], c[2], c[3], c[4])
-        line:SetThickness(i == r.index and 3 or 2)
-        line:SetStartPoint("TOPLEFT", canvas, prev.x / 100 * w, -prev.y / 100 * h)
-        line:SetEndPoint("TOPLEFT", canvas, p.x / 100 * w, -p.y / 100 * h)
-        line:Show()
-        prev = p
+        if not (r.removed and r.removed[i]) then
+            used = used + 1
+            local line = getLine(mapLines, mapFrame, used)
+            local c = color(i, r.index)
+            line:SetColorTexture(c[1], c[2], c[3], c[4])
+            line:SetThickness(i == r.index and 3 or 2)
+            line:SetStartPoint("TOPLEFT", canvas, prev.x / 100 * w, -prev.y / 100 * h)
+            line:SetEndPoint("TOPLEFT", canvas, p.x / 100 * w, -p.y / 100 * h)
+            line:Show()
+            prev = p
+        end
     end
     hideFrom(mapLines, used + 1)
 
     local dots = 0
     for i = r.index, r.mode == "follow" and last or 0 do
-        dots = dots + 1
-        local d = getDot(mapDots, mapFrame, dots, 10)
-        d:ClearAllPoints()
-        d:SetPoint("CENTER", canvas, "TOPLEFT", pts[i].x / 100 * w, -pts[i].y / 100 * h)
-        d:Show()
+        if not (r.removed and r.removed[i]) then
+            dots = dots + 1
+            local d = getDot(mapDots, mapFrame, dots, 10)
+            d:ClearAllPoints()
+            d:SetPoint("CENTER", canvas, "TOPLEFT", pts[i].x / 100 * w, -pts[i].y / 100 * h)
+            d:Show()
+        end
     end
     hideFrom(mapDots, dots + 1)
 end
@@ -157,6 +161,7 @@ local function refreshMinimap()
     local used, dots = 0, 0
     local pfx, pfy = 0, 0 -- the player is at the center
     for i = r.index, last do
+      if not (r.removed and r.removed[i]) then
         local dx, dy = px - wx[i], py - wy[i]
         if rotate then dx, dy = dx * cosF - dy * sinF, dx * sinF + dy * cosF end
         local fx, fy = dx / radius, dy / radius
@@ -180,6 +185,7 @@ local function refreshMinimap()
             d:Show()
         end
         pfx, pfy = fx, fy
+      end
     end
     hideFrom(miniLines, used + 1)
     hideFrom(miniDots, dots + 1)
@@ -195,6 +201,9 @@ local function computeWorld(r)
     end
     r.world = {x = x, y = y, instance = instance}
 end
+
+HR.ComputeRouteWorld = computeWorld
+HR.ViewRadius = viewRadius
 
 function HR:UpdateOverlay()
     if not hbd then return end

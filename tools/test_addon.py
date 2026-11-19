@@ -5,14 +5,16 @@ lua.execute(r'''
 local timers, now, seq = {}, 0, 0
 C_Timer = {After = function(d, f) seq = seq + 1; timers[#timers+1] = {t = now + (d or 0), s = seq, f = f} end}
 function Now() return now end
+function GetTime() return now end
 function RunTimers()
-  local n = 0
+  local n, limit = 0, now + 100
   while #timers > 0 do
     local bi = 1
     for i = 2, #timers do
       local a, b = timers[i], timers[bi]
       if a.t < b.t or (a.t == b.t and a.s < b.s) then bi = i end
     end
+    if timers[bi].t > limit then break end
     local x = table.remove(timers, bi)
     now = math.max(now, x.t); x.f(); n = n + 1
   end
@@ -57,7 +59,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Core","Tracking","Resolver","RouteMath","Runner","Overlay","Probe","UI"}) do
+for _, f in ipairs({"Data/HerbData","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -101,7 +103,7 @@ HR:StopRoute(); assert(#WP() == 0)
 
 -- bad input
 SlashCmdList.HERBROUTE("nonsense: fadeleaf"); SlashCmdList.HERBROUTE("peacebloom, nothing"); RunTimers()
-playerMap = 999; SlashCmdList.HERBROUTE("fadeleaf"); HR.route = nil
+playerMap = 999; SlashCmdList.HERBROUTE("fadeleaf"); HR:StopRoute(true); assert(#WP() == 0, "pins leaked")
 HR:ToggleUI()
 for _, l in ipairs(printed) do io.write(l, "\n") end
 print("OK")
@@ -375,4 +377,168 @@ go("stop"); assert(activeList() == names({table.unpack(start5)}), activeList())
 HR.db.trackingSnapshot = {{name = "Find Herbs", spellID = 2383}}
 setActive({"Find Herbs", "Innkeeper"}); go("tracking restore"); assert(activeList() == "Find Herbs")
 io.write("TRACKING TESTS OK\n")
+''')
+
+lua.execute(r'''
+-- verification of the next waypoint: probes, guards, report and remove modes
+local cxm, cym, es = 500, 400, 2
+local sx, sy, setCalls = 0, 0, 0
+local ppx, ppy = 950, 950 -- fake player world position (1 % of the map = 1 yd)
+local nodes, afterFirstLine, linesSeen, tracking = {}, false, 0, true
+local cursor, moving, mouseDown, combat, castName, unitUnder, tooltip, engine = {100, 100}, false, false, false, nil, false, false, "real"
+local counter = 0
+GetCursorPosition = function()
+  if moving then counter = counter + 20; return cursor[1] + counter, cursor[2] end
+  return cursor[1], cursor[2]
+end
+IsMouseButtonDown = function() return mouseDown end
+InCombatLockdown = function() return combat end
+UnitCastingInfo = function() return castName end
+UnitChannelInfo = function() return nil end
+UnitExists = function() return unitUnder end
+UnitIsDeadOrGhost = function() return false end
+UnitOnTaxi = function() return false end
+GameTooltip = {IsShown = function() return tooltip end}
+hooksecurefunc = function() end
+UIParent = {}; WorldFrame = {}
+GetMouseFoci = function() return {WorldFrame} end
+GetCVar = function() return "0" end
+Minimap = {
+  GetCenter = function() return cxm + sx, cym + sy end, GetWidth = function() return 140 end,
+  GetHeight = function() return 140 end, GetEffectiveScale = function() return es end,
+  GetZoom = function() return 1 end, IsVisible = function() return true end, GetFrameLevel = function() return 1 end,
+  GetNumPoints = function() return 1 end,
+  GetPoint = function() return "CENTER", UIParent, "CENTER", sx, sy end,
+  ClearAllPoints = function() end,
+  SetPoint = function(_, _, _, _, x, y) sx, sy = x, y; setCalls = setCalls + 1 end,
+  GetAlpha = function() return 1 end, SetAlpha = function() end,
+}
+C_Minimap = {
+  GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 1 end,
+  GetTrackingInfo = function() return {name = "Find Herbs", active = tracking, spellID = 2383} end,
+  SetTracking = function() end,
+}
+local hbd = {}
+function hbd:GetPlayerWorldPosition() return ppx, ppy, "inst" end
+function hbd:GetWorldCoordinatesFromZone(x, y) return 1000 - x * 100, 1000 - y * 100, "inst" end
+LibStub = function() return hbd end
+local canvas = {GetFrameLevel = function() return 1 end, GetWidth = function() return 100 end, GetHeight = function() return 100 end}
+WorldMapFrame = {GetCanvas = function() return canvas end, IsShown = function() return false end,
+  HookScript = function() end, GetMapID = function() return 0 end}
+HR:InitOverlay()
+HR.db.isolateTracking = false
+HR.db.mode = "follow"
+playerMap, px, py = 37, 0.5, 0.5
+
+-- true nodes are DB points {bx, by} (percent); the engine converts them to
+-- minimap offsets from the current fake player position
+local function offsetOf(n) return ppx - (1000 - n[1]), (1000 - n[2]) - ppy end
+C_TooltipInfo = {GetMinimapMouseover = function()
+  if engine == "none" then return nil end
+  local cu, cv = GetCursorPosition()
+  local dx, dy = cu / es - (cxm + sx), cv / es - (cym + sy)
+  if dx * dx + dy * dy > 70 ^ 2 then return nil end
+  for _, n in ipairs(nodes) do
+    local ox, oy = offsetOf(n)
+    if (dx - ox) ^ 2 + (dy - oy) ^ 2 <= 36 then
+      linesSeen = linesSeen + 1
+      if afterFirstLine then nodes = {} end
+      return {type = 21, dataInstanceID = 1, lines = {{type = 0}}}
+    end
+  end
+  return {type = 21, dataInstanceID = 1, lines = {}}
+end}
+
+local function go(cmd) printed = {}; SlashCmdList.HERBROUTE(cmd); RunTimers() end
+local function msgs() return table.concat(printed, "\n") end
+local peaceCount = #HerbRoute_Data["Elwynn Forest"]["Peacebloom"]
+local function reset()
+  go("stop"); nodes = {}; afterFirstLine = false; linesSeen = 0; setCalls = 0
+  ppx, ppy = 950, 950; moving = false; mouseDown = false; combat = false; castName = nil
+  unitUnder = false; tooltip = false; tracking = true; engine = "real"; cursor = {100, 100}
+end
+
+-- 1. report mode: the first point has a node -> confirmed, nothing removed
+reset(); HR.db.verify = "report"; HR.verifyHits = 0
+go("peacebloom") -- generate to know the first point
+local first = HR.route.points[1]
+reset()
+nodes = {{first.x, first.y}}
+go("peacebloom")
+local r = HR.route
+assert(r.vstate[1] and r.vstate[1].confirmed, "first point not confirmed")
+assert(HR.verifyHits >= 1 and (r.removedCount or 0) == 0 and r.vstats.probes >= 1)
+assert(setCalls == 2 * r.vstats.probes, "each probe must move and restore the minimap once: " .. setCalls .. " vs " .. r.vstats.probes)
+assert(sx == 0 and sy == 0, "minimap not restored")
+
+-- 2. remove mode, a blip was confirmed earlier: an empty point is removed
+reset(); HR.db.verify = "remove"; HR.verifyHits = 3
+go("peacebloom")
+r = HR.route
+assert(r.removed[1] and r.removedCount >= 1, msgs())
+assert(r.index > 1 and not r.removed[r.index], "the route must move on to a kept point")
+assert(#WP() == 1 and WP()[1].title:find(tostring(r.index) .. "/", 1, true), "TomTom must show the next point")
+assert(#HerbRoute_Data["Elwynn Forest"]["Peacebloom"] == peaceCount, "the database must not change")
+assert(msgs():find("has no node: removed", 1, true))
+assert(sx == 0 and sy == 0)
+assert(HR.UpdateUI == nil or pcall(HR.UpdateUI, HR))
+
+-- 3. nothing confirmed yet this session: an empty point is kept
+reset(); HR.db.verify = "remove"; HR.verifyHits = 0
+go("peacebloom")
+r = HR.route
+assert((r.removedCount or 0) == 0 and r.vstate[1].final, msgs())
+assert(msgs():find("no blip has been confirmed yet: kept", 1, true))
+
+-- 4. report mode keeps an empty point
+reset(); HR.db.verify = "report"; HR.verifyHits = 2
+go("peacebloom")
+assert((HR.route.removedCount or 0) == 0 and msgs():find("report mode, kept", 1, true), msgs())
+
+-- 5. the last check before arrival removes a node taken meanwhile
+reset(); HR.db.verify = "remove"; HR.verifyHits = 0
+nodes = {{first.x, first.y}}
+go("peacebloom")
+r = HR.route; local gen = r.vstats.confirmed
+go("stop"); reset()
+nodes = {{first.x, first.y}}; afterFirstLine = true
+ppx, ppy = 1000 - first.x + 10, 1000 - first.y -- 10 yd from the point
+HR.verifyHits = 1
+go("peacebloom")
+r = HR.route
+assert(r.removed[1], "a node taken after confirmation must be removed: " .. msgs())
+
+-- 6. guards: no probe while one of these holds
+local function blockedBy(setup, reason)
+  reset(); HR.db.verify = "remove"; HR.verifyHits = 3
+  nodes = {{first.x, first.y}}
+  setup()
+  go("peacebloom")
+  assert(HR.route.vstats.probes == 0, reason .. ": a probe ran")
+  assert(HR.verifyReason and HR.verifyReason:find(reason, 1, true), reason .. " vs " .. tostring(HR.verifyReason))
+  assert(sx == 0 and sy == 0)
+end
+blockedBy(function() mouseDown = true end, "mouse button held")
+blockedBy(function() combat = true end, "combat")
+blockedBy(function() castName = "Cast" end, "casting")
+blockedBy(function() moving = true end, "the cursor is moving")
+blockedBy(function() cursor = {(cxm + 5) * es, (cym + 5) * es} end, "the cursor is on the minimap")
+blockedBy(function() tooltip = true end, "a tooltip is open")
+blockedBy(function() unitUnder = true end, "a unit is under the cursor")
+blockedBy(function() tracking = false end, "Find Herbs tracking is not active")
+
+-- 7. an inconclusive engine never removes anything
+reset(); HR.db.verify = "remove"; HR.verifyHits = 3
+engine = "none"
+go("peacebloom")
+assert((HR.route.removedCount or 0) == 0 and HR.route.vstate[1].final and HR.route.vstate[1].none >= 4)
+
+-- 8. off, and commands
+reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
+go("peacebloom"); assert(HR.route.vstats.probes == 0)
+go("verify report"); assert(HR.db.verify == "report" and msgs():find("Verify: report", 1, true), msgs())
+go("verify remove"); assert(HR.db.verify == "remove")
+go("verify"); assert(msgs():find("this route:", 1, true), msgs())
+go("stop")
+io.write("VERIFY TESTS OK\n")
 ''')

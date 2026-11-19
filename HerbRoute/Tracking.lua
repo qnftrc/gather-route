@@ -117,6 +117,15 @@ function HR:RestoreTracking()
     self:Print("Tracking restored to your configuration.")
 end
 
+function HR:HerbTrackingActive()
+    if not api() then return nil end
+    local wanted = HR.normalize(herbsName())
+    for _, t in ipairs(list()) do
+        if isHerbs(t, wanted) then return t.active end
+    end
+    return nil
+end
+
 function HR:TrackingStatus()
     self:Print("Tracking isolation: " .. (self.db.isolateTracking and "on" or "off")
         .. (self.db.trackingSnapshot and (" (configuration saved: %d tracking(s) to restore)"):format(#self.db.trackingSnapshot) or ""))

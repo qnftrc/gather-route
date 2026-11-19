@@ -31,11 +31,13 @@ HerbRoute/
   RouteMath.lua      distance / nearest / improve / pathLength / solve
   Runner.lua         génération (coroutine + C_Timer) et pilotage TomTom
   Overlay.lua        tracé carte du monde + minimap
+  MinimapUtil.lua    helpers partagés : lecture du survol de la minimap, curseur, déplacement de la minimap
   Probe.lua          /hr probe : diagnostic de la lecture de la minimap
+  Verify.lua         vérification du prochain waypoint sur la minimap (/hr verify)
   UI.lua             fenêtre (région, herbes, départ, mode, rayon, boutons)
 tools/               génération des données et tests (voir tools/README.md)
 ```
-Ordre de chargement (toc) : Data, Core, Tracking, Resolver, RouteMath, Runner, Overlay, Probe, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
+Ordre de chargement (toc) : Data, Core, Tracking, Resolver, MinimapUtil, RouteMath, Runner, Overlay, Probe, Verify, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
 
 ## Vérification
 Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` au JS du planner (4 cas, identiques) ; `tools/test_addon.py` exécute Core/Resolver/Runner/Overlay/UI sur un faux environnement WoW/TomTom (lupa).
@@ -47,8 +49,8 @@ Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` 
 - `WorldMapFrame:GetCanvas()` et `hooksecurefunc(WorldMapFrame, "OnMapChanged", ...)` supposés disponibles (le second est gardé).
 - Le runtime WoW est Lua 5.1 ; les tests tournent sur Lua 5.5 via lupa. Éviter les constructions propres à 5.2+ (goto, opérateurs bit à bit, entiers 64 bits) et ne pas modifier la variable d'une boucle `for`.
 
-## Évolutions en cours de cadrage
-L'expression de besoin sur les points actifs, l'interrogation de la minimap et le retracé en direct est dans `docs/BESOINS.md` (rien d'implémenté). Elle suppose une validation en jeu de la lecture de la minimap (`/hr probe`) avant tout développement. Le suivi courant est dans `docs/JOURNAL.md` (décisions, risques, prochaines actions) et `docs/FONCTIONNALITES.md` (état de chaque fonctionnalité) : les mettre à jour à chaque séance. Contrainte : la base `HerbRoute_Data` n'est jamais modifiée, seuls les waypoints TomTom du trajet en cours sont retirés.
+## Évolutions
+La vérification du prochain waypoint sur la minimap (F39) est **implémentée** (`Verify.lua`) et validée hors jeu ; le besoin et les décisions sont dans `docs/BESOINS.md`. Elle repose sur la détection par lignes d'infobulle validée en jeu par `/hr probe` (`blink world`) ; la projection d'un point de la base sur la minimap reste à vérifier en jeu. Le suivi courant est dans `docs/JOURNAL.md` (décisions, risques, prochaines actions) et `docs/FONCTIONNALITES.md` (état de chaque fonctionnalité) : les mettre à jour à chaque séance. Contrainte : la base `HerbRoute_Data` n'est jamais modifiée, seuls les waypoints TomTom du trajet en cours sont retirés.
 
 ## Règle de travail (demandée par le joueur)
 Avant de répondre à une question sur le projet ou de modifier quoi que ce soit, **relire** `docs/BESOINS.md`, `docs/JOURNAL.md` et `docs/FONCTIONNALITES.md`, puis vérifier que la réponse ou le changement ne contredit ni une décision (D1 à D9, dont « base intacte »), ni une demande déjà formulée. En cas de contradiction, la signaler au joueur avant d'agir. À la fin d'un échange qui fait avancer le sujet, mettre à jour les trois fichiers (besoin, journal, statut des fonctionnalités), puis committer et pousser.

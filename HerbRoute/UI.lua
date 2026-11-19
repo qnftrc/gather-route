@@ -121,7 +121,7 @@ end
 
 local function build()
     ui = CreateFrame("Frame", "HerbRouteFrame", UIParent, "BasicFrameTemplateWithInset")
-    ui:SetSize(360, 570)
+    ui:SetSize(360, 600)
     ui:SetPoint("CENTER")
     ui:SetMovable(true)
     ui:EnableMouse(true)
@@ -205,9 +205,18 @@ local function build()
         end
     end)
 
-    ui.radiusText = label(ui, "", "TOPLEFT", 16, -486)
+    ui.verify = check(ui, "Verify the next point on the minimap", 12, -474, function(self)
+        if self:GetChecked() then
+            HR.db.verify = HR.db.verifyLast or "report"
+        else
+            if HR.db.verify ~= "off" then HR.db.verifyLast = HR.db.verify end
+            HR.db.verify = "off"
+        end
+    end)
+
+    ui.radiusText = label(ui, "", "TOPLEFT", 16, -510)
     local slider = CreateFrame("Slider", nil, ui, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -488)
+    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -512)
     slider:SetSize(190, 16)
     slider:SetMinMaxValues(5, 40)
     slider:SetValueStep(1)
@@ -246,6 +255,7 @@ local function build()
         ui.showMap:SetChecked(HR.db.showMap)
         ui.showMini:SetChecked(HR.db.showMinimap)
         ui.isolate:SetChecked(HR.db.isolateTracking)
+        ui.verify:SetChecked(HR.db.verify ~= "off")
         ui.slider:SetValue(HR.db.radius)
         if not dirty then fillPosition() end
         HR:UpdateUI()
@@ -265,7 +275,9 @@ function HR:UpdateUI()
         ui.status:SetText("Computing route...")
     elseif active then
         local i, n = self:GetProgress()
-        ui.status:SetText(("%s: point %d / %d"):format(self.route.region, i, n))
+        local removed = self.route.removedCount or 0
+        ui.status:SetText(("%s: point %d / %d%s"):format(self.route.region, i, n,
+            removed > 0 and (", " .. removed .. " removed") or ""))
     else
         ui.status:SetText("No active route")
     end

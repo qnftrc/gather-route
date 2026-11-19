@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Décider de l'usage** (voir la question posée au joueur) : vérification manuelle `/hr verify`, vérification ciblée du prochain waypoint en mode Suivi, ou passe complète automatique. Selon le choix, écrire `/hr verify`. Test complémentaire possible : `blink chain` (déplacer la minimap directement d'une position à l'autre sans la remettre, pour limiter le va-et-vient).
+1. **Tester en jeu la vérification du prochain waypoint** (F39, mode `report` par défaut) : installer le zip, lancer une route en mode Suivi, laisser la souris **immobile dans le monde** (hors fenêtre, aucun bouton, hors combat) et surveiller le chat ; `/hr verify` donne l'état et la raison d'attente. Quand les messages « has no node » correspondent à la réalité de la minimap, passer à `/hr verify remove`. Point critique : la projection d'un point sur la minimap (celle des tracés, R10) n'a jamais été vérifiée en jeu ; un premier « blip confirmé » en est la preuve.
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -129,6 +129,17 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Cause probable : la minimap est en haut à droite et la souris au repos loin à gauche, donc les décalages sont énormes (-812, -91) et (-802, -296) unités : la minimap traverse l'écran pendant l'essai. L'essai garde aussi la minimap déplacée pendant environ 6 images et fait un retour de 3 images, alors qu'une lecture à +1 image suffit.
 - Pistes pour réduire la gêne : (a) lecture à +1 image seulement puis retour immédiat (environ 2 images par sondage au lieu de 13) ; (b) minimap cachée pendant les sondages ; (c) **vérification ciblée** : ne sonder que le prochain waypoint (1 à 2 sondages par point) au lieu de tous les candidats du disque ; (d) déclenchement **manuel** (`/hr verify`) ; (e) souris au repos près de la minimap (décalages courts) ; (f) test `blink chain` : si la lecture se rafraîchit en passant directement d'une position à l'autre sans quitter la minimap, un seul va-et-vient suffit pour toute une passe (non testé : le test `blink` d'origine comptait n'importe quelle donnée, donc invalide).
 
+### 2026-11-19 — Choix du joueur et vérification ciblée du prochain waypoint écrite (F39)
+- Réponses du joueur : usage **ciblé sur le prochain waypoint** (automatique, mode Suivi) ; la variante cachée n'est **pas** moins gênante, donc on réduit la durée et le nombre de déplacements plutôt que de cacher la minimap.
+- Implémentation : nouveau `Verify.lua` ; helpers partagés extraits dans `MinimapUtil.lua` (lecture du survol, curseur, déplacement de la minimap) et réutilisés par `Probe.lua`.
+- **Un sondage = 2 déplacements de la minimap** (placer, relire à +1 image, remettre) puis 2 images de repos, soit environ 4 images au total dont une seule avec la minimap déplacée, contre une quinzaine pour la sonde de test. Les sondes ne tournent que si toutes les conditions sont réunies.
+- Déclenchement : le point courant de la route (le prochain waypoint) est sondé quand il entre dans 85 % du rayon de vue de la minimap. Résultat : « ligne » = confirmé ; « vide » (la minimap est sous le curseur mais sans ligne) ; « aucun » = inconclusif (retry, abandon après 4). Un point est déclaré **absent après 2 sondages vides d'affilée** espacés de 1,5 s ; un point confirmé est **recontrôlé une fois à moins de 35 yd** (nœud pris entre-temps).
+- Modes (`/hr verify off|report|remove|status`, case dans la fenêtre) : **`report` par défaut** (message dans le chat, point conservé), `remove` retire le point : waypoint TomTom retiré, passage au point suivant, base intacte (D8). Garde-fou : **aucun retrait tant qu'aucun point n'a été confirmé dans la session** (sinon une projection fausse viderait toute la route).
+- Garde-fous de sondage : pistage « Trouver les herbes » actif, pas de combat, pas mort ni en vol, aucun bouton de souris, pas de lancer de sort, minimap visible, curseur **hors de la minimap** et sur le monde (pas sur l'interface), aucune unité sous le curseur, aucune infobulle ni fenêtre de butin, curseur immobile depuis 0,5 s, même position de curseur avant et après le sondage. La raison d'attente est consultable (`/hr verify`).
+- Autres changements : `Runner.lua` (`DropPoint`, `removed`, avancement qui saute les points retirés), `Overlay.lua` (tracés qui ignorent les points retirés ; exporte la projection), `Tracking.lua` (`HerbTrackingActive`), commande `/hr verify`, compteur « removed » dans la fenêtre.
+- Tests hors jeu sur un moteur de minimap simulé : report et remove, premier point confirmé, point vide retiré avec passage au suivant (waypoint TomTom suivant affiché, base de points inchangée), aucun retrait sans point confirmé, node pris après confirmation, 8 garde-fous, moteur inconclusif, off et commandes. Un artefact de test (pins qui fuyaient entre deux séries) corrigé.
+- **Non testé en jeu** : la projection sur la minimap de la base de points, la fiabilité de la détection sur des points de la base (erreur de coordonnées), l'effet visuel réel d'un déplacement d'une image, la fréquence réelle des passes avec une souris souvent en mouvement.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -137,12 +148,13 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D3 | Deux modes : Suivi (un waypoint à la fois) et Tout afficher | 2026-11-19 | Appliquée |
 | D4 | Tracés carte et minimap dessinés par l'add-on | 2026-11-19 | Appliquée (non testée en jeu) |
 | D5 | ~~Sondage de la minimap aux seuls emplacements connus, avec croix de 17 positions~~ → **un seul sondage par candidat, par déplacement de la minimap sous le curseur** (`UpdateMouseoverAtPoint` sans effet) | 2026-11-19 | **Révisée** après `blink world` |
-| D6 | Vérification déclenchée à l'entrée d'un point dans le disque de la minimap, 2 à 3 interrogations par point | 2026-11-19 | Cadrée |
+| D6 | Vérification déclenchée à l'entrée du **prochain waypoint** dans le disque de la minimap (85 % du rayon), 2 sondages vides d'affilée pour déclarer l'absence, un dernier contrôle à moins de 35 yd | 2026-11-19 | **Appliquée** (F39, non testée en jeu) |
 | D7 | La route d'origine est conservée ; on retire des points au lieu de la recalculer | 2026-11-19 | Cadrée |
 | D8 | **Base intacte** : `HerbRoute_Data` n'est jamais modifiée ; seuls les waypoints TomTom du trajet en cours sont retirés | 2026-11-19 | Contrainte |
 | D9 | Pas de recalage de la base à partir des écarts mesurés | 2026-11-19 | Contrainte |
 | D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. **Présence = au moins une ligne d'infobulle** (une donnée vide n'est pas une présence). Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | **Rétablie et redéfinie** après le rapport `watch` ; à confirmer par `blink world` (R13) |
 | D11 | Pendant une route, seul « Trouver les herbes » reste actif ; la configuration d'origine est sauvegardée et rétablie à l'arrêt, au chargement ou après combat. Option désactivable | 2026-11-19 | Appliquée (non testée en jeu) |
+| D12 | Vérification **ciblée** sur le prochain waypoint (choix du joueur), automatique en mode Suivi, **`report` par défaut**, retrait seulement en mode `remove` et seulement après au moins un point confirmé dans la session ; la minimap n'est pas cachée (la variante cachée n'est pas moins gênante) | 2026-11-19 | Appliquée (non testée en jeu) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
@@ -167,6 +179,9 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R18 | Effet visible du déplacement de la minimap | **Confirmé gênant par le joueur** ; la variante cachée donne la même lecture (non jugée) ; à réduire (lecture à +1 image, vérification ciblée, déclenchement manuel) |
 | R19 | Résolution dépendante du zoom : zone d'environ 20 unités, soit de l'ordre de 50 yd au zoom 0 et 17 yd au zoom le plus fort (estimation) | À mesurer à plusieurs zooms |
 | R20 | Un autre add-on ancré à la minimap (ou son habillage) peut perturber le déplacement | À observer en jeu |
+| R21 | La projection d'un point de la base sur la minimap (formule du tracé minimap) n'a jamais été vérifiée en jeu : si elle est fausse, tous les sondages tombent à côté | Garde-fou : aucun retrait avant un premier point confirmé ; à valider en jeu |
+| R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoquerait un retrait à tort | Atténué par 2 sondages, mode `report` par défaut, base intacte ; à mesurer en jeu |
+| R23 | Les passes exigent une souris immobile dans le monde : avec la souris tenue pour la caméra, elles seront souvent en attente | Raison visible par `/hr verify` ; à mesurer |
 
 ## Commits
 | Commit | Contenu |
