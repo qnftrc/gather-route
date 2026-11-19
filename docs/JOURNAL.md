@@ -3,10 +3,16 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-0. **Tester les minerais en jeu** (zip à jour) : `/hr debug`, puis la fenêtre (cases Herbs / Ores), `/hr ores copper vein` dans une zone de minerais, vérifier que seul « Trouver les minéraux » reste actif pendant la route et que la configuration d'origine est rétablie à l'arrêt ; ouvrir la fenêtre sans erreur Lua (`/console scriptErrors 1`). La vérification minimap sur un minerai (calibrée sur un point d'herbe) n'est pas validée : rester en mode `report`.
-1. **Retester avec le zip qui vérifie la projection** : route en mode Suivi, souris immobile dans le monde, mode `report`. Au premier point vide, l'add-on sonde jusqu'à 12 points voisins pour trouver un nœud ; un message « projection confirmed » ou « none of the … nearest points has a node » apparaît. Dans le second cas, lancer `/hr verify scan` (carte ASCII points jaunes / points projetés) et coller la fenêtre. Quand « projection confirmed » apparaît, passer à `/hr verify remove`.
-2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
-3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
+Mis à jour le 2026-11-19 (fin de session). État : tout est livré, commité et poussé ; la **lecture de la minimap, la calibration (herbes et minerais), la projection des points et le tracé de la carte du monde sont validés en jeu** ; le reste est testé hors jeu seulement.
+
+1. **Vérification et retrait en conditions réelles** (herbes puis minerais) : lancer une route en mode `report`, comparer les messages « has no node » aux points jaunes de la minimap (un nœud récolté ou pas réapparu est un vrai « absent »), puis passer à `/hr verify remove`. Sans sécurité sur la projection (D20), surveiller qu'aucune série de points existants n'est retirée. Observer la gêne visuelle des sondages en avance (`/hr verify ahead off` pour la couper).
+2. **`/hr reroute on`** pendant une route avec des retraits : la cible suivante change-t-elle de façon acceptable ? Le message « Reroute from your position » apparaît-il, le waypoint TomTom suit-il ?
+3. **Fenêtre et réglages** (`/console scriptErrors 1`) : cases Herbs / Ores, liste des régions par catégorie, cases remontées après le retrait du mode « Tout afficher » (F7, retiré, D25), `/hr merge` (comptes : herbes 10 458, minerais 8 834 avec la fusion), `/hr button`, raccourcis clavier dans Échap > Options > Raccourcis clavier > AddOns > HerbRoute.
+4. **`/hr debug`** : 46 régions résolues (Felwood, Mount Hyjal, Riverglades, Shen'dralas, Zephras Isle).
+5. **Performance** : tracé de la minimap avec tous les points restants sur une route de plusieurs centaines de points.
+6. À lancer un jour : `/hr verify arming` (durée de la lecture après un survol réel, R26).
+7. **Décisions en attente** : durée de réapparition des nœuds (recherche sans réponse fiable, aucune fonction de mémoire de récolte, F56 à F58 annulées) ; export Wowhead des minerais « Ooze Covered » (identifiants à fournir) ; `/hr restore` (F25) jamais codé.
+8. **Écartés, ne pas reproposer sans nouvelle demande** : relief et chemin praticable (B13), mémoire des points visités, nouveaux nœuds par balayage et validation par le butin (F56 à F58), mode « Tout afficher » (D25), sonde `C_Navigation`.
 
 ## Journal
 
