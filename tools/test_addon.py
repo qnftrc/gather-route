@@ -819,5 +819,24 @@ end
 ns2.db = {region = "Elwynn Forest", herbs = {}, ores = {}, category = "ores", mode = "follow", radius = 15, overrides = {}}
 ns2:ToggleUI()
 assert(ns2.db.category == "ores")
+-- probe nav: absent API, then a simulated one (the slash command now belongs to ns2)
+HR = ns2
+HR.db.probe = nil
+SlashCmdList.HERBROUTE("probe nav"); RunTimers()
+assert(HR.db.probe and HR.db.probe.text:find("C_Navigation.GetDistance is not available", 1, true), table.concat(printed, " / "))
+local wpSet, supers, cleared = nil, {}, false
+C_Navigation = {GetDistance = function() return 500 end, GetTargetState = function() return 2 end}
+C_SuperTrack = {SetSuperTrackedUserWaypoint = function(v) supers[#supers + 1] = v end, IsSuperTrackingUserWaypoint = function() return false end}
+UiMapPoint = {CreateFromCoordinates = function(m, x, y) return {m, x, y} end}
+CreateVector2D = function(x, y) return {GetXY = function() return x * 1000, y * 1000 end} end
+C_Map.GetWorldPosFromMapPos = function(m, v) return 0, v end
+C_Map.GetUserWaypoint = function() return nil end
+C_Map.SetUserWaypoint = function(p) wpSet = p end
+C_Map.ClearUserWaypoint = function() cleared = true end
+SlashCmdList.HERBROUTE("probe nav"); RunTimers()
+local t = HR.db.probe.text
+assert(t:find("RESULT:", 1, true) and t:find("ratio", 1, true), t)
+assert(cleared and supers[#supers] == false, "the player's own waypoint state must be restored")
+C_Navigation, C_SuperTrack, UiMapPoint, CreateVector2D = nil, nil, nil, nil
 io.write("ORE TESTS OK\n")
 ''')

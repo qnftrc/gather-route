@@ -326,6 +326,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Contradiction à lever avant de coder : **D2** (algorithme repris à l'identique du planner, distance euclidienne) ; la proposition est une **option désactivée par défaut**, la route actuelle reste identique quand elle est coupée.
 - Limite de fond : l'API de l'add-on ne donne ni relief, ni navmesh, ni pathfinding ; il faut une donnée de franchissabilité venue d'ailleurs (apprise en marchant, extraite hors jeu, ou approchée par les points eux-mêmes). Étapes proposées dans la réponse ; choix de la source à trancher par le joueur.
 
+### 2026-11-19 — Sonde `/hr probe nav` (B13, relief)
+- Question du joueur : existe-t-il une base de la topologie ? Réponse : oui dans les fichiers du client et les maillages de navigation d'émulateurs (à générer soi-même, non vérifié pour Forever), pas chez Wowhead ni GatherMate. Piste gratuite : `C_Navigation`.
+- Livré : `/hr probe nav` liste les tables `C_Navigation`, `C_SuperTrack`, `C_PathFinder` et toute table `C_*nav*`, puis, si `GetDistance` existe, pose un waypoint de carte temporaire sur 3 à 6 cibles, sur le super-suivi, lit `GetDistance` et `GetTargetState` (jusqu'à 2 s par cible) et compare à la distance en ligne droite (coordonnées du monde via `C_Map.GetWorldPosFromMapPos`). Verdict : « toutes à moins de 5 % de la ligne droite » (probablement sans relief) ou « certaines diffèrent » (peut-être sensible au relief). Le waypoint utilisateur et le super-suivi d'origine sont rétablis.
+- Effet de bord : le waypoint de carte du joueur est remplacé quelques secondes, puis remis. À lancer **sans route TomTom critique** et de préférence près de montagnes pour que le contraste soit parlant.
+- Suite selon le rapport : si la distance est sensible au relief, l'utiliser pour la matrice de coûts (B13) ; sinon, pénalisation des longs segments puis grille apprise.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
