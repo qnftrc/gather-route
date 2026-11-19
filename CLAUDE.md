@@ -28,6 +28,7 @@ HerbRoute/
   Data/HerbData.lua  GÉNÉRÉ (tools/gen_data.py), ne pas éditer à la main ; jamais modifié (D8)
   Data/HerbDataGatherMate.lua  GÉNÉRÉ (tools/merge_gathermate.py) : points GatherMate ajoutés en fin de liste, base d'origine intacte (D17)
   Data/OreDataGatherMate.lua  GÉNÉRÉ (tools/merge_gathermate.py --category ores) : `HerbRoute_OreData[région][minerai]`, catégorie séparée (D18)
+  Data/OreDataWowhead.lua  GÉNÉRÉ (tools/merge_wowhead_ores.py) : points de minerais Wowhead ajoutés en fin de liste, `OreDataGatherMate.lua` intact (D17/D18)
   Core.lua           init, SavedVariables, slash /herbroute et /hr
   Tracking.lua       isolement du pistage pendant une route (sauvegarde et rétablissement)
   Resolver.lua       région <-> mapID, position et région courantes
@@ -40,7 +41,7 @@ HerbRoute/
   UI.lua             fenêtre (région, herbes, départ, mode, rayon, boutons)
 tools/               génération des données et tests (voir tools/README.md)
 ```
-Ordre de chargement (toc) : Data (HerbData, HerbDataGatherMate puis OreDataGatherMate), Core, Tracking, Resolver, MinimapUtil, RouteMath, Runner, Overlay, Probe, Verify, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
+Ordre de chargement (toc) : Data (HerbData, HerbDataGatherMate, OreDataGatherMate puis OreDataWowhead), Core, Tracking, Resolver, MinimapUtil, RouteMath, Runner, Overlay, Probe, Verify, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
 
 ## Vérification
 Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` au JS du planner (4 cas, identiques) ; `tools/test_addon.py` exécute Core/Resolver/Runner/Overlay/UI sur un faux environnement WoW/TomTom (lupa).

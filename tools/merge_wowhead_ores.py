@@ -10,7 +10,7 @@ the same ore and region (GatherMate or already accepted) is a duplicate and is d
 is written to a separate file that appends it to HerbRoute_OreData when the addon loads.
 
 usage:
-  python3 -I tools/merge_wowhead_ores.py wowhead_ores_mapperdata.json [--tol 0.5] [--report docs/DONNEES_WOWHEAD_MINERAIS.md]
+  python3 -I tools/merge_wowhead_ores.py wowhead_ores_mapperdata.json [--tol 0.5] [--zone 2482=Mount Hyjal] [--report docs/DONNEES_WOWHEAD_MINERAIS.md]
 """
 import argparse
 import collections
@@ -41,12 +41,16 @@ def main():
     ap.add_argument("export")
     ap.add_argument("--base", default="HerbRoute/Data/OreDataGatherMate.lua")
     ap.add_argument("--zone-map", default="docs/DONNEES_GATHERMATE.md")
+    ap.add_argument("--zone", action="append", default=[], help="uiMapId=Region for zones absent from the zone table")
     ap.add_argument("--out", default="HerbRoute/Data/OreDataWowhead.lua")
     ap.add_argument("--tol", type=float, default=0.5)
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
 
     zones = zone_table(args.zone_map)
+    for item in args.zone:
+        zid, name = item.split("=", 1)
+        zones[int(zid)] = name
     base = sandbox_table(args.base, "HerbRoute_OreData")
     ours = {}
     for region in base.keys():
@@ -64,6 +68,9 @@ def main():
             continue
         per_region = collections.defaultdict(list)
         for zone, items in entry["data"].items():
+            if not isinstance(items, list) or not all(isinstance(i, dict) and "coords" in i for i in items):
+                print("no spawn points for", ore, "(unexpected data shape, ignored)", file=sys.stderr)
+                break
             for item in items:
                 region = zones.get(item.get("uiMapId"))
                 if region is None:

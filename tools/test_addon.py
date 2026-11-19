@@ -60,7 +60,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
+for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -762,14 +762,14 @@ HR:OnLoaded()
 playerMap = 37; px, py = 0.5, 0.5
 if HR.route then HR:StopRoute(true) end
 
-assert(#HR:GetRegions("ores") == 41 and #HR:GetRegions("herbs") == 46, #HR:GetRegions("ores") .. "/" .. #HR:GetRegions("herbs"))
+assert(#HR:GetRegions("ores") == 42 and #HR:GetRegions("herbs") == 46, #HR:GetRegions("ores") .. "/" .. #HR:GetRegions("herbs"))
 local ores = HR:GetHerbs("Elwynn Forest", "ores")
 assert(#ores > 0 and HR:GetHerbs("Elwynn Forest", "herbs")[1] ~= ores[1])
 for _, o in ipairs(ores) do assert(not HerbRoute_Data["Elwynn Forest"][o], "ore name in the herb data: " .. o) end
 local total = 0
 for _, regions in pairs(HerbRoute_OreData) do for _, pts in pairs(regions) do total = total + #pts for _, p in ipairs(pts) do
   assert(p[1] >= 0 and p[1] <= 100 and p[2] >= 0 and p[2] <= 100) end end end
-assert(total == 8920, total)
+assert(total == 9440, total)
 
 local herbsBefore = HR.db.herbs
 go("ores copper vein")

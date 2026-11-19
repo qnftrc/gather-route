@@ -332,6 +332,13 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Pas de donnée fabriquée : rien n'est ajouté à la base tant que l'export n'est pas fourni ; le fichier généré n'est pas dans `HerbRoute.toc`.
 - Suite : le joueur lance le script, envoie `wowhead_ores_mapperdata.json` ; fusion, ajout à la table des matières, tests, zip.
 
+### 2026-11-19 — Export Wowhead des minerais importé (F51, B14)
+- Fichier du joueur : 13 gisements, **titres tous conformes** aux noms attendus (identifiants de mémoire corrects). Positions pour 12 : cuivre 2 526, étain 1 250, argent 1 368, or 1 158, fer 1 275, mithril 1 058, véritargent 1 086, thorium (petit 397, riche 312), fer noir 196, pierre de sang inférieure 13, incendicite 15. **Indurium** : la page ne contient pas de points (données d'une autre forme), ignoré. 3 points sans carte écartés.
+- Rattachement : par `uiMapId` via le tableau de la fusion GatherMate ; **Mount Hyjal (2482)** absente de ce tableau, nommée à la main (`--zone 2482=Mount Hyjal`), région déjà présente côté herbes ; 56 points de thorium riche y sont ajoutés.
+- Concordance : 10 071 des 10 651 points Wowhead (95 %) étaient déjà dans la base (GatherMate), 60 sont des doublons entre eux, **520 ajoutés** : fer +132, argent +105, or +68, cuivre +67, étain +42, mithril +27, thorium riche +56, véritargent +21, incendicite +2.
+- Existant intact : `OreDataGatherMate.lua` non modifié ; `Data/OreDataWowhead.lua` ajouté au chargement après lui. Tests mis à jour (42 régions, 9 440 points de minerais).
+- Outil : `merge_wowhead_ores.py` accepte `--zone ID=Région` et ignore les entrées sans points.
+
 ## Commits
 | Commit | Contenu |
 |---|---|

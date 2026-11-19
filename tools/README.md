@@ -22,7 +22,7 @@ Pour les minerais : `python3 -I tools/merge_gathermate.py <GatherMate2> <GatherM
 ```bash
 python3 -I tools/merge_wowhead_ores.py wowhead_ores_mapperdata.json --report docs/DONNEES_WOWHEAD_MINERAIS.md
 ```
-L'outil rattache chaque `uiMapId` à une région par le tableau de `docs/DONNEES_GATHERMATE.md`, écarte les points à moins de `--tol` % d'un point existant du même minerai et de la même région (`OreDataGatherMate.lua` est seulement lu), et écrit `HerbRoute/Data/OreDataWowhead.lua` (ajout seul). Ajouter ensuite `Data\OreDataWowhead.lua` à la table des matières après `OreDataGatherMate.lua` et à la liste de chargement de `tools/test_addon.py`.
+L'outil rattache chaque `uiMapId` à une région par le tableau de `docs/DONNEES_GATHERMATE.md`, écarte les points à moins de `--tol` % d'un point existant du même minerai et de la même région (`OreDataGatherMate.lua` est seulement lu), et écrit `HerbRoute/Data/OreDataWowhead.lua` (ajout seul) ; une zone absente du tableau se nomme par `--zone 2482="Mount Hyjal"`. Déjà fait pour l'export du joueur ; sinon ajouter `Data\OreDataWowhead.lua` à la table des matières après `OreDataGatherMate.lua` et à la liste de chargement de `tools/test_addon.py`.
 
 ## test_math.py — fidélité de l'algorithme
 ```bash

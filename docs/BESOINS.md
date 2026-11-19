@@ -79,6 +79,9 @@ Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/ma
 - 11 011 points GatherMate (Forever), 41 zones, 18 minerais ; **8 920 points** gardés après fusion des positions à moins de 0,5 % (2 091 fusionnés). Détail par région dans [DONNEES_GATHERMATE_MINERAIS.md](DONNEES_GATHERMATE_MINERAIS.md).
 - Fichier `Data/OreDataGatherMate.lua` (`HerbRoute_OreData[région][minerai]`), à part des herbes. Choix de la catégorie dans la fenêtre (cases Herbs / Ores) et par `/hr ores`. Voir la décision D18 du journal.
 
+### 3 undecies Minerais Wowhead (B14, livré)
+- Export du joueur (`wowhead_ores_mapperdata.json`) : 13 gisements, 12 avec positions (10 651 points rattachés), **520 points ajoutés** après écart des doublons à 0,5 % (10 071 déjà dans la base, 60 fusionnés entre eux). Détail par minerai dans [DONNEES_WOWHEAD_MINERAIS.md](DONNEES_WOWHEAD_MINERAIS.md). Fichier `Data/OreDataWowhead.lua`.
+
 ## 4. Conception envisagée
 
 ### 4.1 Sondes de validation (`/hr probe`) — première étape (écrites, jouées en partie)

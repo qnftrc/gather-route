@@ -8,6 +8,7 @@
 Data\HerbData.lua
 Data\HerbDataGatherMate.lua
 Data\OreDataGatherMate.lua
+Data\OreDataWowhead.lua
 Core.lua
 Tracking.lua
 Resolver.lua
