@@ -8,6 +8,62 @@ Légende des statuts :
 
 Colonnes de vérification : « Hors jeu » = testé par script ou faux environnement ; « En jeu » = testé dans le client WoW (aucune fonctionnalité ne l'est encore).
 
+## Répartition par famille
+
+Deux familles : ce qui **construit la base de données** (points d'herbes et de minerais, avant et au chargement) et ce qui **permet de créer et de suivre la route** (au moment de jouer). Les tableaux détaillés plus bas restent classés par statut ; chaque référence F appartient à une seule famille, sauf F16 (une part de données, une part de route) et F14 (transversale).
+
+### A. Construire la base de données
+| Réf. | Fonctionnalité | Où | État |
+|---|---|---|---|
+| F1 | Base d'herbes embarquée (45 régions, 29 herbes, 13 256 points), jamais modifiée (D8) | `Data/HerbData.lua`, `tools/gen_data.py` | Livré |
+| F15 | Ajouts GatherMate pour les herbes (+1 386 points, région Felwood), ajout seulement (D17) | `Data/HerbDataGatherMate.lua`, `tools/merge_gathermate.py`, `tools/check_data.py` | Livré |
+| F16 (données) | Minerais GatherMate (8 920 points, 41 régions, 18 minerais), catégorie à part (D18) | `Data/OreDataGatherMate.lua`, `tools/merge_gathermate.py --category ores` | Livré |
+| F51 | Minerais Wowhead par export du navigateur (520 points ajoutés) | `Data/OreDataWowhead.lua`, `tools/wowhead_export_ores.js`, `tools/merge_wowhead_ores.py` | Livré |
+| F54 | Fusion des points voisins à 1 unité au chargement (`/hr merge`), fichiers intacts (D21) | `Resolver.lua` (`DataFor`) | Livré |
+| — | Outils de contrôle : comparaison avec GatherMate, rapport des doublons | `tools/compare_sources.py`, `tools/report_duplicates.py`, `docs/COMPARAISON_BASES.md`, `docs/DOUBLONS.md` | Livré |
+
+### B. Créer et suivre la route
+**B1. Préparer et générer**
+| Réf. | Fonctionnalité | État |
+|---|---|---|
+| F2 | Région vers carte TomTom, surcharge `/hr setmap` | Livré |
+| F3 | Région et position courantes | Livré |
+| F16 (route) | Choix herbes ou minerais, puis région, puis type | Livré |
+| F9, F10, F13 | Commandes `/hr`, fenêtre, réglages mémorisés | Livré |
+| F4 | Route optimisée (plus proche voisin puis 2-opt, identique au planner) | Livré |
+| F5 | Génération sans gel du client | Livré |
+
+**B2. Suivre**
+| Réf. | Fonctionnalité | État |
+|---|---|---|
+| F6, F7 | Mode Suivi, mode Tout afficher | Livré |
+| F8 | Skip, Stop, retrait externe | Livré |
+| F53 | Touches clavier et bouton Skip | Livré |
+
+**B3. Afficher**
+| Réf. | Fonctionnalité | État |
+|---|---|---|
+| F11 | Tracé sur la carte du monde | Livré, défaut constaté, correctif à retester |
+| F12 | Tracé sur la minimap | Livré |
+
+**B4. Vérifier et ajuster avec la minimap**
+| Réf. | Fonctionnalité | État |
+|---|---|---|
+| F21 | Isolement du pistage pendant une route | Livré |
+| F22, F23, F24, F26, F27, F28, F34, F39 | Vérification du point courant, modes `report` et `remove` | Livré |
+| F49 | Vérification en avance sur toute la route | Livré |
+| F52 | Retrait des minerais | Livré, calibration validée |
+| F47 | Calibration de la méthode de sondage | Livré et validé en jeu |
+| F55 | Réordonnancement après retraits (`/hr reroute`) | Livré |
+
+**B5. Diagnostiquer** (activité archivée de la story map, code conservé)
+| Réf. | Fonctionnalité | État |
+|---|---|---|
+| F20, F36, F38 | `/hr probe`, `blink world`, `watch` | Livré et validé en jeu |
+| F45, F46, F48 | `/hr verify probe`, `scan`, `arming` | Livré |
+
+**Transversal** : F14 documentation et zip d'installation.
+
 ## Livré (HerbRoute v1.0.0)
 | Réf. | Fonctionnalité | Statut | Hors jeu | En jeu | Fichiers |
 |---|---|---|---|---|---|

@@ -423,6 +423,9 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 ### 2026-11-19 — Archivage de l'activité « Diagnostiquer » de la story map
 - Demande du joueur : archiver la partie « Diagnostiquer ». Interprétation retenue : l'activité 8 de la story map. Déplacée dans [archives/STORY_MAP_DIAGNOSTIC.md](archives/STORY_MAP_DIAGNOSTIC.md), avec un renvoi dans [STORY_MAP.md](STORY_MAP.md). **Seule la documentation est touchée** : `/hr debug`, `/hr probe`, `/hr verify probe|scan|arming` et leurs statuts dans `FONCTIONNALITES.md` sont inchangés.
 
+### 2026-11-19 — Fonctionnalités réparties en deux familles
+- Demande du joueur : distinguer ce qui construit la base de données et ce qui permet de créer la route. Ajouté en tête de `FONCTIONNALITES.md` une section « Répartition par famille » : **A. Construire la base** (F1, F15, F16 pour la part données, F51, F54 et les outils de contrôle) et **B. Créer et suivre la route** (B1 préparer et générer, B2 suivre, B3 afficher, B4 vérifier et ajuster, B5 diagnostiquer). F16 est partagée (données et choix de catégorie), F14 transversale. Les tableaux par statut sont inchangés.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
