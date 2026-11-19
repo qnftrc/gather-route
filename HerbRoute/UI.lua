@@ -158,7 +158,7 @@ end
 
 local function build()
     ui = CreateFrame("Frame", "HerbRouteFrame", UIParent, "BasicFrameTemplateWithInset")
-    ui:SetSize(360, 600)
+    ui:SetSize(360, 624)
     ui:SetPoint("CENTER")
     ui:SetMovable(true)
     ui:EnableMouse(true)
@@ -250,9 +250,13 @@ local function build()
         HR.db.revive = self:GetChecked() and true or false
     end)
 
-    ui.radiusText = label(ui, "", "TOPLEFT", 16, -502)
+    ui.nearest = check(ui, "Go to the nearest filled point first", 12, -490, function(self)
+        HR.db.nearest = self:GetChecked() and true or false
+    end)
+
+    ui.radiusText = label(ui, "", "TOPLEFT", 16, -526)
     local slider = CreateFrame("Slider", nil, ui, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -504)
+    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -528)
     slider:SetSize(190, 16)
     slider:SetMinMaxValues(5, 40)
     slider:SetValueStep(1)
@@ -292,6 +296,7 @@ local function build()
         ui.verify:SetChecked(HR.db.verify ~= "off")
         ui.reroute:SetChecked(HR.db.reroute == true)
         ui.revive:SetChecked(HR.db.revive ~= false)
+        ui.nearest:SetChecked(HR.db.nearest ~= false)
         ui.slider:SetValue(HR.db.radius)
         if not dirty then fillPosition() end
         HR:UpdateUI()

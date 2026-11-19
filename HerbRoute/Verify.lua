@@ -237,6 +237,8 @@ local function probe(ox, oy, done, detail, opts)
     end
 end
 
+HR.PointGeometry = geometry
+
 local function decideAbsent(r, i, st)
     local p = r.points[i]
     local label = ("point %d/%d (%s)"):format(i, #r.points, p.herb)
@@ -292,6 +294,7 @@ local function step(r)
                 st.confirmed = true
                 r.vstats.confirmed = r.vstats.confirmed + 1
             end
+            HR:RetargetNearest(r)
         elseif result == "empty" then
             st.misses = st.misses + 1
             if st.misses >= MISSES then decideAbsent(r, i, st) else st.nextAt = GetTime() + RETRY end
@@ -337,6 +340,7 @@ local function aheadStep(r)
                         HR.verifyHits = HR.verifyHits + 1
                         st.confirmed = true
                         r.vstats.confirmed = r.vstats.confirmed + 1
+                        HR:RetargetNearest(r)
                     elseif result == "empty" then
                         st.final = true
                         r.vstats.empty = r.vstats.empty + 1

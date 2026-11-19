@@ -15,6 +15,7 @@ local defaults = {
     mergeDuplicates = true,
     reroute = false,
     revive = true,
+    nearest = true,
     skipButton = {shown = false},
     overrides = {},
 }
@@ -90,6 +91,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
+    HR:Print("/hr nearest [on|off] - the filled point nearest to you becomes the target, the route is recomputed on arrival (on by default)")
     HR:Print("/hr revive [on|off] - put skipped or removed points that respawn on the minimap back in the route (on by default)")
     HR:Print("/hr reroute [on|off|now] - reorder the points ahead after points are removed (off by default)")
     HR:Print("/hr merge [on|off] - merge points closer than 1% of the map (the data files stay untouched)")
@@ -119,6 +121,10 @@ local function handleSlash(msg)
         if arg == "on" or arg == "off" then HR.db.reroute = arg == "on" end
         if arg == "now" then return HR:Reroute() end
         HR:Print("Reroute after removals: " .. (HR.db.reroute == true and "on" or "off") .. " (/hr reroute on|off|now): reorders the points ahead from the current one; the database is never changed.")
+    elseif cmd == "nearest" then
+        local arg = rest:lower()
+        if arg == "on" or arg == "off" then HR.db.nearest = arg == "on" end
+        HR:Print("Nearest filled point as target: " .. (HR.db.nearest == false and "off" or "on") .. " (/hr nearest on|off): the route is recomputed from your position once that waypoint is reached; the database is never changed.")
     elseif cmd == "revive" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then HR.db.revive = arg == "on" end

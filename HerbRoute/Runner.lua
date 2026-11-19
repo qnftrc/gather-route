@@ -77,6 +77,8 @@ function HR:Advance(skipped)
     local r = self.route
     if not r or r.mode ~= "follow" then return end
     if skipped and r.points[r.index] then noteSkipped(r, r.points[r.index], "skip") end
+    local replan = r.rerouteOnArrival and not skipped
+    r.rerouteOnArrival = nil
     if r.current then removeUID(r.current) end
     r.current = nil
     r.index = r.index + 1
@@ -84,6 +86,7 @@ function HR:Advance(skipped)
     if r.index > #r.points then return finish(self) end
     showCurrent(r)
     self:RouteChanged()
+    if replan then self:Reroute() end
 end
 
 function HR:SkipPoint()
@@ -244,6 +247,52 @@ function HR:ReviveSkipped(entry)
     end
     self:Print(("Revive: %s respawned inside the minimap (%s earlier): back in the route as point %d/%d%s."):format(
         np.herb, entry.cause == "absent" and "removed" or "skipped", bestPos, #r.points, becomesCurrent and ", next target" or ""))
+    self:RouteChanged()
+    self:RetargetNearest(r)
+    return true
+end
+
+local function moveToIndex(r, from, to)
+    local p = table.remove(r.points, from)
+    table.insert(r.points, to, p)
+    local function remap(t)
+        local out = {}
+        for j, v in pairs(t) do
+            local nj = j
+            if j == from then nj = to elseif j >= to and j < from then nj = j + 1 end
+            out[nj] = v
+        end
+        return out
+    end
+    r.removed = remap(r.removed)
+    if r.vstate then r.vstate = remap(r.vstate) end
+end
+
+-- After a probe found a node: among the filled points (confirmed by the
+-- minimap) that are inside the minimap, the one nearest to the player becomes
+-- the target, with a new TomTom waypoint. The route is recomputed from the
+-- player's position once that waypoint is reached. No distance threshold.
+function HR:RetargetNearest(r)
+    r = r or self.route
+    if not r or r.mode ~= "follow" or self.db.nearest == false or not self.PointGeometry or not r.vstate then return false end
+    local bestJ, bestD
+    for j = r.index, #r.points do
+        local st = r.vstate[j]
+        if st and st.confirmed and not r.removed[j] then
+            local g = self.PointGeometry(r, j)
+            if g and g.inside and (not bestD or g.dist < bestD) then bestJ, bestD = j, g.dist end
+        end
+    end
+    if not bestJ or bestJ == r.index then return false end
+    moveToIndex(r, bestJ, r.index)
+    r.world = nil
+    r.rev = (r.rev or 0) + 1
+    if r.current then removeUID(r.current) end
+    r.current = nil
+    showCurrent(r)
+    r.rerouteOnArrival = true
+    self:Print(("Nearest: %s is filled, %d yd away: new target (point %d/%d)."):format(
+        r.points[r.index].herb, math.floor(bestD + 0.5), r.index, #r.points))
     self:RouteChanged()
     return true
 end

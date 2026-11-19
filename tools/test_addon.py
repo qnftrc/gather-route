@@ -851,6 +851,43 @@ ppx, ppy = 1000 - oreP.x + 10, 1000 - oreP.y; nodes = {{oreP.x, oreP.y}}
 printed = {}; RunTimers()
 assert(msgs():find("Revive: Copper Vein respawned", 1, true) and r.revivedCount == 1, msgs())
 go("stop")
+-- 14. F61: a filled point found by a probe becomes the target (new waypoint); the route is recomputed on arrival
+reset(); HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.nearest = true; HR.db.reroute = false
+HR.db.revive = false; HR.verifyHits = 0; hitR = 1.5
+nodes = {{ptsA[target].x, ptsA[target].y}}
+go("peacebloom")
+r = HR.route
+assert(msgs():find("Nearest: Peacebloom is filled", 1, true) and msgs():find("new target (point 1/", 1, true), msgs())
+assert(r.points[1].x == ptsA[target].x and r.points[1].y == ptsA[target].y, "the filled point must be the target")
+assert(#r.points == #ptsA and r.vstate[1] and r.vstate[1].confirmed, "same route size, confirmed state follows the point")
+assert(#WP() == 1 and WP()[1].title:find("1/", 1, true), "one new waypoint must be active")
+assert(r.rerouteOnArrival == true, "the recalculation on arrival must be armed")
+local pointsBefore = r.points
+printed = {}
+HR:Advance() -- the waypoint is reached
+RunTimers()
+assert(msgs():find("Reroute from", 1, true) and r.rerouteOnArrival == nil, "the route must be recomputed on arrival: " .. msgs())
+assert(#HerbRoute_Data["Elwynn Forest"]["Peacebloom"] == peaceCount and sx == 0 and sy == 0)
+go("stop")
+-- off: no change of target
+reset(); HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.nearest = false; HR.db.revive = false; hitR = 1.5
+nodes = {{ptsA[target].x, ptsA[target].y}}
+go("peacebloom"); r = HR.route
+assert(not msgs():find("Nearest:", 1, true) and not r.rerouteOnArrival and r.index == 1, msgs())
+go("nearest on"); assert(HR.db.nearest == true and msgs():find("Nearest filled point as target: on", 1, true), msgs())
+go("nearest off"); assert(HR.db.nearest == false)
+HR.db.nearest = true
+go("stop")
+-- a skip cancels the pending recalculation
+reset(); HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.nearest = true; HR.db.revive = false; hitR = 1.5
+nodes = {{ptsA[target].x, ptsA[target].y}}
+go("peacebloom"); r = HR.route
+assert(r.rerouteOnArrival == true)
+printed = {}; HR:SkipPoint(); RunTimers()
+assert(r.rerouteOnArrival == nil and not msgs():find("Reroute from", 1, true), msgs())
+go("stop")
+HR.db.revive = true
+
 Minimap.SetAlpha = baseSetAlpha
 
 -- 8. off, and commands
