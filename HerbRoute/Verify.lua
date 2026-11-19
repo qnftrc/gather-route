@@ -313,9 +313,11 @@ local function step(r)
     end, nil, recipeOpts())
 end
 
--- Probes the next undecided point, beyond the current one, that is inside the
--- minimap. Returns true while such a point remains (probed now or waiting).
-local function aheadStep(r)
+-- Candidates beyond the current point that are inside the minimap and still
+-- undecided: the one nearest to the player is returned (with its geometry);
+-- `pending` is true while any such point remains, probed now or waiting.
+local function pickAhead(r)
+    local bestJ, bestG, pending
     for j = r.index + 1, #r.points do
         local st = r.vstate[j]
         if not st then
@@ -325,46 +327,45 @@ local function aheadStep(r)
         if not r.removed[j] and not st.final and not st.confirmed then
             local g = geometry(r, j)
             if g and g.inside then
-                if GetTime() < st.nextAt then return true end
-                local why = blocked()
-                if why then
-                    HR.verifyReason = "waiting: " .. why
-                    return true
-                end
-                HR.verifyReason = "probing ahead"
-                probe(g.ox, g.oy, function(result, cause)
-                    if HR.route ~= r or r.removed[j] then return end
-                    r.vstats.probes = r.vstats.probes + 1
-                    r.vstats.ahead = (r.vstats.ahead or 0) + 1
-                    if result == "line" then
-                        HR.verifyHits = HR.verifyHits + 1
-                        st.confirmed = true
-                        r.vstats.confirmed = r.vstats.confirmed + 1
-                        HR:RetargetNearest(r)
-                    elseif result == "empty" then
-                        st.final = true
-                        r.vstats.empty = r.vstats.empty + 1
-                        local label = ("point %d/%d (%s)"):format(j, #r.points, r.points[j].herb)
-                        if HR.db.verify == "remove" then
-                            HR:Print(("Verify: %s has no node: removed."):format(label))
-                            HR:DropPoint(j)
-                        else
-                            HR:Print(("Verify: %s has no node (report mode, kept; /hr verify remove to remove)."):format(label))
-                        end
-                    else
-                        st.none = st.none + 1
-                        r.vstats.none = r.vstats.none + 1
-                        r.vstats.causes[cause] = (r.vstats.causes[cause] or 0) + 1
-                        HR.lastCause = cause
-                        st.nextAt = GetTime() + math.min(10, 1 + st.none * 1.5)
-                    end
-                    HR:RouteChanged()
-                end, nil, recipeOpts())
-                return true
+                pending = true
+                if GetTime() >= st.nextAt and (not bestG or g.dist < bestG.dist) then bestJ, bestG = j, g end
             end
         end
     end
-    return false
+    return bestJ, bestG, pending
+end
+
+local function runAhead(r, j, g)
+    local st, p = r.vstate[j], r.points[j]
+    HR.verifyReason = "probing ahead"
+    probe(g.ox, g.oy, function(result, cause)
+        if HR.route ~= r or r.removed[j] or r.points[j] ~= p then return end
+        r.vstats.probes = r.vstats.probes + 1
+        r.vstats.ahead = (r.vstats.ahead or 0) + 1
+        if result == "line" then
+            HR.verifyHits = HR.verifyHits + 1
+            st.confirmed = true
+            r.vstats.confirmed = r.vstats.confirmed + 1
+            HR:RetargetNearest(r)
+        elseif result == "empty" then
+            st.final = true
+            r.vstats.empty = r.vstats.empty + 1
+            local label = ("point %d/%d (%s)"):format(j, #r.points, r.points[j].herb)
+            if HR.db.verify == "remove" then
+                HR:Print(("Verify: %s has no node: removed."):format(label))
+                HR:DropPoint(j)
+            else
+                HR:Print(("Verify: %s has no node (report mode, kept; /hr verify remove to remove)."):format(label))
+            end
+        else
+            st.none = st.none + 1
+            r.vstats.none = r.vstats.none + 1
+            r.vstats.causes[cause] = (r.vstats.causes[cause] or 0) + 1
+            HR.lastCause = cause
+            st.nextAt = GetTime() + math.min(10, 1 + st.none * 1.5)
+        end
+        HR:RouteChanged()
+    end, nil, recipeOpts())
 end
 
 local REVIVE_STAYS = 3  -- empty probes of one skipped point per stay inside the minimap
@@ -374,7 +375,7 @@ local REVIVE_RETRY = 3
 -- Skipped or removed points that are back inside the minimap are probed with
 -- the minimap hidden while it moves. A node found is put back in the route;
 -- nothing found changes nothing and prints nothing.
-local function reviveStep(r)
+local function pickRevive(r)
     if HR.db.revive == false or not r.skipped or #r.skipped == 0 then return end
     local hbd = hbdLib()
     if not hbd or not HR.ViewRadius then return end
@@ -392,23 +393,46 @@ local function reviveStep(r)
             e.inside = false
         end
     end
-    if not best or blocked() then return end
+    return best, bestG
+end
+
+local function runRevive(r, e, g)
     local base = recipeOpts()
     if not base then return end
     local opts = {hidden = true}
     for k, v in pairs(base) do opts[k] = v end
-    probe(bestG.ox, bestG.oy, function(result)
+    probe(g.ox, g.oy, function(result)
         if HR.route ~= r then return end
         if result == "line" then
             HR.verifyHits = HR.verifyHits + 1
-            HR:ReviveSkipped(best)
+            HR:ReviveSkipped(e)
         elseif result == "empty" then
-            best.stay = best.stay + 1
-            best.nextAt = GetTime() + REVIVE_GAP
+            e.stay = e.stay + 1
+            e.nextAt = GetTime() + REVIVE_GAP
         else
-            best.nextAt = GetTime() + REVIVE_RETRY
+            e.nextAt = GetTime() + REVIVE_RETRY
         end
     end, nil, opts)
+end
+
+-- One pool of candidates (points ahead and skipped points that came back):
+-- the one nearest to the player is probed first.
+local function probeCandidates(r)
+    local aj, ag, pending
+    if HR.db.verify ~= "off" and (HR.db.verifyAhead or r.aheadOnce) then aj, ag, pending = pickAhead(r) end
+    if r.aheadOnce and not aj and not pending then
+        r.aheadOnce = nil
+        HR:Print(("Verify ahead: done (%d point(s) probed ahead, %d removed so far)."):format(r.vstats.ahead or 0, r.removedCount or 0))
+    end
+    local re, rg = pickRevive(r)
+    if not aj and not re then return end
+    local useAhead = aj and (not re or ag.dist <= rg.dist)
+    local why = blocked()
+    if why then
+        if useAhead then HR.verifyReason = "waiting: " .. why end
+        return
+    end
+    if useAhead then runAhead(r, aj, ag) else runRevive(r, re, rg) end
 end
 
 function HR:StartVerify()
@@ -421,16 +445,8 @@ function HR:StartVerify()
         if HR.route ~= r then return end
         updateRest()
         if r.mode == "follow" and not probing then
-            if HR.db.verify ~= "off" then
-                step(r)
-                if not probing and (HR.db.verifyAhead or r.aheadOnce) then
-                    if not aheadStep(r) and r.aheadOnce then
-                        r.aheadOnce = nil
-                        HR:Print(("Verify ahead: done (%d point(s) probed ahead, %d removed so far)."):format(r.vstats.ahead or 0, r.removedCount or 0))
-                    end
-                end
-            end
-            if not probing then reviveStep(r) end
+            if HR.db.verify ~= "off" then step(r) end
+            if not probing then probeCandidates(r) end
         end
         C_Timer.After(TICK, tick)
     end

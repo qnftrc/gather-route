@@ -888,6 +888,30 @@ assert(r.rerouteOnArrival == nil and not msgs():find("Reroute from", 1, true), m
 go("stop")
 HR.db.revive = true
 
+-- 15. probes go to the candidate nearest to the player first (points ahead)
+reset(); HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.nearest = false; HR.db.revive = false; hitR = 1.5
+nodes = {}
+for _, q in ipairs(ptsA) do nodes[#nodes + 1] = {q.x, q.y} end
+local seen, seenSet, origRetarget = {}, {}, HR.RetargetNearest
+HR.RetargetNearest = function(self, rt)
+  if rt then
+    for j = rt.index + 1, #rt.points do
+      local st = rt.vstate[j]
+      if st and st.confirmed and not seenSet[st] then
+        seenSet[st] = true
+        seen[#seen + 1] = HR.PointGeometry(rt, j).dist
+      end
+    end
+  end
+  return origRetarget(self, rt)
+end
+go("peacebloom")
+HR.RetargetNearest = origRetarget
+assert(#seen >= 5, "not enough ahead probes: " .. #seen)
+for k = 2, #seen do assert(seen[k] >= seen[k - 1] - 1e-6, ("probe %d is nearer than probe %d"):format(k, k - 1)) end
+go("stop")
+HR.db.nearest = true; HR.db.revive = true
+
 Minimap.SetAlpha = baseSetAlpha
 
 -- 8. off, and commands
