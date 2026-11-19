@@ -71,13 +71,37 @@ HR.regionToMap = {}
 HR.mapToRegion = {}
 HR.unresolved = {}
 
+HR.SEEN_ITEM = "Seen on minimap"
+
+-- The points the player added (seen on the minimap, or added by hand) are stored in
+-- HerbRouteDB.discovered, apart from the data files, and appear as extra points.
 function HR:DataFor(category)
-    local c = self.categories[category or "herbs"]
+    category = category or "herbs"
+    local c = self.categories[category]
+    local base = c.data
     if self.db and self.db.mergeDuplicates == true then
         if not c.merged then c.merged = mergeNeighbours(c.data, HR.MERGE_TOL) end
-        return c.merged
+        base = c.merged
     end
-    return c.data
+    local disc = self.db and self.db.discovered and self.db.discovered[category]
+    if not disc or next(disc) == nil then return base end
+    if c.extra and c.extraBase == base and c.extraRev == (self.dataRev or 0) then return c.extra end
+    local out = {}
+    for region, items in pairs(base) do out[region] = items end
+    for region, list in pairs(disc) do
+        local items = {}
+        for item, pts in pairs(base[region] or {}) do items[item] = pts end
+        for _, d in ipairs(list) do
+            local item = d.item or HR.SEEN_ITEM
+            local pts = {}
+            for _, p in ipairs(items[item] or {}) do pts[#pts + 1] = p end
+            pts[#pts + 1] = {d.x, d.y}
+            items[item] = pts
+        end
+        out[region] = items
+    end
+    c.extra, c.extraBase, c.extraRev = out, base, self.dataRev or 0
+    return out
 end
 
 function HR:GetRegions(category)

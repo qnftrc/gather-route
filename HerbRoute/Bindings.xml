@@ -2,6 +2,9 @@
   <Binding name="HERBROUTE_SKIP" header="HERBROUTE" category="ADDONS">
     HerbRoute:SkipPoint()
   </Binding>
+  <Binding name="HERBROUTE_DISCOVER" category="ADDONS">
+    HerbRoute:VerifyScan(true)
+  </Binding>
   <Binding name="HERBROUTE_STOP" category="ADDONS">
     HerbRoute:StopRoute()
   </Binding>
