@@ -332,142 +332,8 @@ local function runWatch()
     tick()
 end
 
--- /hr probe nav: does the client expose a walking distance (C_Navigation)
--- that accounts for terrain? Sets a temporary map waypoint on a few targets and
--- compares the distance it reports with the straight-line distance; the
--- player's own waypoint and super-tracking are put back afterwards.
-local NAV_TRIES = 8
-
-local function listApi(name)
-    local t = _G[name]
-    if type(t) ~= "table" then return name .. ": absent" end
-    local keys = {}
-    for k in pairs(t) do keys[#keys + 1] = tostring(k) end
-    table.sort(keys)
-    return name .. ": " .. table.concat(keys, ", ")
-end
-
-local function worldPos(map, x, y)
-    if not (C_Map and C_Map.GetWorldPosFromMapPos and CreateVector2D) then return end
-    local ok, instance, vec = pcall(C_Map.GetWorldPosFromMapPos, map, CreateVector2D(x, y))
-    if ok and vec and vec.GetXY then
-        local px, py = vec:GetXY()
-        return px, py
-    end
-end
-
-local function runNav()
-    lines = {}
-    add("HerbRoute navigation probe, build %s", select(2, GetBuildInfo()) or "?")
-    add(listApi("C_Navigation"))
-    add(listApi("C_SuperTrack"))
-    add(listApi("C_PathFinder"))
-    local others = {}
-    for k, v in pairs(_G) do
-        if type(k) == "string" and type(v) == "table" and k:sub(1, 2) == "C_" and k:lower():find("nav") and k ~= "C_Navigation" then
-            others[#others + 1] = k
-        end
-    end
-    table.sort(others)
-    add("Other C_*nav* tables: %s", #others > 0 and table.concat(others, ", ") or "none")
-
-    local nav = C_Navigation
-    if type(nav) ~= "table" or type(nav.GetDistance) ~= "function" then
-        add("RESULT: C_Navigation.GetDistance is not available on this client.")
-        return finish()
-    end
-    if not (C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates
-        and C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint) then
-        add("RESULT: C_Navigation exists but the user waypoint / super-tracking functions are missing: cannot drive it.")
-        return finish()
-    end
-
-    local map, px, py = TomTom:GetCurrentPlayerPosition()
-    if not map then
-        add("ABORTED: no player position.")
-        return finish()
-    end
-    local wx, wy = worldPos(map, px, py)
-    add("Player: map %s, %.1f, %.1f, world %s, %s", tostring(map), px * 100, py * 100, tostring(wx), tostring(wy))
-
-    local targets = {}
-    local r = HR.route
-    if r and r.mapID == map and #r.points > 0 then
-        for _, i in ipairs({1, math.ceil(#r.points / 2), #r.points}) do
-            targets[#targets + 1] = {x = r.points[i].x / 100, y = r.points[i].y / 100, label = "route point " .. i}
-        end
-    end
-    for _, d in ipairs({{0.08, 0}, {-0.08, 0}, {0, 0.08}, {0, -0.08}}) do
-        local x, y = px + d[1], py + d[2]
-        if x > 0.02 and x < 0.98 and y > 0.02 and y < 0.98 then
-            targets[#targets + 1] = {x = x, y = y, label = ("offset %+d,%+d %%"):format(d[1] * 100, d[2] * 100)}
-        end
-        if #targets >= 6 then break end
-    end
-
-    local prevWp = C_Map.GetUserWaypoint and C_Map.GetUserWaypoint()
-    local prevSuper = C_SuperTrack.IsSuperTrackingUserWaypoint and C_SuperTrack.IsSuperTrackingUserWaypoint()
-    local function restore()
-        if prevWp and C_Map.SetUserWaypoint then
-            pcall(C_Map.SetUserWaypoint, prevWp)
-        elseif C_Map.ClearUserWaypoint then
-            pcall(C_Map.ClearUserWaypoint)
-        end
-        if not prevSuper then pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, false) end
-    end
-
-    local results, k = {}, 0
-    local function nextTarget()
-        k = k + 1
-        local t = targets[k]
-        if not t then
-            restore()
-            local diff, n = 0, 0
-            for _, e in ipairs(results) do if e.ratio then n = n + 1 if math.abs(e.ratio - 1) > 0.05 then diff = diff + 1 end end end
-            if n == 0 then
-                add("RESULT: no distance returned: C_Navigation could not be driven with a user waypoint here.")
-            elseif diff == 0 then
-                add("RESULT: %d distance(s), all within 5%% of the straight line: probably straight-line, not terrain-aware.", n)
-            else
-                add("RESULT: %d of %d distances differ from the straight line by more than 5%%: possibly terrain-aware (check the ratios).", diff, n)
-            end
-            return finish()
-        end
-        local ok = pcall(function()
-            C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(map, t.x, t.y))
-            C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-        end)
-        local tx, ty = worldPos(map, t.x, t.y)
-        local straight = (wx and tx) and math.sqrt((wx - tx) ^ 2 + (wy - ty) ^ 2) or nil
-        local tries, last = 0, nil
-        local function poll()
-            tries = tries + 1
-            local okd, d = pcall(nav.GetDistance)
-            local state
-            if nav.GetTargetState then
-                local oks, s = pcall(nav.GetTargetState)
-                if oks then state = s end
-            end
-            if okd and type(d) == "number" and d > 0 then last = d end
-            if last or tries >= NAV_TRIES or not ok then
-                local e = {label = t.label, straight = straight, nav = last, state = state}
-                if last and straight and straight > 0 then e.ratio = last / straight end
-                results[#results + 1] = e
-                add("%s (%.1f, %.1f): straight %s yd, GetDistance %s, ratio %s, state %s%s", t.label, t.x * 100, t.y * 100,
-                    straight and ("%.0f"):format(straight) or "?", last and ("%.0f"):format(last) or "none",
-                    e.ratio and ("%.2f"):format(e.ratio) or "?", tostring(state), ok and "" or " (waypoint call failed)")
-                return nextTarget()
-            end
-            C_Timer.After(0.25, poll)
-        end
-        C_Timer.After(0.25, poll)
-    end
-    nextTarget()
-end
-
 local function usage()
     HR:Print("/hr probe - environment, functions, read of the real mouse hover")
-    HR:Print("/hr probe nav - is a terrain-aware walking distance available (C_Navigation)?")
     HR:Print("/hr probe minimap - same after 3 s, with the mouse on the minimap")
     HR:Print("/hr probe watch - log how the real hover changes while you move the mouse")
     HR:Print("/hr probe blink world [hidden] - move the minimap under a resting cursor")
@@ -487,8 +353,6 @@ function Probe:Run(arg)
     elseif arg == "blink world" or arg == "blink world hidden" then
         HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap and keep it still."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() blinkWorld(arg == "blink world hidden") end)
-    elseif arg == "nav" then
-        runNav()
     elseif arg == "copy" then
         local saved = HR.db.probe
         if not saved then return HR:Print("No saved probe report.") end

@@ -85,7 +85,7 @@ local function usage()
     HR:Print("/hr stop | skip | debug | map (test of the world map overlay)")
     HR:Print("/hr tracking [on|off|status|restore] - keep only Find Herbs during a route")
     HR:Print("/hr verify [off|report|remove|status|ahead [on|off]|probe|scan|calibrate|arming] - check the next point on the minimap")
-    HR:Print("/hr probe [minimap|watch|nav|blink world [hidden]|copy] - test minimap reading")
+    HR:Print("/hr probe [minimap|watch|blink world [hidden]|copy] - test minimap reading")
     HR:Print("/hr setmap <region>: <mapID> - force the map ID of a region")
 end
 

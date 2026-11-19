@@ -53,7 +53,6 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) ; verdict sur la présence = au moins une ligne | **Livré et validé en jeu** sur deux points, en version visible et cachée : touché = ligne à +1 image, contrôles à 40 unités = aucune ; **déplacement jugé gênant** par le joueur ; verdict corrigé (un contrôle vide suffit, les points voisins sont signalés) ; autres zooms non testés | Test en jeu (zooms) | `Probe.lua` |
 | F37 | ~~Cartographie de la présence par `blink` sur une grille~~ | **Abandonné** : inutile, un sondage par candidat suffit | n/a | n/a |
 | F38 | `/hr probe watch` : 15 s, journal des changements de présence (lignes) et de signature | **Livré et validé en jeu** : lignes uniquement sur un point (carré d'une vingtaine d'unités), « empty » au sol, « none » hors minimap | Terminé | `Probe.lua` |
-| F50 | `/hr probe nav` : le client expose-t-il une distance de marche tenant compte du relief (`C_Navigation.GetDistance`) ? Compare à la ligne droite sur 3 à 6 cibles, rétablit le waypoint du joueur | **Livré** (testé hors jeu sur API simulée), **à lancer en jeu** | Test en jeu | `Probe.lua` |
 
 ## Idées et options
 | Réf. | Fonctionnalité | Statut | Remarque |
