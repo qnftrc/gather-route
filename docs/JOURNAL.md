@@ -272,7 +272,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R24 | La vérification n'obtenait aucune donnée de survol, puis une variante renvoyait des lectures sans valeur | **Rouvert** : seule `blink world` a détecté un point connu ; la méthode est maintenant choisie par calibration sur un point connu |
 | R25 | Aucune des sept méthodes ne détecte un point connu en jeu | **Écarté** : six méthodes sur sept détectent le point (calibration du build 70959) |
 | R26 | Les sondes sur le waypoint courant ne recevaient aucune donnée | **Résolu en principe** : le pin TomTom masqué (D15), `focus=Minimap`, données renvoyées en jeu |
-| R27 | Pistage des minerais : le sort 2580 et le nom « Find Minerals » viennent du client d'origine ; la vérification minimap n'a été calibrée que sur un point d'herbe | À tester en jeu ; mode `report` conseillé pour les minerais |
+| R27 | Pistage des minerais : le sort 2580 et le nom « Find Minerals » viennent du client d'origine ; la vérification minimap n'avait été calibrée que sur un point d'herbe | **Levé en partie** : calibration sur un point de minerai réussie (méthode « plain », 2026-11-19) ; reste à voir la projection et le retrait en route de minerais, mode `report` conseillé d'abord |
 
 ### 2026-11-19 — Minerais GatherMate et choix de catégorie (F16, besoin B11)
 - Demande du joueur : « la même chose pour les ores de GatherMate », même format, même déclinaison **par zone puis par catégorie** : une option pour choisir entre herbes et minerais, puis par type d'herbe ou de minerai. « Tout le reste est inchangé. »
@@ -369,6 +369,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Livré : `HR:DataFor(catégorie)` (`Resolver.lua`) renvoie les points fusionnés si `HerbRouteDB.mergeDuplicates == true` (**activé par défaut**), sinon les points bruts ; la fusion garde le **premier** point de chaque voisinage (même région et même type, distance ≤ 1,0 % de la carte) et écarte les suivants, dans l'ordre des fichiers (la base d'origine passe donc avant les ajouts). Les listes de types, les comptes de la fenêtre et la génération des routes utilisent ces points. `/hr merge [on|off]` active, coupe et affiche les totaux.
 - Chiffres : herbes **14 642 → 10 458** (−4 184), minerais **9 440 → 8 834** (−606). Ils diffèrent des « points en trop » du tableau précédent (4 334 et 756) : celui-ci comptait par groupes de voisins reliés en chaîne, la fusion garde un point par voisinage (distance directe), donc un peu plus de points. Tests : comptes égaux à une fusion de référence, fichiers de données intacts, route de minerais construite sur les points fusionnés, commande.
 - Conséquences : routes plus courtes ; la vérification minimap n'est pas modifiée ; D2 (algorithme du planner) inchangée, seules les entrées diffèrent ; couper la fusion (`/hr merge off`) retrouve exactement l'ancien comportement.
+
+### 2026-11-19 — Rapport `/hr verify calibrate ores` : la lecture fonctionne sur un point de minerai
+- Rapport en jeu (build 70959, pistage « Trouver les minéraux », mouse sur un point jaune de minerai) : six méthodes sur sept voient le point (« line ») avec témoin vide ; « curseur logiciel + mise à jour » renvoie vide (invalide, comme pour les herbes) ; méthode **« plain » mémorisée**, vérification automatique activée. Les deux premiers essais avaient échoué pour des raisons d'usage : souris pas sur le point (« no tooltip line under the cursor »), puis curseur resté sur la minimap en phase B (« the cursor is on the minimap »).
+- Conclusion : la détection par lignes d'infobulle marche aussi sur les minerais, avec la même méthode que les herbes ; **R27 est levé sur ce point** (reste : projection des points de minerai, comportement du retrait en route).
+- Rappel d'usage : phase A souris sur le point jaune, phase B (5 s) souris dans le monde, hors minimap et fenêtres, immobile.
 
 ## Commits
 | Commit | Contenu |
