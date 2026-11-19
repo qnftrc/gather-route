@@ -40,8 +40,10 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F28 | Tracés : ignorer les points retirés, couleur des points confirmés | Cadré | F24 | `Overlay.lua` |
 | F29 | Faux minimap dans les tests pour valider états, retraits et garde-fous | Cadré | F23 | `tools/test_addon.py` |
 | F34 | Vérification par **présence** d'un point (noms secrets acceptés) ; présence = au moins une ligne d'infobulle | Cadré, **validée en principe en jeu** (`blink world` : point = ligne, contrôles = aucune) | F36 | `Verify.lua` |
+| F39 | **Vérification ciblée du prochain waypoint** (mode Suivi) : 1 à 2 sondages par point au lieu de tous les candidats du disque, pour limiter la gêne visuelle (R18) ; si le point n'a pas de ligne, retrait et vérification du suivant | Cadré, **proposé**, décision du joueur en attente | F22 | `Verify.lua` |
+| F44 | Test `blink chain` : déplacer la minimap directement d'une position à l'autre sous le curseur, sans la remettre, pour savoir si la lecture se rafraîchit | Idée | F36 | `Probe.lua` |
 | F35 | ~~Déplacement de la minimap sous un curseur déjà sur la minimap (`/hr probe blink`)~~ | **Retiré** : non concluant en jeu, remplacé par F36 | n/a | n/a |
-| F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) ; verdict sur la présence = au moins une ligne | **Livré et validé en jeu** : le point amené sous le curseur renvoie une ligne à +1 image, les contrôles à 40 unités aucune ; reste à tester la variante `hidden` et d'autres zooms | Test en jeu (hidden, zooms) | `Probe.lua` |
+| F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) ; verdict sur la présence = au moins une ligne | **Livré et validé en jeu** sur deux points, en version visible et cachée : touché = ligne à +1 image, contrôles à 40 unités = aucune ; **déplacement jugé gênant** par le joueur ; autres zooms non testés | Test en jeu (zooms) | `Probe.lua` |
 | F37 | ~~Cartographie de la présence par `blink` sur une grille~~ | **Abandonné** : inutile, un sondage par candidat suffit | n/a | n/a |
 | F38 | `/hr probe watch` : 15 s, journal des changements de présence (lignes) et de signature | **Livré et validé en jeu** : lignes uniquement sur un point (carré d'une vingtaine d'unités), « empty » au sol, « none » hors minimap | Terminé | `Probe.lua` |
 

@@ -16,6 +16,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B6 | **Version simplifiée de B4 (prioritaire)** : garder la route d'origine générée, vérifier sur la minimap que chaque point existe, et retirer de la route (avec `TomTom:RemoveWaypoint`) les points sans correspondance, au fil de l'eau, à une cadence fonction du rayon de la minimap. C'est l'add-on qui interroge la minimap et retire les points lui-même | Dernier résumé du joueur |
 | B7 | La vérification peut se faire par **présence** d'un point : le nom lu est secret, mais l'herbe attendue est celle du waypoint, donc le nom n'est pas nécessaire | Second rapport de la sonde |
 | B8 | Pendant une route, ne garder actif que « Trouver les herbes » parmi les pistages ; rétablir la configuration d'origine à l'arrêt de la route | Demande du joueur |
+| B9 | Limiter la gêne visuelle du déplacement de la minimap pendant la vérification | Retour du joueur après `blink world` |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.
@@ -53,6 +54,11 @@ Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/ma
 - `watch` (13:51) et `blink world` (13:52) : la minimap renvoie une ligne d'infobulle seulement pour un point d'herbe sous le curseur ; amener un point sous un curseur au repos dans le monde en déplaçant la minimap suffit (lecture à +1 image) ; les positions à 40 unités n'ont aucune ligne.
 - Conséquences : **un sondage par candidat** (la croix de 17 positions est abandonnée, D5 révisée) ; chaque sondage coûte environ 4 images ; la précision dépend du zoom ; la vérification est **opportuniste** (curseur immobile dans le monde, hors combat, aucun bouton enfoncé, aucune fenêtre).
 - Proposition de première version : `/hr verify` déclenché à la main (simulation d'abord, retrait optionnel via `TomTom:RemoveWaypoint`, base intacte), puis automatisation.
+
+### 3 septies Gêne visuelle du déplacement (B9)
+- `blink world` visible et caché : même lecture, reproductible sur deux points. Le joueur juge le déplacement de la minimap gênant.
+- Leviers : lecture à +1 image seulement (environ 2 images par sondage), minimap cachée, vérification **ciblée** du prochain waypoint (F39), déclenchement manuel, souris au repos près de la minimap, test `blink chain` (F44).
+- Choix d'usage à trancher avec le joueur : manuel (`/hr verify`), ciblé en mode Suivi, ou passe complète automatique.
 
 ## 4. Conception envisagée
 

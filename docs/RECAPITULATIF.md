@@ -25,7 +25,7 @@ Rappel : **aucune fonctionnalité de l'add-on de route n'a encore été testée 
 | Réf. | Fonctionnalité | Choix de conception | État | Tests à faire en jeu |
 |---|---|---|---|---|
 | F20 | `/hr probe`, `/hr probe minimap` : environnement, pistages, fonctions, lecture du survol réel avec **valeurs des champs numériques** | Aucun effet durable, `pcall` partout, rapport dans le chat, `HerbRouteDB` et une fenêtre à copier ; jeu de sondes réduit le 2026-11-19 | Livré, 2 rapports en jeu | `/hr probe minimap` avec **tous les pistages désactivés** (présence générique de façon certaine ?), puis sur point jaune et sur sol vide pour comparer `type` et `line1type` |
-| F36 | `/hr probe blink world [hidden]` | Méthode de NodeRadar ; verdict sur la présence = au moins une ligne | **Validé en jeu** : point = ligne à +1 image, contrôles à 40 unités = aucune | `blink world hidden` (clignotement ?), autres zooms |
+| F36 | `/hr probe blink world [hidden]` | Méthode de NodeRadar ; verdict sur la présence = au moins une ligne | **Validé en jeu** sur 2 points, visible et caché ; déplacement jugé gênant | Autres zooms ; test `blink chain` (F44) |
 | F38 | `/hr probe watch` | 15 s, journalise présence (lignes) et signature | **Validé en jeu** : lignes uniquement sur un point | Terminé |
 | F35 | Ancien `blink` (curseur déjà sur la minimap) | Retiré : non concluant | Retiré | Aucun |
 
@@ -44,6 +44,7 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 | F28 | Tracés | Ignorer les points retirés, couleur des confirmés | Cadré | Rendu carte et minimap |
 | F29 | Faux minimap dans les tests | Étendre `tools/test_addon.py` | Cadré | États, retraits, garde-fous |
 | F34 | Vérification par **présence** (D10) | Noms secrets acceptés ; présence = au moins une ligne d'infobulle | **Validée en principe en jeu** | Confirmer sur des points de la base (voir F22) |
+| F39 | Vérification ciblée du prochain waypoint (mode Suivi) | 1 à 2 sondages par point, retrait et passage au suivant si aucune ligne ; limite la gêne visuelle (R18) | Cadré, proposé, en attente de décision | Gêne réelle, fiabilité, comportement quand tous les candidats voisins sont vides |
 | F37 | ~~Cartographie par grille~~ | Abandonné : un sondage par candidat suffit | Abandonné | Aucun |
 
 **Repli si rien ne distingue un point du sol** : abandon de la vérification par la minimap, mémoire de récolte (F32).

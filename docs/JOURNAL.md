@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Tests en jeu restants avant d'écrire la vérification** : (a) `/hr probe blink world hidden` (la minimap invisible pendant l'essai donne-t-elle encore des lignes ? sinon un clignotement sera visible) ; (b) `/hr probe blink world` à d'autres niveaux de zoom (le nombre d'unités de la zone de réponse reste-t-il le même ?) ; (c) l'effet visible du déplacement sur votre minimap. Puis feu vert pour `/hr verify` (voir la proposition du 2026-11-19, rapports `watch` 13:51 et `blink world` 13:52).
+1. **Décider de l'usage** (voir la question posée au joueur) : vérification manuelle `/hr verify`, vérification ciblée du prochain waypoint en mode Suivi, ou passe complète automatique. Selon le choix, écrire `/hr verify`. Test complémentaire possible : `blink chain` (déplacer la minimap directement d'une position à l'autre sans la remettre, pour limiter le va-et-vient).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -122,6 +122,13 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Contraintes d'usage rapportées par NodeRadar : le curseur doit **rester immobile dans le monde**, sans bouton enfoncé, hors combat, hors lancer de sort, hors fenêtre de butin, pas sur une créature, un joueur, un bouton de minimap, ni avec une infobulle ou un menu ouvert ; un autre add-on ancré à la minimap perturbe le balayage. Pendant le jeu normal (souris tenue pour la caméra) les passes seraient donc souvent en attente : la vérification serait **opportuniste**, pas continue.
 - Proposition : `/hr verify`, d'abord en **un coup** déclenché à la main (route active, souris au repos) : sonder en blink tous les candidats de la route dans le disque, rapport « avec ligne / sans ligne » en simulation, puis retrait optionnel des waypoints sans ligne (`TomTom:RemoveWaypoint`, base intacte). L'automatisation (déclenchement à l'entrée dans le disque, D6) viendrait ensuite. Non écrit, en attente de feu vert.
 
+### 2026-11-19 — Rapports `blink world` cachée (13:55) et visible (13:56) ; le déplacement gêne
+- **Variante `hidden` (alpha 0)** sur un point en (37,9 ; 33,9) : contrôle sans donnée, **touché** `lines=1` dès +1 image maintenu à +3 et +6, **deux contrôles** à 40 unités `lines=0`. Verdict : détection faisable. **La lecture ne dépend donc pas de la visibilité de la minimap.**
+- **Variante visible** sur un autre point en (55,2 ; 49,9) : même résultat (touché `lines=1` à +1 image, contrôles `lines=0`). Le résultat est reproductible sur deux points différents, deux jours de position différente de la souris.
+- Retour du joueur : **le déplacement de la minimap est gênant**. Non précisé : la version cachée l'est-elle autant ? (question posée).
+- Cause probable : la minimap est en haut à droite et la souris au repos loin à gauche, donc les décalages sont énormes (-812, -91) et (-802, -296) unités : la minimap traverse l'écran pendant l'essai. L'essai garde aussi la minimap déplacée pendant environ 6 images et fait un retour de 3 images, alors qu'une lecture à +1 image suffit.
+- Pistes pour réduire la gêne : (a) lecture à +1 image seulement puis retour immédiat (environ 2 images par sondage au lieu de 13) ; (b) minimap cachée pendant les sondages ; (c) **vérification ciblée** : ne sonder que le prochain waypoint (1 à 2 sondages par point) au lieu de tous les candidats du disque ; (d) déclenchement **manuel** (`/hr verify`) ; (e) souris au repos près de la minimap (décalages courts) ; (f) test `blink chain` : si la lecture se rafraîchit en passant directement d'une position à l'autre sans quitter la minimap, un seul va-et-vient suffit pour toute une passe (non testé : le test `blink` d'origine comptait n'importe quelle donnée, donc invalide).
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -157,7 +164,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R15 | Activer ou rétablir un pistage à sort peut lancer un temps de recharge sur la barre d'actions (NodeRadar) | À observer en jeu |
 | R16 | Signatures de `C_Minimap.GetTrackingInfo` et `SetTracking` supposées (formats table et ancien) | À confirmer par le test en jeu de F21 |
 | R17 | Le curseur doit rester immobile dans le monde (pas de bouton, pas de combat, pas sur une créature ni une fenêtre) : la vérification ne peut tourner que par moments | Contrainte d'usage, à mesurer en jeu |
-| R18 | Effet visible du déplacement de la minimap (clignotement) ; version cachée (alpha 0) non testée | À tester : `/hr probe blink world hidden` |
+| R18 | Effet visible du déplacement de la minimap | **Confirmé gênant par le joueur** ; la variante cachée donne la même lecture (non jugée) ; à réduire (lecture à +1 image, vérification ciblée, déclenchement manuel) |
 | R19 | Résolution dépendante du zoom : zone d'environ 20 unités, soit de l'ordre de 50 yd au zoom 0 et 17 yd au zoom le plus fort (estimation) | À mesurer à plusieurs zooms |
 | R20 | Un autre add-on ancré à la minimap (ou son habillage) peut perturber le déplacement | À observer en jeu |
 
