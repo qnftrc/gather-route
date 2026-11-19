@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Sonde v2** (diagnostics bruts, lecture avec la souris posée sur un point jaune, latence d'une image, conventions supplémentaires, puis déplacement furtif de la minimap) : proposée, en attente de feu vert. Premier rapport : aucune lecture (voir journal).
+1. **Relancer la sonde v2a** (`/hr probe minimap`, souris posée sur un point jaune d'herbe) puis, après accord, écrire la **sonde v2b** (`/hr probe blink` : déplacer brièvement la minimap sous le curseur au repos pour obtenir un sondage positionnel). Le résultat décide de la suite (R1, R12).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -40,6 +40,15 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Limite de la sonde v1 : elle ne distingue pas « aucune donnée » de « données dans une autre forme » (le texte est lu seulement dans `lines[1].leftText`), et ne teste ni la lecture avec la souris réellement posée sur un point, ni le décalage d'une image.
 - Correction de contexte : le client n'est pas annoncé en 12.1.x (voir `CLAUDE.md`).
 
+### 2026-11-19 — Second rapport de `/hr probe` : souris sur un point jaune
+- Conditions : souris posée sur un point jaune d'herbe (l'infobulle native affiche « Wild Steelbloom »). Zoom 1, rayon de vue 200 yd. Le drapeau `MouseIsOver(Minimap)` a renvoyé faux malgré le curseur sur la minimap : il n'est pas fiable (v2a le complète par un calcul géométrique).
+- Résultat brut : les 4 balayages (687 interrogations) ont renvoyé **687 réponses sur 687**, toutes avec un texte **secret**. Le premier rapport (souris hors minimap) donnait 0 sur 687.
+- Interprétation : 100 % de réponses quel que soit le point demandé signifie que la donnée lue ne dépend pas du point interrogé : c'est le survol **réel** de la souris. Le verdict « lecture réussie » de la sonde v1 était donc un faux positif, et les « 175 points trouvés », la « zone de réponse de 50 yd » et l'absence de correspondance avec la base n'ont pas de sens.
+- Acquis : la présence d'un point sous le vrai curseur est lisible par l'add-on ; son nom est une valeur secrète. Non acquis : un sondage par position (`UpdateMouseoverAtPoint` ne semble pas déplacer le survol).
+- Le joueur accepte les noms secrets : l'herbe attendue est celle du waypoint, la présence suffit (décision D10, avec ses limites).
+- Correction de la sonde (v2a, livrée) : détection de l'écho du survol réel (verdict dédié), lecture de base sans appel de sondage, structure des données, présence comptée même sans texte, lecture une image plus tard, position du curseur par calcul géométrique. Test hors jeu complété (cas d'écho, valeurs secrètes).
+- Correction du journal : la ligne R1 de la première séance n'avait pas été mise à jour par erreur de script ; c'est fait.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -52,11 +61,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D7 | La route d'origine est conservée ; on retire des points au lieu de la recalculer | 2026-11-19 | Cadrée |
 | D8 | **Base intacte** : `HerbRoute_Data` n'est jamais modifiée ; seuls les waypoints TomTom du trajet en cours sont retirés | 2026-11-19 | Contrainte |
 | D9 | Pas de recalage de la base à partir des écarts mesurés | 2026-11-19 | Contrainte |
+| D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | Retenue (sous réserve d'un sondage positionnel fonctionnel) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
 |---|---|---|
-| R1 | La lecture de la minimap fonctionne-t-elle sur le client du joueur (build, curseur, curseur logiciel) ? | Ouvert, test = `/hr probe` |
+| R1 | La lecture de la minimap fonctionne-t-elle sur le client du joueur ? | Partiel : on lit la présence d'un point sous le **vrai** curseur, le nom est secret ; le sondage par position n'est pas démontré (R12) |
 | R2 | Faux négatifs : un nœud existant non détecté serait retiré à tort | Atténué par K échecs, garde-fous, restauration |
 | R3 | Taille de la zone qui réagit autour d'un point jaune, donc pas de la croix | À mesurer en jeu |
 | R4 | Erreur réelle de nos coordonnées par rapport aux nœuds | À mesurer en jeu |
@@ -66,6 +76,8 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R8 | Délai d'apparition d'un point jaune après son entrée dans le disque (estimé 1,5 s) | À mesurer |
 | R9 | Coût d'une passe de 17 interrogations par candidat | À mesurer |
 | R10 | Tracé minimap (rotation, zoom) jamais vu en jeu | Non testé |
+| R11 | Noms d'infobulle secrets : pas de contrôle du type d'herbe, faux positifs possibles entre nœuds voisins | Accepté (D10) |
+| R12 | `UpdateMouseoverAtPoint` ne semble pas déplacer le survol : sans autre moyen de sonder une position, la vérification automatique est impossible | Ouvert, test = sonde v2b (déplacement furtif de la minimap) |
 
 ## Commits
 | Commit | Contenu |
@@ -76,3 +88,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | `934f3ef` | Besoin B6 : vérification et suppression de points |
 | `4ec07a8` | Déclenchement à l'entrée dans le disque |
 | `0d8991c` | Contrainte « base intacte » |
+| `999f8c8` | Journal de pilotage et suivi des fonctionnalités |
+| `d3f85b0` | Règle de travail : consulter et mettre à jour les documents |
+| `9519f0b` | `/hr probe` (sonde v1) |
+| `62ba128` | Premier rapport de la sonde, correction du contexte client |

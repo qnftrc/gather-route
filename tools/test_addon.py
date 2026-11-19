@@ -111,6 +111,7 @@ Minimap = {
 C_Minimap = {GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 2 end,
   GetTrackingInfo = function(i) if i == 1 then return {name = "Find Herbs", active = true} end return {name = "Find Minerals", active = false} end}
 C_TooltipInfo = {GetMinimapMouseover = function()
+  if mode == "echo" then return {lines = {{leftText = "Wild Steelbloom"}}} end
   if mode == "none" or not soft or not last then return nil end
   for _, b in ipairs(blips) do
     if (last[1] - b[1]) ^ 2 + (last[2] - b[2]) ^ 2 <= 100 then return {lines = {{leftText = b[3]}}} end
@@ -139,8 +140,9 @@ local function run(cmd)
 end
 
 local t = run("probe")
-assert(t:find("RESULT: blips read with cursor/soft", 1, true), t)
-assert(not t:find("ui/", 1, true) or not t:find("RESULT: blips read with[^\n]*ui/"), "ui convention should not read")
+assert(t:find("RESULT: answers that depend on the probed point with cursor/soft", 1, true), t)
+assert(t:find("Baseline read (no probe call): no data", 1, true) and t:find("structure: nil", 1, true), t)
+assert(not t:match("RESULT:[^\n]*ui/"), "ui convention should not read")
 assert(t:find("Answer area around 'Peacebloom'", 1, true), t)
 local err = t:match("%(1 herb blips%): min ([%d.]+)")
 assert(err and tonumber(err) < 4, "database error too large: " .. tostring(err))
@@ -148,7 +150,17 @@ assert(soft == false, "soft cursor not restored")
 io.write("probe ok: ", t:match("Distance blip[^\n]*"), "\n")
 
 mode = "none"
-assert(run("probe"):find("RESULT: no blip read", 1, true))
+assert(run("probe"):find("RESULT: no answer in any configuration", 1, true))
+mode = "echo"
+local e = run("probe")
+assert(e:find("every probe answered", 1, true) and e:find("it is the real mouse hover", 1, true), e)
+assert(e:find("Baseline read (no probe call): data present", 1, true), e)
+assert(e:find("structure: lines:table | lines[1]: leftText:string", 1, true), e)
+assert(not e:find("Blips found", 1, true), "echo must not be treated as blips")
+issecretvalue = function() return true end
+local es2 = run("probe")
+assert(es2:find("it is the real mouse hover", 1, true) and es2:find("WARNING: tooltip text is a secret value", 1, true), es2)
+issecretvalue = nil
 mode = "ok"
 
 issecretvalue = function() return true end
@@ -156,7 +168,7 @@ assert(run("probe"):find("WARNING: tooltip text is a secret value", 1, true))
 issecretvalue = nil
 
 local ok = run("probe world")
-assert(ok:find("RESULT: blips read", 1, true), ok)
+assert(ok:find("RESULT: answers that depend", 1, true), ok)
 
 local z = run("probe zoom")
 assert(z:find("Zoom restored to 3", 1, true) and zoom == 3 and soft == false, z)

@@ -52,16 +52,63 @@ local function trackingList()
 end
 
 -- Moves the minimap mouseover to (x, y) and reads the tooltip title back.
+-- Returns "<secret>" when the text is unreadable and "<present>" when data
+-- exists without a title, so that the presence of a blip is still counted.
 local function query(x, y)
     local ok, err = pcall(Minimap.UpdateMouseoverAtPoint, Minimap, x, y)
     if not ok then return nil, tostring(err) end
     local ok2, data = pcall(C_TooltipInfo.GetMinimapMouseover)
     if not ok2 then return nil, tostring(data) end
-    local line = data and data.lines and data.lines[1]
+    if data == nil then return nil end
+    if isSecret(data) then return "<secret>" end
+    local line = data.lines and data.lines[1]
     local text = line and line.leftText
-    if text == nil then return nil end
+    if text == nil then return "<present>" end
     if isSecret(text) then return "<secret>" end
     return text
+end
+
+local function fieldTag(v)
+    if isSecret(v) then return "secret" end
+    return type(v)
+end
+
+-- Shape of the tooltip data: keys with their types, and the keys of line 1.
+local function describe(data)
+    if data == nil then return "nil" end
+    if isSecret(data) then return "<secret value>" end
+    if type(data) ~= "table" then return type(data) end
+    local keys = {}
+    for k, v in pairs(data) do keys[#keys + 1] = ("%s:%s"):format(tostring(k), fieldTag(v)) end
+    table.sort(keys)
+    local out = table.concat(keys, ", ")
+    local line = type(data.lines) == "table" and data.lines[1]
+    if type(line) == "table" then
+        local lk = {}
+        for k, v in pairs(line) do lk[#lk + 1] = ("%s:%s"):format(tostring(k), fieldTag(v)) end
+        table.sort(lk)
+        out = out .. " | lines[1]: " .. table.concat(lk, ", ")
+    end
+    return out
+end
+
+-- Read without moving the mouseover: what the real mouse hover gives.
+local function baseline()
+    local ok, data = pcall(C_TooltipInfo.GetMinimapMouseover)
+    if not ok then return false, "error: " .. tostring(data) end
+    return data ~= nil, describe(data)
+end
+
+-- Cursor position against the minimap disc (MouseIsOver is not reliable here).
+local function cursorInside()
+    if not GetCursorPosition then return nil end
+    local cx, cy = Minimap:GetCenter()
+    if not cx then return nil end
+    local es = Minimap:GetEffectiveScale()
+    local x, y = GetCursorPosition()
+    local dx, dy = x / es - cx, y / es - cy
+    local r = Minimap:GetWidth() / 2
+    return dx * dx + dy * dy <= r * r
 end
 
 -- Two coordinate conventions for the point given to UpdateMouseoverAtPoint:
@@ -103,9 +150,54 @@ local function sweep(conv, soft, step, region)
         gx = gx + step
     end
     res.ms = debugprofilestop() - t0
+    res.echo = res.probes > 20 and res.hits >= res.probes * 0.95
 
     if toggled then pcall(Minimap.SetUsingSoftCursor, Minimap, false) end
     return res
+end
+
+-- Same as sweep on a coarse grid, but reads one frame after moving the
+-- mouseover, in case the engine updates it asynchronously.
+local function sweepDelayed(conv, soft, step, onDone)
+    local cx, cy = Minimap:GetCenter()
+    local es = Minimap:GetEffectiveScale()
+    local R = Minimap:GetWidth() / 2 * 0.9
+    local res = {conv = conv, soft = soft, probes = 0, hits = 0, names = {}, list = {}, delayed = true}
+    local pts = {}
+    local gx = -R
+    while gx <= R do
+        local gy = -R
+        while gy <= R do
+            if gx * gx + gy * gy <= R * R then pts[#pts + 1] = {gx, gy} end
+            gy = gy + step
+        end
+        gx = gx + step
+    end
+    local toggled = soft ~= nil and Minimap.SetUsingSoftCursor
+    if toggled then pcall(Minimap.SetUsingSoftCursor, Minimap, soft) end
+    local t0 = debugprofilestop()
+    local i = 0
+    local function finishRun()
+        if toggled then pcall(Minimap.SetUsingSoftCursor, Minimap, false) end
+        res.ms = debugprofilestop() - t0
+        res.echo = res.probes > 20 and res.hits >= res.probes * 0.95
+        onDone(res)
+    end
+    local function nextPoint()
+        i = i + 1
+        local p = pts[i]
+        if not p then return finishRun() end
+        local x, y = toPoint(conv, cx, cy, es, p[1], p[2])
+        local ok, err = pcall(Minimap.UpdateMouseoverAtPoint, Minimap, x, y)
+        if not ok then res.err = tostring(err) return finishRun() end
+        C_Timer.After(0, function()
+            local ok2, data = pcall(C_TooltipInfo.GetMinimapMouseover)
+            res.probes = res.probes + 1
+            if ok2 and data ~= nil then res.hits = res.hits + 1 end
+            nextPoint()
+        end)
+    end
+    nextPoint()
 end
 
 local function cluster(list)
@@ -187,21 +279,29 @@ local function databaseError(c, region, mapID, radius)
     return best, herb
 end
 
-local function summarize(runs, radius)
-    local working, bestRun = {}, nil
+local function summarize(runs)
+    local positional, echo, best = {}, {}, nil
     for _, r in ipairs(runs) do
         if r.hits > 0 then
-            working[#working + 1] = configLabel(r)
-            if not bestRun or r.hits > bestRun.hits then bestRun = r end
+            if r.echo then
+                echo[#echo + 1] = configLabel(r) .. (r.delayed and " (+1 frame)" or "")
+            else
+                positional[#positional + 1] = configLabel(r) .. (r.delayed and " (+1 frame)" or "")
+                if not r.delayed and (not best or r.hits > best.hits) then best = r end
+            end
         end
     end
-    if #working == 0 then
-        add("RESULT: no blip read in any configuration.")
-        add("  Stand near a herb with Find Herbs active and the blip visible, then retry.")
+    if #positional > 0 then
+        add("RESULT: answers that depend on the probed point with %s.", table.concat(positional, ", "))
+    elseif #echo > 0 then
+        add("RESULT: every probe answered (%s), wherever it pointed.", table.concat(echo, ", "))
+        add("  The data does not depend on the probed point: it is the real mouse hover.")
+        add("  UpdateMouseoverAtPoint has no effect in these configurations.")
     else
-        add("RESULT: blips read with %s.", table.concat(working, ", "))
+        add("RESULT: no answer in any configuration.")
+        add("  Put the mouse on a herb blip of the minimap (use /hr probe minimap) and retry.")
     end
-    return bestRun
+    return best
 end
 
 local function finish()
@@ -211,7 +311,7 @@ local function finish()
     Probe:ShowReport(text)
 end
 
-local function environment(cursorOver)
+local function environment(over, inside)
     local version, build, _, toc = GetBuildInfo()
     add("HerbRoute probe %s", date("%Y-%m-%d %H:%M:%S"))
     add("Client %s build %s toc %s, locale %s", tostring(version), tostring(build), tostring(toc), tostring(GetLocale()))
@@ -219,7 +319,7 @@ local function environment(cursorOver)
     add("Minimap: %.0fx%.0f units, zoom %s, view radius %s yd, rotate %s",
         Minimap:GetWidth(), Minimap:GetHeight(), tostring(Minimap:GetZoom()),
         radius and ("%.1f"):format(radius) or "n/a", tostring(GetCVar("rotateMinimap")))
-    add("Cursor over minimap: %s", tostring(cursorOver))
+    add("Cursor: MouseIsOver(Minimap)=%s, inside the minimap disc=%s", tostring(over), tostring(inside))
 
     local tracking, ok = trackingList()
     if not ok then
@@ -245,39 +345,17 @@ local function environment(cursorOver)
     return radius, (Minimap.UpdateMouseoverAtPoint and C_TooltipInfo and C_TooltipInfo.GetMinimapMouseover) and true or false
 end
 
-local function runMain(cursorExpected)
-    lines = {}
-    local cursorOver = MouseIsOver and MouseIsOver(Minimap) or false
-    if cursorExpected == "minimap" and not cursorOver then
-        HR:Print("The cursor is not over the minimap.")
-    elseif cursorExpected == "world" and cursorOver then
-        HR:Print("The cursor is over the minimap, not in the world.")
+local function conclude(runs, radius)
+    local secret = false
+    for _, r in ipairs(runs) do
+        if r.names["<secret>"] then secret = true end
     end
-    local radius, usable = environment(cursorOver)
-    if not usable then
-        add("RESULT: the minimap cannot be read (missing functions).")
-        return finish()
+    if secret then
+        add("WARNING: tooltip text is a secret value, not readable (the presence of a blip is still readable).")
     end
 
     local region, mapID = HR:GetCurrentRegion()
-    local runs = {}
-    for _, conv in ipairs({"cursor", "ui"}) do
-        for _, soft in ipairs({false, true}) do
-            local r = sweep(conv, soft, STEP)
-            runs[#runs + 1] = r
-            add("Sweep %s: %d probes, %d answers in %.1f ms%s%s", configLabel(r), r.probes, r.hits, r.ms,
-                r.truncated and " (cut by time guard)" or "", r.err and (" ERROR: " .. r.err) or "")
-            if r.hits > 0 then add("  names: %s", namesText(r.names)) end
-        end
-    end
-
-    for _, r in ipairs(runs) do
-        for name in pairs(r.names) do
-            if name == "<secret>" then add("WARNING: tooltip text is a secret value, not readable.") break end
-        end
-    end
-
-    local best = summarize(runs, radius)
+    local best = summarize(runs)
     Probe.best = best and {conv = best.conv, soft = best.soft} or nil
     if best then
         local clusters = cluster(best.list)
@@ -289,7 +367,9 @@ local function runMain(cursorExpected)
             add("Answer area around '%s': %.0fx%.0f units, about %.1f x %.1f yd", c.name, w, h,
                 w * radius / halfW, h * radius / halfW)
         end
-        if GetCVar("rotateMinimap") == "1" then
+        if secret then
+            add("Database error: skipped (names are secret).")
+        elseif GetCVar("rotateMinimap") == "1" then
             add("Database error: skipped (rotating minimap is on).")
         else
             local errs = {}
@@ -308,6 +388,51 @@ local function runMain(cursorExpected)
     end
     add("Soft cursor restored to false.")
     finish()
+end
+
+local function runMain(cursorExpected)
+    lines = {}
+    local over = MouseIsOver and MouseIsOver(Minimap) or false
+    local inside = cursorInside()
+    if cursorExpected == "minimap" and inside == false then
+        HR:Print("The cursor is not inside the minimap.")
+    elseif cursorExpected == "world" and inside then
+        HR:Print("The cursor is inside the minimap, not in the world.")
+    end
+    local radius, usable = environment(over, inside)
+    if not usable then
+        add("RESULT: the minimap cannot be read (missing functions).")
+        return finish()
+    end
+
+    local present, shape = baseline()
+    add("Baseline read (no probe call): %s", present and "data present" or "no data")
+    add("  structure: %s", shape)
+
+    local runs = {}
+    for _, conv in ipairs({"cursor", "ui"}) do
+        for _, soft in ipairs({false, true}) do
+            local r = sweep(conv, soft, STEP)
+            runs[#runs + 1] = r
+            add("Sweep %s: %d probes, %d answers (%.0f%%) in %.1f ms%s%s", configLabel(r), r.probes, r.hits,
+                r.probes > 0 and r.hits * 100 / r.probes or 0, r.ms,
+                r.truncated and " (cut by time guard)" or "", r.err and (" ERROR: " .. r.err) or "")
+            if r.hits > 0 then add("  names: %s", namesText(r.names)) end
+        end
+    end
+
+    -- One frame between moving the mouseover and reading it.
+    sweepDelayed("cursor", false, 20, function(r1)
+        runs[#runs + 1] = r1
+        add("Sweep %s +1 frame: %d probes, %d answers (%.0f%%)%s", configLabel(r1), r1.probes, r1.hits,
+            r1.probes > 0 and r1.hits * 100 / r1.probes or 0, r1.err and (" ERROR: " .. r1.err) or "")
+        sweepDelayed("cursor", true, 20, function(r2)
+            runs[#runs + 1] = r2
+            add("Sweep %s +1 frame: %d probes, %d answers (%.0f%%)%s", configLabel(r2), r2.probes, r2.hits,
+                r2.probes > 0 and r2.hits * 100 / r2.probes or 0, r2.err and (" ERROR: " .. r2.err) or "")
+            conclude(runs, radius)
+        end)
+    end)
 end
 
 local function runZoom()

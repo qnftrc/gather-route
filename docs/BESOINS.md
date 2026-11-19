@@ -14,6 +14,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B4 | Retracer la route en direct selon les résultats et la présence des points sur la minimap | Dernière demande |
 | B5 | (information) Comprendre la portée maximale de 15 yd de l'add-on Lueur | Capture des réglages de Lueur |
 | B6 | **Version simplifiée de B4 (prioritaire)** : garder la route d'origine générée, vérifier sur la minimap que chaque point existe, et retirer de la route (avec `TomTom:RemoveWaypoint`) les points sans correspondance, au fil de l'eau, à une cadence fonction du rayon de la minimap. C'est l'add-on qui interroge la minimap et retire les points lui-même | Dernier résumé du joueur |
+| B7 | La vérification peut se faire par **présence** d'un point : le nom lu est secret, mais l'herbe attendue est celle du waypoint, donc le nom n'est pas nécessaire | Second rapport de la sonde |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.
@@ -23,6 +24,12 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 - Les points n'existent que dans le rayon de vue de la minimap. Il dépend du zoom : d'environ 67 yd au zoom le plus fort à environ 233 yd au zoom le plus large en extérieur (table de HereBeDragons-Pins-2.0 dans TomTom).
 - Repli éprouvé (GatherMate2, GatherRadar, NodeRadar) : enregistrer les nœuds à la récolte, avec l'événement `UNIT_SPELLCAST_SUCCEEDED`.
 - B5 : l'add-on Lueur n'a pas été trouvé en ligne et son code n'est pas disponible. 15 yd est le maximum de son curseur. Hypothèse non vérifiée : plafond du système d'interaction du client (`SoftTargetInteractRange`). Test : `/console SoftTargetInteractRange 40` puis `/dump GetCVar("SoftTargetInteractRange")`. La portée de ce mécanisme est bien plus courte que le rayon de la minimap.
+
+### 3 bis Constats du second rapport de la sonde (build 70959)
+- Avec la souris posée sur un point jaune, `C_TooltipInfo.GetMinimapMouseover()` renvoie des données dont le **texte est une valeur secrète** (illisible), mais dont la **présence** est lisible. Souris hors de la minimap : aucune donnée.
+- Tous les points interrogés par `UpdateMouseoverAtPoint` ont donné une réponse : la lecture reflète le survol réel, pas le point demandé. Le sondage par position n'est donc pas démontré.
+- Conséquence : pour sonder la position d'un candidat, il faut que le vrai curseur s'y trouve. Piste : déplacer brièvement la minimap pour amener le candidat sous un curseur au repos (technique décrite pour NodeRadar), avec le risque d'effet visible et de clics interceptés. À tester dans la sonde v2b, en option volontaire.
+- Un contrôle par présence ne distingue pas un autre type de nœud au même endroit (faux positifs possibles, accepté).
 
 ## 4. Conception envisagée
 
@@ -68,7 +75,7 @@ La route d'origine est conservée (`r.original`) ; on ne la recalcule pas, on **
 Activer « Trouver les herbes » au lancement d'une route (`C_Minimap.GetNumTrackingTypes`, `GetTrackingInfo`, `SetTracking`, signatures à confirmer en jeu).
 
 ## 5. Questions ouvertes
-1. La lecture de la minimap fonctionne-t-elle sur le client du joueur ? Premier rapport (build 70959) : 0 réponse dans 4 configurations, curseur hors minimap, sans erreur. Causes possibles : restriction du build, vrai curseur requis, latence d'une image, convention de coordonnées. Sonde v2 à faire.
+1. Un sondage par position est-il possible ? Constat (build 70959) : la présence d'un point sous le vrai curseur est lisible (nom secret), mais `UpdateMouseoverAtPoint` ne semble pas déplacer le survol (100 % de réponses partout, souris sur un point). À tester : déplacement furtif de la minimap sous le curseur (sonde v2b).
 2. Taille de la zone qui réagit autour d'un point jaune, donc pas utile de la croix.
 3. Erreur réelle de nos coordonnées par rapport aux nœuds.
 4. Durées de réapparition des herbes sur Forever.
