@@ -28,7 +28,7 @@ Détails : [HerbRoute/README.md](HerbRoute/README.md).
 | `tools/` | Génération des données et tests hors-jeu ([tools/README.md](tools/README.md)) |
 | `CLAUDE.md` | Contexte, décisions, risques et conventions du projet |
 | `docs/BESOINS.md` | Expression de besoin en cours : points actifs, minimap, retracé en direct |
-| `docs/JOURNAL.md` | Journal de pilotage : décisions, risques, prochaines actions |
+| `docs/JOURNAL.md` | Journal de pilotage : décisions et risques |
 | `docs/FONCTIONNALITES.md` | Suivi des fonctionnalités et de leur état de vérification |
 | `docs/RECAPITULATIF.md` | Tableau des choix de conception et des tests à faire, par fonctionnalité |
 

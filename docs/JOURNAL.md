@@ -1,20 +1,12 @@
 # Journal de pilotage
 
-Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
-
-## Prochaines actions
-Mis à jour le 2026-11-19 (fin de session). État : tout est livré, commité et poussé ; la **lecture de la minimap, la calibration (herbes et minerais), la projection des points et le tracé de la carte du monde sont validés en jeu** ; le reste est testé hors jeu seulement.
-
-1. **Vérification et retrait en conditions réelles** (herbes puis minerais) : lancer une route en mode `report`, comparer les messages « has no node » aux points jaunes de la minimap (un nœud récolté ou pas réapparu est un vrai « absent »), puis passer à `/hr verify remove`. Sans sécurité sur la projection (D20), surveiller qu'aucune série de points existants n'est retirée. Observer la gêne visuelle des sondages en avance (`/hr verify ahead off` pour la couper).
-2. **`/hr reroute on`** pendant une route avec des retraits : la cible suivante change-t-elle de façon acceptable ? Le message « Reroute from your position » apparaît-il, le waypoint TomTom suit-il ?
-3. **Fenêtre et réglages** (`/console scriptErrors 1`) : cases Herbs / Ores, liste des régions par catégorie, cases remontées après le retrait du mode « Tout afficher » (F7, retiré, D25), `/hr merge` (comptes : herbes 10 458, minerais 8 834 avec la fusion), `/hr button`, raccourcis clavier dans Échap > Options > Raccourcis clavier > AddOns > HerbRoute.
-4. **`/hr debug`** : 46 régions résolues (Felwood, Mount Hyjal, Riverglades, Shen'dralas, Zephras Isle).
-5. **Performance** : tracé de la minimap avec tous les points restants sur une route de plusieurs centaines de points.
-6. À lancer un jour : `/hr verify arming` (durée de la lecture après un survol réel, R26).
-7. **Décisions en attente** : durée de réapparition des nœuds (recherche sans réponse fiable, aucune fonction de mémoire de récolte, F56 à F58 annulées) ; export Wowhead des minerais « Ooze Covered » (identifiants à fournir) ; `/hr restore` (F25) jamais codé.
-8. **Écartés, ne pas reproposer sans nouvelle demande** : relief et chemin praticable (B13), mémoire des points visités, nouveaux nœuds par balayage et validation par le butin (F56 à F58), mode « Tout afficher » (D25), sonde `C_Navigation`.
+Registre chronologique des décisions, constats et risques. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Journal
+
+### 2026-11-19 — Remise à zéro des prochaines actions
+- Demande du joueur : la section « Prochaines actions » est supprimée, on repart de zéro. Les éléments écartés (relief B13, mémoire des visités et nouveaux nœuds F56 à F58, mode Tout afficher D25, sonde `C_Navigation`) restent écartés ; ils sont consignés dans les décisions, BESOINS.md et FONCTIONNALITES.md.
+- Branche de travail : `main` seule ; la branche de session locale (identique à `main`) est supprimée.
 
 ### 2026-11-19 — Construction de l'add-on HerbRoute (v1.0.0)
 - Entrées analysées : TomTom v4.4.1, planner HTML, JSON de waypoints (45 régions, 29 herbes, 13 256 points).
