@@ -321,19 +321,26 @@ end
 -- /hr verify calibrate: the player points at a yellow dot (phase A), then rests
 -- the mouse in the world (phase B); every method probes that dot and a control
 -- position, and the first method that sees the dot and not the control is kept.
+-- Phase A of the calibration tests: the mouse is on a yellow dot; returns its
+-- offset from the minimap center (units, y up), or nil after saying why.
+local function captureDot(name)
+    if probing then return end
+    if InCombatLockdown and InCombatLockdown() then return HR:Print(name .. ": not in combat.") end
+    local has = MM.reading()
+    if MM.cursorInside() ~= true or not has then
+        return HR:Print(name .. ": no tooltip line under the cursor. Rest the mouse on a yellow dot and retry.")
+    end
+    local sx, sy = GetCursorPosition()
+    local es = Minimap:GetEffectiveScale()
+    local cx, cy = Minimap:GetCenter()
+    return sx / es - cx, sy / es - cy
+end
+
 function HR:VerifyCalibrate()
     self:Print("Calibration, phase A in 3 s: put the mouse ON a yellow herb dot of the minimap and keep it still.")
     C_Timer.After(3, function()
-        if probing then return end
-        if InCombatLockdown and InCombatLockdown() then return HR:Print("Calibration: not in combat.") end
-        local has = MM.reading()
-        if MM.cursorInside() ~= true or not has then
-            return HR:Print("Calibration: no tooltip line under the cursor. Rest the mouse on a yellow dot and retry.")
-        end
-        local sx, sy = GetCursorPosition()
-        local es = Minimap:GetEffectiveScale()
-        local cx, cy = Minimap:GetCenter()
-        local ox, oy = sx / es - cx, sy / es - cy
+        local ox, oy = captureDot("Calibration")
+        if not ox then return end
         HR:Print(("Calibration: dot captured at (%.1f, %.1f) units. Phase B in 5 s: move the mouse into the world, away from any window, and keep it still."):format(ox, oy))
         C_Timer.After(5, function()
             if probing then return end
@@ -380,6 +387,46 @@ function HR:VerifyCalibrate()
             end
             run(1)
         end)
+    end)
+end
+
+-- /hr verify arming: does the plain method keep working as time passes after
+-- the mouse was on a dot? The known dot and a control are probed at fixed
+-- delays after phase A while the mouse rests in the world.
+local ARMING_TIMES = {6, 10, 15, 20, 30, 45, 60}
+
+function HR:VerifyArming()
+    self:Print("Arming test, phase A in 3 s: put the mouse ON a yellow herb dot of the minimap, then move it into the world within 4 s and keep it still for about a minute. The minimap blinks briefly at each check.")
+    C_Timer.After(3, function()
+        local ox, oy = captureDot("Arming test")
+        if not ox then return end
+        local t0 = GetTime()
+        local halfW = Minimap:GetWidth() / 2
+        local control
+        for _, c in ipairs({{40, 0}, {-40, 0}, {0, 40}, {0, -40}}) do
+            local x, y = ox + c[1], oy + c[2]
+            if x * x + y * y <= (0.8 * halfW) ^ 2 then control = {x, y} break end
+        end
+        if not control then return HR:Print("Arming test: the dot is too close to the minimap edge; pick a dot nearer the center.") end
+        HR:Print(("Arming test: dot captured at (%.1f, %.1f) units; checks at %s s."):format(ox, oy, table.concat(ARMING_TIMES, ", ")))
+        local function runAt(k)
+            local when = ARMING_TIMES[k]
+            if not when then return HR:Print("Arming test finished.") end
+            C_Timer.After(math.max(0, t0 + when - GetTime()), function()
+                local why = blocked(true, true)
+                if why then
+                    HR:Print(("  t=%ds: skipped (%s)"):format(when, why))
+                    return runAt(k + 1)
+                end
+                probe(ox, oy, function(hit)
+                    probe(control[1], control[2], function(ctl)
+                        HR:Print(("  t=%ds after the dot: dot %s, control %s"):format(when, hit, ctl))
+                        runAt(k + 1)
+                    end, nil, {})
+                end, nil, {})
+            end)
+        end
+        runAt(1)
     end)
 end
 

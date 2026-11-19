@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Lancer `/hr verify calibrate`** : phase A, la souris **sur un point jaune d'herbe proche du centre de la minimap** (3 s) ; phase B, la souris dans le monde, hors de toute fenêtre, immobile (5 s). L'add-on essaie sept méthodes sur ce point et sur une position témoin et retient la première qui voit le point sans voir le témoin. Coller les lignes du chat (une par méthode). Si une méthode est retenue, relancer `/hr verify scan` puis laisser la vérification automatique tourner en mode `report`. Si aucune ne marche, la vérification automatique est impossible sur ce build (R25).
+1. **Lancer `/hr verify arming`** : la souris sur un point jaune (3 s), puis la déplacer dans le monde dans les 4 s suivantes et la laisser **immobile environ une minute** ; la minimap clignote brièvement à 6, 10, 15, 20, 30, 45 et 60 s. Coller les lignes du chat. Elles disent si la méthode simple cesse de voir le point au bout d'un certain temps après un survol réel de la minimap (R26). Ensuite, selon le résultat, chercher comment « réarmer » la lecture sans que le joueur survole un point.
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -181,6 +181,14 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Risque accru : un faux négatif (nœud existant non vu : erreur de coordonnées, zone de réponse) retire désormais le waypoint dès le premier essai ; le mode `report` permet de le constater sans rien retirer avant de passer à `/hr verify remove`.
 - Tests hors jeu adaptés (un retrait au premier sondage vide, la route continue sur un point avec nœud).
 
+### 2026-11-19 — Rapport `/hr verify calibrate` : six méthodes sur sept détectent un point connu ; les sondes automatiques d'après échouent
+- Calibration en jeu (Stranglethorn Vale, point jaune capturé à (-4,1 ; 21,9) unités) : **simple, échauffement, `SetAlpha`, échauffement + `SetAlpha`, mise à jour et échauffement + `SetAlpha` + attente : « sur le point : ligne ; témoin : vide »**. Seule **curseur logiciel + mise à jour** donne « vide » sur le point (méthode invalide, déjà constatée par le scan). Méthode **« plain » mémorisée pour le build 70959**.
+- Conséquence : la lecture par déplacement de la minimap fonctionne avec la méthode la plus simple quand elle suit un survol réel d'un point jaune. R25 (aucune méthode) est écarté.
+- Mais juste après (message final du chat), la vérification automatique avec la **même méthode simple** : « point 1/126 is inconclusive (no hover data…) » : aucune donnée du survol. Les sondes simples de `/hr verify probe` (sans survol préalable) n'avaient aussi rien donné.
+- Hypothèse principale (non démontrée, **H2**) : le survol de la minimap n'est « armé » que **après que le vrai curseur a survolé la minimap** (phase A de `blink world` et de la calibration) et cette lecture se **dissipe** avec le temps ou un autre événement. Cela expliquerait tous les rapports : lecture présente 5 à 8 s après un survol (`blink world`, calibration), absente sans survol préalable (`/hr verify probe`, vérification automatique). Alternative (H1) : il faut un mouvement de souris récent, mais la calibration a enchaîné 14 sondes sans bouger la souris.
+- Écrit : **`/hr verify arming`** : survol d'un point jaune puis, la souris immobile dans le monde, sonde du point connu et d'un témoin à 6, 10, 15, 20, 30, 45 et 60 s ; affiche « dot line / none » à chaque instant. Refactorisation : capture de la phase A partagée avec la calibration. Test hors jeu sur un moteur qui n'« arme » le survol que 12 s après un survol réel.
+- Si H2 est vraie, la vérification automatique ne peut pas tourner seule : il faudrait soit réarmer la lecture par un autre moyen, soit demander au joueur de survoler périodiquement un point jaune. À décider selon le résultat.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -226,7 +234,8 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoque un retrait à tort, **dès le premier sondage vide** | Atténué par le mode `report` par défaut, l'absence de retrait avant un premier point confirmé, la base intacte ; à mesurer en jeu |
 | R23 | Les passes exigent une souris immobile dans le monde, et un vrai mouvement après avoir dirigé à la souris : avec la souris tenue pour la caméra, elles seront souvent en attente | Garde « bouger la souris une fois » ajoutée ; raison visible par `/hr verify` ; à mesurer |
 | R24 | La vérification n'obtenait aucune donnée de survol, puis une variante renvoyait des lectures sans valeur | **Rouvert** : seule `blink world` a détecté un point connu ; la méthode est maintenant choisie par calibration sur un point connu |
-| R25 | Aucune des sept méthodes ne détecte un point connu en jeu : la vérification serait impossible sur ce build | Ouvert, test = `/hr verify calibrate` |
+| R25 | Aucune des sept méthodes ne détecte un point connu en jeu | **Écarté** : six méthodes sur sept détectent le point (calibration du build 70959) |
+| R26 | Les sondes ne reçoivent des données que peu après un survol réel de la minimap (hypothèse H2) : la vérification automatique, qui sonde sans survol préalable, n'obtient rien | Ouvert, test = `/hr verify arming` |
 
 ## Commits
 | Commit | Contenu |

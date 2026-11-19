@@ -47,7 +47,8 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 | F39 | Vérification ciblée du prochain waypoint (D12) | Un sondage = minimap déplacée une image sous un curseur au repos ; absence après 1 sondage vide ; dernier contrôle à 35 yd ; `report` par défaut ; garde « bouger la souris une fois » ; pas d'abandon, réessais espacés | **Livré**, 1er essai en jeu : 4 sondes inconclusives, corrigé | En jeu : `/hr verify` (causes), `/hr verify probe` (projection, déplacement, lectures) ; ensuite messages `report` conformes à la minimap, puis `/hr verify remove` |
 | F45 | `/hr verify probe` | Une sonde détaillée avec la méthode calibrée | Livré, testé hors jeu | Après calibration |
 | F46 | `/hr verify scan` | Balayage avec la méthode calibrée ; carte ASCII ; symétries | Livré ; 1er essai : 0 point (méthode curseur logiciel invalide) | Relancer après `/hr verify calibrate` |
-| F47 | `/hr verify calibrate` (D14) | Sept méthodes essayées sur un point jaune connu et un témoin ; la première qui voit le point et pas le témoin est mémorisée avec le build ; la vérification exige une calibration valide | Livré, testé hors jeu | À lancer en jeu : point jaune proche du centre de la minimap, souris dans le monde ensuite ; coller les lignes du chat |
+| F47 | `/hr verify calibrate` (D14) | Sept méthodes essayées sur un point jaune connu et un témoin ; la première qui voit le point et pas le témoin est mémorisée avec le build | **Validé en jeu** : « plain » retenue ; le curseur logiciel est invalide | Refaire si le build change |
+| F48 | `/hr verify arming` | Sondages du point connu à 6 à 60 s après un survol réel, souris immobile | Livré, testé hors jeu | À lancer en jeu : la lecture disparaît-elle avec le temps (R26) ? |
 | F37 | ~~Cartographie par grille~~ | Abandonné : un sondage par candidat suffit | Abandonné | Aucun |
 
 **Repli si rien ne distingue un point du sol** : abandon de la vérification par la minimap, mémoire de récolte (F32).

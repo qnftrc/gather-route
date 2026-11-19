@@ -396,7 +396,7 @@ local softOn, updated, hitR = false, false, 6
 local ppx, ppy = 950, 950 -- fake player world position (1 % of the map = 1 yd)
 local nodes, afterFirstLine, linesSeen, tracking = {}, false, 0, true
 local cursor, moving, mouseDown, combat, castName, unitUnder, tooltip, engine = {100, 100}, false, false, false, nil, false, false, "real"
-local counter, calibT0, alphaCalled = 0, nil, false
+local counter, calibT0, alphaCalled, armedAt = 0, nil, false, nil
 GetCursorPosition = function()
   if calibT0 then
     if Now() >= calibT0 + 4 then return cursor[1], cursor[2] end
@@ -455,6 +455,18 @@ C_TooltipInfo = {GetMinimapMouseover = function()
   if shifted and engine == "soft" and not (softOn and updated) then return nil end
   if shifted and engine == "needalpha" and not alphaCalled then return nil end
   if shifted and engine == "deadshift" then return nil end
+  if engine == "armed" then
+    if not shifted then
+      local cu0, cv0 = GetCursorPosition()
+      local ddx, ddy = cu0 / es - (cxm + sx), cv0 / es - (cym + sy)
+      for _, n in ipairs(nodes) do
+        local ox0, oy0 = offsetOf(n)
+        if (ddx - ox0) ^ 2 + (ddy - oy0) ^ 2 <= hitR * hitR then armedAt = Now() end
+      end
+    elseif not armedAt or Now() - armedAt > 12 then
+      return nil
+    end
+  end
   local cu, cv = GetCursorPosition()
   local dx, dy = cu / es - (cxm + sx), cv / es - (cym + sy)
   if dx * dx + dy * dy > 70 ^ 2 then return nil end
@@ -611,6 +623,13 @@ assert(HR.db.recipe == "soft cursor + update", m)
 assert(m:find("[plain] on the dot: none", 1, true) and m:find("[update] on the dot: none", 1, true), m)
 m = calibrate("deadshift")
 assert(HR.db.recipe == nil and m:find("Calibration failed", 1, true), m)
+
+-- the arming test shows when the probes stop seeing the dot
+reset(); HR.db.verify = "off"; nodes = {{70, 40}}; engine = "armed"; armedAt = nil; calibT0 = Now()
+go("verify arming"); calibT0 = nil
+assert(msgs():find("t=6s after the dot: dot line, control empty", 1, true), msgs())
+assert(msgs():find("t=10s after the dot: dot line", 1, true) and msgs():find("t=20s after the dot: dot none", 1, true), msgs())
+assert(msgs():find("Arming test finished", 1, true) and sx == 0 and sy == 0, msgs())
 
 -- calibration needs a dot under the mouse in phase A
 reset(); HR.db.recipe, HR.db.recipeBuild = nil, nil; nodes = {}; calibT0 = Now()
