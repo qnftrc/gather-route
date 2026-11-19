@@ -31,7 +31,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 |---|---|---|---|---|
 | F20 | `/hr probe` et `/hr probe minimap` : environnement, pistages actifs, fonctions présentes, lecture du survol réel (présence, forme des données avec **valeurs des champs numériques**, valeurs secrètes), rapport dans le chat, `HerbRouteDB` et une fenêtre à copier. Réduite le 2026-11-19 (voir « Retiré ») | **Livré** (testé hors jeu sur faux minimap ; 2 rapports en jeu : présence lisible sous le vrai curseur, nom secret, sondage par position sans effet) | Test en jeu (contrôle sol vide à faire) | `Probe.lua` |
 | F21 | **Isolement du pistage pendant une route** : au lancement, seul « Trouver les herbes » reste actif (configuration d'origine sauvegardée dans `HerbRouteDB`), restauration à l'arrêt (bouton, `/hr stop`, fin de route, réinitialisation groupée), après un `/reload` ou une reconnexion, et après un combat si l'action tombait en combat ; commande `/hr tracking`, case dans la fenêtre | **Livré** (testé hors jeu sur API de pistage simulée, **à lancer en jeu**) | Test en jeu | `Tracking.lua`, `Runner.lua`, `Core.lua`, `UI.lua` |
-| F22 | Sondage aux points connus avec croix de 17 positions, arrêt à la première réponse, dédoublonnage | Cadré | F20 | `Probe.lua` |
+| F22 | Sondage des candidats par `blink` : **un sondage par candidat** (minimap amenée sous le curseur au repos dans le monde, lecture des lignes à +1 image, retour) ; la croix de 17 positions est abandonnée | Cadré, **débloqué** par `blink world` | F36 validé | `Verify.lua` |
 | F23 | Déclenchement à l'entrée d'un point dans le disque (seuil 85 % du rayon), 2 à 3 interrogations par point | Cadré | F22 | `Verify.lua` |
 | F24 | Retrait des waypoints sans correspondance (`TomTom:RemoveWaypoint`) et de l'état du trajet en cours ; **la base n'est jamais modifiée** | Cadré | F23 | `Runner.lua`, `Verify.lua` |
 | F25 | Restauration de la route d'origine (`/hr restore`) | Cadré | F24 | `Runner.lua`, `Core.lua` |
@@ -39,11 +39,11 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F27 | Interface : case « Vérifier avec la minimap », compteurs (conservés, confirmés, retirés) | Cadré | F24 | `UI.lua` |
 | F28 | Tracés : ignorer les points retirés, couleur des points confirmés | Cadré | F24 | `Overlay.lua` |
 | F29 | Faux minimap dans les tests pour valider états, retraits et garde-fous | Cadré | F23 | `tools/test_addon.py` |
-| F34 | Vérification par **présence** d'un point (noms secrets acceptés) ; présence = au moins une ligne d'infobulle | Cadré, **rétabli** après le rapport `watch` ; à confirmer par `blink world` | F36 | `Verify.lua` |
+| F34 | Vérification par **présence** d'un point (noms secrets acceptés) ; présence = au moins une ligne d'infobulle | Cadré, **validée en principe en jeu** (`blink world` : point = ligne, contrôles = aucune) | F36 | `Verify.lua` |
 | F35 | ~~Déplacement de la minimap sous un curseur déjà sur la minimap (`/hr probe blink`)~~ | **Retiré** : non concluant en jeu, remplacé par F36 | n/a | n/a |
-| F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) ; verdict sur la présence = au moins une ligne | **Livré**, lancé en jeu avec l'ancienne définition de la présence (non exploitable) : **à refaire** | Test en jeu | `Probe.lua` |
-| F37 | Cartographie de la présence par `blink` sur une grille | Cadré, redevient pertinent si `blink world` confirme la détection par les lignes | F36 | `Probe.lua` |
-| F38 | `/hr probe watch` : 15 s, journal des changements de présence (lignes) et de signature (`type`, `lines`, `line1type`) avec la position du curseur, « none » et « empty » distingués | **Livré**, lancé en jeu : `line1type=0` sur un carré d'environ 20 unités, `?` ailleurs (hypothèse : lignes = point) ; à refaire en notant la position des points | Test en jeu | `Probe.lua` |
+| F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) ; verdict sur la présence = au moins une ligne | **Livré et validé en jeu** : le point amené sous le curseur renvoie une ligne à +1 image, les contrôles à 40 unités aucune ; reste à tester la variante `hidden` et d'autres zooms | Test en jeu (hidden, zooms) | `Probe.lua` |
+| F37 | ~~Cartographie de la présence par `blink` sur une grille~~ | **Abandonné** : inutile, un sondage par candidat suffit | n/a | n/a |
+| F38 | `/hr probe watch` : 15 s, journal des changements de présence (lignes) et de signature | **Livré et validé en jeu** : lignes uniquement sur un point (carré d'une vingtaine d'unités), « empty » au sol, « none » hors minimap | Terminé | `Probe.lua` |
 
 ## Idées et options
 | Réf. | Fonctionnalité | Statut | Remarque |

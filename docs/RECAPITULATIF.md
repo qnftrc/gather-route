@@ -25,8 +25,8 @@ Rappel : **aucune fonctionnalité de l'add-on de route n'a encore été testée 
 | Réf. | Fonctionnalité | Choix de conception | État | Tests à faire en jeu |
 |---|---|---|---|---|
 | F20 | `/hr probe`, `/hr probe minimap` : environnement, pistages, fonctions, lecture du survol réel avec **valeurs des champs numériques** | Aucun effet durable, `pcall` partout, rapport dans le chat, `HerbRouteDB` et une fenêtre à copier ; jeu de sondes réduit le 2026-11-19 | Livré, 2 rapports en jeu | `/hr probe minimap` avec **tous les pistages désactivés** (présence générique de façon certaine ?), puis sur point jaune et sur sol vide pour comparer `type` et `line1type` |
-| F36 | `/hr probe blink world [hidden]` | Méthode de NodeRadar ; verdict sur la présence = au moins une ligne | Livré ; premier rapport non exploitable (ancienne définition) | **À refaire** : point amené sous le curseur = lignes, contrôles = aucune ligne |
-| F38 | `/hr probe watch` | 15 s, journalise les changements de présence (lignes) et de signature, distingue « none » et « empty », ignore `dataInstanceID` | Livré, 1 rapport : lignes sur un carré d'environ 20 unités | Refaire en notant la position des points d'herbe pour confirmer `lines` = point |
+| F36 | `/hr probe blink world [hidden]` | Méthode de NodeRadar ; verdict sur la présence = au moins une ligne | **Validé en jeu** : point = ligne à +1 image, contrôles à 40 unités = aucune | `blink world hidden` (clignotement ?), autres zooms |
+| F38 | `/hr probe watch` | 15 s, journalise présence (lignes) et signature | **Validé en jeu** : lignes uniquement sur un point | Terminé |
 | F35 | Ancien `blink` (curseur déjà sur la minimap) | Retiré : non concluant | Retiré | Aucun |
 
 ## 3. Vérification des points par la minimap (cadrée, **conditionnelle**)
@@ -35,7 +35,7 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 | Réf. | Fonctionnalité | Choix de conception | État | Tests à prévoir |
 |---|---|---|---|---|
 | F21 | Isolement du pistage pendant une route (D11) | Seul « Trouver les herbes » reste actif, configuration d'origine sauvegardée dans `HerbRouteDB` et rétablie à l'arrêt, au chargement, après combat ; « Trouver les herbes » jamais touché s'il est déjà actif (évite un temps de recharge) | **Livré**, testé hors jeu sur API simulée | En jeu : `/hr` puis vérifier les pistages du menu de la minimap ; `/hr stop` : configuration identique ; `/reload` pendant une route : rétablie ; barre d'actions sans temps de recharge parasite ; `/hr tracking off/on` |
-| F22 | Sondage aux points connus, croix de 17 positions, arrêt à la première réponse (D5) | Positions en yards converties en pixels selon le zoom, dédoublonnage ; **à réévaluer** (zone de réponse d'environ 25 unités, un sondage au centre pourrait suffire) | Cadré, bloqué par R12 et R13 | Résolution réelle selon le zoom (environ 50 yd au zoom 1, 17 yd au zoom le plus fort, estimation) |
+| F22 | Sondage des candidats (D5 révisée) | **Un sondage par candidat** par `blink` (minimap amenée sous un curseur au repos dans le monde, lecture à +1 image) ; la croix de 17 positions est abandonnée | **Débloqué** par F36 | Précision selon le zoom (R19), flicker (R18), conditions d'usage (R17) |
 | F23 | Déclenchement à l'entrée dans le disque (D6) | Test de distance léger toutes les 0,25 à 0,5 s, 2 à 3 interrogations par point (à l'entrée, +1,5 s, avant 30 yd) | Cadré | Délai d'apparition d'un point (R8), coût par passe (R9) |
 | F24 | Retrait des waypoints sans correspondance | `TomTom:RemoveWaypoint` + état du trajet en cours seulement ; **base intacte** (D8) ; K échecs consécutifs avant retrait (D7) | Cadré | Faux négatifs (R2), reprise après `/hr restore` |
 | F25 | `/hr restore` | Remet la route d'origine conservée | Cadré | Aller-retour complet après plusieurs retraits |
@@ -43,8 +43,8 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 | F27 | Interface | Case « Vérifier avec la minimap », compteurs conservés, confirmés, retirés | Cadré | Rendu et mise à jour |
 | F28 | Tracés | Ignorer les points retirés, couleur des confirmés | Cadré | Rendu carte et minimap |
 | F29 | Faux minimap dans les tests | Étendre `tools/test_addon.py` | Cadré | États, retraits, garde-fous |
-| F34 | Vérification par **présence** (D10) | Noms secrets acceptés ; **présence = au moins une ligne d'infobulle** | **Rétabli** : `watch` montre des lignes seulement sur un point | À confirmer par `blink world` refait avec cette définition |
-| F37 | Cartographie de la présence par `blink` sur une grille | Pas voisin de la zone de réponse, relevé de `type`, `lines` | Redevient pertinent si F36 confirme | Fraction de positions avec lignes, résolution |
+| F34 | Vérification par **présence** (D10) | Noms secrets acceptés ; présence = au moins une ligne d'infobulle | **Validée en principe en jeu** | Confirmer sur des points de la base (voir F22) |
+| F37 | ~~Cartographie par grille~~ | Abandonné : un sondage par candidat suffit | Abandonné | Aucun |
 
 **Repli si rien ne distingue un point du sol** : abandon de la vérification par la minimap, mémoire de récolte (F32).
 

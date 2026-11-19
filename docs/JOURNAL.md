@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Installer le dernier zip** (présence redéfinie : au moins une ligne d'infobulle), puis : (a) `/hr probe watch` en notant où se trouvent les points d'herbe sur la minimap, pour confirmer que `lines=1` correspond à un point et `lines=0` (état « empty ») au sol ; (b) **relancer `/hr probe blink world`**, dont le verdict d'avant comptait n'importe quelle donnée. Coller les rapports. Ils décident de la vérification par la minimap (R13, F34).
+1. **Tests en jeu restants avant d'écrire la vérification** : (a) `/hr probe blink world hidden` (la minimap invisible pendant l'essai donne-t-elle encore des lignes ? sinon un clignotement sera visible) ; (b) `/hr probe blink world` à d'autres niveaux de zoom (le nombre d'unités de la zone de réponse reste-t-il le même ?) ; (c) l'effet visible du déplacement sur votre minimap. Puis feu vert pour `/hr verify` (voir la proposition du 2026-11-19, rapports `watch` 13:51 et `blink world` 13:52).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -114,6 +114,14 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Conséquence : la vérification par présence (D10) est **rétablie avec cette définition** ; R13 devient « résolu en principe ». Le verdict du premier `blink world` n'est pas exploitable (il comptait n'importe quelle donnée) : à refaire.
 - Écrit : `lineCount`, présence = au moins une ligne dans toute la sonde ; `watch` journalise `lines=N` et distingue « none » (aucune donnée) de « empty » (données sans ligne) ; la lecture de base annonce « data with N line(s) » ou « data without lines » ; `blink world` utilise la nouvelle présence. Fonction `baseline` devenue inutile retirée. Tests hors jeu adaptés (le moteur simulé renvoie maintenant des données vides sur un sol vide, comme le vrai).
 
+### 2026-11-19 — Rapports `watch` (13:51) et `blink world` (13:52) : **la détection positionnelle fonctionne**
+- `watch` : `lines=1 line1type=0` à (-37,-51) ; « empty » (`lines=0`, `line1type=?`) à (-39,13) et (-14,-64) ; « none » hors de la minimap. Les lignes n'existent donc que sur un point, et la donnée vide est bien distincte.
+- `blink world` : phase A, point sous le curseur à (-36,7 ; -58,0), le même point que dans `watch` (écart de 7 unités). Phase B, curseur au repos dans le monde : **contrôle** minimap en place, aucune donnée ; **touché** (point amené sous le curseur) : `lines=1` dès **+1 image**, maintenu à +3 et +6 ; **deux contrôles à 40 unités** : `lines=0` à +1, +3 et +6 ; retour de la minimap : aucune donnée. Minimap et transparence restaurées. Verdict de la sonde : détection d'un point possible, vérification positionnelle faisable.
+- Acquis (build 70959) : on peut savoir **si un point d'herbe se trouve à un endroit donné** de la minimap, en déplaçant la minimap sous un curseur au repos dans le monde et en lisant s'il y a au moins une ligne d'infobulle, sans lire le nom (secret). Latence : 1 image.
+- Conséquences sur la conception : le sondage par `UpdateMouseoverAtPoint` (D5 : croix de 17 positions) est caduc ; **un seul sondage par candidat** suffit (zone de réponse d'une vingtaine d'unités, large devant l'erreur de nos coordonnées) ; chaque sondage coûte environ 4 images (déplacement, lecture à +1, retour, repos) ; la précision dépend du zoom ; F37 (cartographie par grille) devient inutile.
+- Contraintes d'usage rapportées par NodeRadar : le curseur doit **rester immobile dans le monde**, sans bouton enfoncé, hors combat, hors lancer de sort, hors fenêtre de butin, pas sur une créature, un joueur, un bouton de minimap, ni avec une infobulle ou un menu ouvert ; un autre add-on ancré à la minimap perturbe le balayage. Pendant le jeu normal (souris tenue pour la caméra) les passes seraient donc souvent en attente : la vérification serait **opportuniste**, pas continue.
+- Proposition : `/hr verify`, d'abord en **un coup** déclenché à la main (route active, souris au repos) : sonder en blink tous les candidats de la route dans le disque, rapport « avec ligne / sans ligne » en simulation, puis retrait optionnel des waypoints sans ligne (`TomTom:RemoveWaypoint`, base intacte). L'automatisation (déclenchement à l'entrée dans le disque, D6) viendrait ensuite. Non écrit, en attente de feu vert.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -121,7 +129,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D2 | Algorithme repris à l'identique du planner HTML | 2026-11-19 | Appliquée |
 | D3 | Deux modes : Suivi (un waypoint à la fois) et Tout afficher | 2026-11-19 | Appliquée |
 | D4 | Tracés carte et minimap dessinés par l'add-on | 2026-11-19 | Appliquée (non testée en jeu) |
-| D5 | Sondage de la minimap aux seuls emplacements connus, avec croix de 17 positions | 2026-11-19 | Cadrée |
+| D5 | ~~Sondage de la minimap aux seuls emplacements connus, avec croix de 17 positions~~ → **un seul sondage par candidat, par déplacement de la minimap sous le curseur** (`UpdateMouseoverAtPoint` sans effet) | 2026-11-19 | **Révisée** après `blink world` |
 | D6 | Vérification déclenchée à l'entrée d'un point dans le disque de la minimap, 2 à 3 interrogations par point | 2026-11-19 | Cadrée |
 | D7 | La route d'origine est conservée ; on retire des points au lieu de la recalculer | 2026-11-19 | Cadrée |
 | D8 | **Base intacte** : `HerbRoute_Data` n'est jamais modifiée ; seuls les waypoints TomTom du trajet en cours sont retirés | 2026-11-19 | Contrainte |
@@ -143,11 +151,15 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R9 | Coût d'une passe de 17 interrogations par candidat | À mesurer |
 | R10 | Tracé minimap (rotation, zoom) jamais vu en jeu | Non testé |
 | R11 | Noms d'infobulle secrets : pas de contrôle du type d'herbe, faux positifs possibles entre nœuds voisins | Accepté (D10) |
-| R12 | `UpdateMouseoverAtPoint` n'a pas d'effet positionnel (confirmé par la documentation de NodeRadar : sans effet dès le build 70862). Seule piste connue : déplacer la minimap sous un curseur au repos dans le monde | Ouvert, test = `/hr probe blink world` |
+| R12 | Sondage par position | **Résolu** : le déplacement de la minimap sous un curseur au repos dans le monde fonctionne (`blink world`, `lines=1` à +1 image, contrôles à `lines=0`) |
 | R13 | La présence est-elle liée à un point jaune ? | **Résolu en principe** : la donnée existe partout dans la minimap, mais seules les positions sur un point ont des lignes (`watch`) ; à confirmer en jeu avec les positions des points |
 | R14 | Le build 70959 (postérieur à 70938, dernier build documenté par NodeRadar) peut restreindre davantage | Ouvert |
 | R15 | Activer ou rétablir un pistage à sort peut lancer un temps de recharge sur la barre d'actions (NodeRadar) | À observer en jeu |
 | R16 | Signatures de `C_Minimap.GetTrackingInfo` et `SetTracking` supposées (formats table et ancien) | À confirmer par le test en jeu de F21 |
+| R17 | Le curseur doit rester immobile dans le monde (pas de bouton, pas de combat, pas sur une créature ni une fenêtre) : la vérification ne peut tourner que par moments | Contrainte d'usage, à mesurer en jeu |
+| R18 | Effet visible du déplacement de la minimap (clignotement) ; version cachée (alpha 0) non testée | À tester : `/hr probe blink world hidden` |
+| R19 | Résolution dépendante du zoom : zone d'environ 20 unités, soit de l'ordre de 50 yd au zoom 0 et 17 yd au zoom le plus fort (estimation) | À mesurer à plusieurs zooms |
+| R20 | Un autre add-on ancré à la minimap (ou son habillage) peut perturber le déplacement | À observer en jeu |
 
 ## Commits
 | Commit | Contenu |

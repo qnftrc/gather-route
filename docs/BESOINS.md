@@ -49,6 +49,11 @@ Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/ma
 - La vérification par **présence** (B7, D10, F34) est rétablie avec cette définition : présence = au moins une ligne. À confirmer par un nouveau `blink world`.
 - Résolution : la zone de réponse d'un point est d'une vingtaine d'unités (carré d'environ 20 à 25 unités) ; au zoom 0 (rayon 233 yd) cela représente de l'ordre de 50 yd, au zoom le plus fort de l'ordre de 17 yd (estimation). La vérification ne peut retirer que des candidats sans aucun point à proximité.
 
+### 3 sexies Validation en jeu : la détection positionnelle fonctionne
+- `watch` (13:51) et `blink world` (13:52) : la minimap renvoie une ligne d'infobulle seulement pour un point d'herbe sous le curseur ; amener un point sous un curseur au repos dans le monde en déplaçant la minimap suffit (lecture à +1 image) ; les positions à 40 unités n'ont aucune ligne.
+- Conséquences : **un sondage par candidat** (la croix de 17 positions est abandonnée, D5 révisée) ; chaque sondage coûte environ 4 images ; la précision dépend du zoom ; la vérification est **opportuniste** (curseur immobile dans le monde, hors combat, aucun bouton enfoncé, aucune fenêtre).
+- Proposition de première version : `/hr verify` déclenché à la main (simulation d'abord, retrait optionnel via `TomTom:RemoveWaypoint`, base intacte), puis automatisation.
+
 ## 4. Conception envisagée
 
 ### 4.1 Sondes de validation (`/hr probe`) — première étape (écrites, jouées en partie)
@@ -60,7 +65,7 @@ Selon les résultats, on retient la vérification par présence (4.2, 4.3 bis) o
 
 ### 4.2 Interroger la minimap aux candidats connus
 - Candidats = points de notre base dans le disque de la minimap, pour les herbes sélectionnées. La position sur la minimap vient de la projection de `Overlay.lua` (rayon de vue, rotation, facteur 0,9).
-- Motif par candidat : centre puis 2 pas dans chacune des 8 directions, soit 17 interrogations. Pas défini en yards (par exemple 3 puis 6) et converti en pixels selon le zoom. *À réévaluer : la zone de réponse rapportée (environ 25 unités) est grande devant l'erreur de nos coordonnées, un sondage au centre pourrait suffire.*
+- ~~Motif par candidat : centre puis 2 pas dans chacune des 8 directions, soit 17 interrogations.~~ **Révisé** : un seul sondage par candidat, par déplacement de la minimap sous le curseur (voir 3 sexies). Ancien texte : centre puis 2 pas dans chacune des 8 directions, soit 17 interrogations. Pas défini en yards (par exemple 3 puis 6) et converti en pixels selon le zoom. *À réévaluer : la zone de réponse rapportée (environ 25 unités) est grande devant l'erreur de nos coordonnées, un sondage au centre pourrait suffire.*
 - Arrêt à la première réponse (centre, puis premier anneau, puis second).
 - Positions interrogées dédoublonnées sur une grille de pixels (les doublons du JSON sont à 0,1 % les uns des autres).
 - Une réponse est rattachée au candidat le plus proche de la position interrogée ; en cas d'égalité, tous les voisins sont marqués actifs.
