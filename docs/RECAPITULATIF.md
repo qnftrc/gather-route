@@ -20,7 +20,7 @@ Rappel : **aucune fonctionnalité de l'add-on de route n'a encore été testée 
 | F9 | Commandes `/hr` | Région optionnelle avant « : », herbes séparées par des virgules, `all` | Oui (mock) | `/hr Fadeleaf`, `/hr Stranglethorn Vale: Goldthorn`, `/hr stop`, noms inconnus |
 | F10 | Fenêtre | Cadres natifs, liste de régions maison, départ pré-rempli (champ modifiable) | Non (rendu non testable) | Ouverture, listes, cases, boutons, curseur de rayon, erreurs Lua (`/console scriptErrors 1`) |
 | F11 | Tracé carte du monde | Lignes de l'add-on (TomTom ne trace que des pins), tronçon courant vert, suivants dorés, précédent grisé ; désactivé en mode manette | Non |  Affichage sur la bonne carte, zoom, ouverture et fermeture de la carte |
-| F12 | Tracé minimap | Projection calquée sur HereBeDragons-Pins (rayon de vue, rotation, disque à 0,9), 40 points d'avance, découpe au disque (D4) | Non | Rotation, zoom, bord du disque, conflit avec d'autres add-ons de minimap |
+| F12 | Tracé minimap | Projection calquée sur HereBeDragons-Pins (rayon de vue, rotation, disque à 0,9), découpe au disque (D4) | Non | Rotation, zoom, bord du disque, conflit avec d'autres add-ons de minimap |
 | F13 | Réglages mémorisés | `HerbRouteDB` (région, herbes, mode, rayon, cases) | Partiel | Persistance après `/reload` |
 
 ## 2. Sondes de diagnostic (`/hr probe`)

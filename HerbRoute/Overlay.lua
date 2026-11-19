@@ -10,7 +10,6 @@ local TODO   = {1.0, 0.82, 0.2, 0.8}
 local DOT    = "Interface\\AddOns\\TomTom\\Images\\Modern\\Waypoints\\WaypointDotYellow"
 
 local MAP_MAX_SEGMENTS = 800
-local MINIMAP_AHEAD = 40
 local MINIMAP_INTERVAL = 0.1
 
 local hbd
@@ -264,7 +263,7 @@ local function refreshMinimap()
     local showDots = r.mode == "follow"
 
     local n = #r.points
-    local last = math.min(n, r.index + MINIMAP_AHEAD)
+    local last = n
     local used, dots = 0, 0
     local pfx, pfy = 0, 0 -- the player is at the center
     for i = r.index, last do

@@ -350,6 +350,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Outil en lecture seule : herbes = `HerbData.lua` (base d'origine, Wowhead) contre GatherMate ; minerais = export Wowhead contre GatherMate ; correspondance à 0,5 % de la carte, même région et même type ; rapport complet dans [COMPARAISON_BASES.md](COMPARAISON_BASES.md).
 - Résultats : voir la réponse ; herbes 13 256 (Wowhead) contre 14 605 (GatherMate), 97,5 % des points Wowhead retrouvés dans GatherMate et 87,4 % des points GatherMate dans Wowhead ; minerais 10 651 contre 11 011, 94,6 % et 90,3 %. Aucune modification de la base.
 
+### 2026-11-19 — Minimap : tous les points de la route (demande du joueur)
+- Question : pourquoi la minimap ne montre pas les mêmes segments que la mapmonde ? Réponse : elle ne dessine que les segments qui traversent son disque, coupés au bord, et seulement parmi les 40 points suivants ; sur la capture le point courant était hors disque et tous les segments suivants partaient de là.
+- Demande : « fais-le pour tous les points de la route ». Fait : la limite de 40 points (`MINIMAP_AHEAD`) est supprimée, tous les points restants de la route sont parcourus à chaque rafraîchissement (10 par seconde) ; seuls les segments qui traversent le disque sont dessinés. Un segment hors du disque reste invisible : le disque est limité par le zoom de la minimap (bouton « − » pour élargir jusqu'à environ 230 yd).
+- Coût : un calcul de découpe par point et par rafraîchissement ; non mesuré en jeu (route de plusieurs centaines de points).
+
 ## Commits
 | Commit | Contenu |
 |---|---|

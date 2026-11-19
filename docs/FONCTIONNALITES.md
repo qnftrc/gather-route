@@ -22,7 +22,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F9 | Commandes `/hr`, `/herbroute` (route, stop, skip, debug, setmap) | Livré | Oui | Non | `Core.lua` |
 | F10 | Fenêtre : région, herbes, départ, mode, rayon, boutons | Livré | Non (rendu non testable) | Non | `UI.lua` |
 | F11 | Tracé de la route sur la carte du monde (rendu rendu robuste le 2026-11-19 : création à la demande, indépendant de HereBeDragons, ID de carte tolérant ; **absence du tracé constatée en jeu**, correction à retester ; **`/hr debug` : segments créés mais invisibles**, diagnostic `/hr map` ajouté) | Livré | Non | Non | `Overlay.lua` |
-| F12 | Tracé de la route sur la minimap (rayon, rotation, découpe au disque) | Livré | Non | Non | `Overlay.lua` |
+| F12 | Tracé de la route sur la minimap (rayon, rotation, découpe au disque ; tous les points restants de la route depuis le 2026-11-19, plus de limite de 40) | Livré | Non | Non | `Overlay.lua` |
 | F13 | Réglages mémorisés (`HerbRouteDB`) | Livré | Partiel | Non | `Core.lua`, `UI.lua` |
 | F14 | Documentation et zip d'installation | Livré | n/a | n/a | `README.md`, `CLAUDE.md`, `tools/README.md` |
 | F15 | Enrichissement de la base par GatherMate (Forever) : fichier `Data/HerbDataGatherMate.lua` (+1 386 points, région Felwood), base d'origine intacte, outils `tools/merge_gathermate.py` et `tools/check_data.py` | **Livré** (vérifié hors jeu : points d'origine inchangés, ajouts distincts, tests de l'add-on) ; non testé en jeu | Hors jeu : oui | Non | `Data/HerbDataGatherMate.lua`, `tools/` |
