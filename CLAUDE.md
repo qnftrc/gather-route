@@ -45,6 +45,9 @@ Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` 
 - `WorldMapFrame:GetCanvas()` et `hooksecurefunc(WorldMapFrame, "OnMapChanged", ...)` supposés disponibles (le second est gardé).
 - Le runtime WoW est Lua 5.1 ; les tests tournent sur Lua 5.5 via lupa. Éviter les constructions propres à 5.2+ (goto, opérateurs bit à bit, entiers 64 bits) et ne pas modifier la variable d'une boucle `for`.
 
+## Évolutions en cours de cadrage
+L'expression de besoin sur les points actifs, l'interrogation de la minimap et le retracé en direct est dans `docs/BESOINS.md` (rien d'implémenté). Elle suppose une validation en jeu de la lecture de la minimap (`/hr probe`) avant tout développement.
+
 ## Conventions
 - Pas de commentaires sauf contrainte non évidente. Pas de dépendance Ace.
 - Messages d'UI et de chat en anglais ; documentation en français.

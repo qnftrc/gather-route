@@ -26,6 +26,7 @@ Détails : [HerbRoute/README.md](HerbRoute/README.md).
 | `HerbRoute/` | L'add-on (à copier dans `Interface/AddOns/`) |
 | `tools/` | Génération des données et tests hors-jeu ([tools/README.md](tools/README.md)) |
 | `CLAUDE.md` | Contexte, décisions, risques et conventions du projet |
+| `docs/BESOINS.md` | Expression de besoin en cours : points actifs, minimap, retracé en direct |
 
 ## État
 Logique et algorithme vérifiés hors-jeu (identiques au planner HTML, tests sur environnement simulé). L'interface et le tracé minimap n'ont pas encore été testés dans le client : voir la section « État et risques » de `CLAUDE.md`.
