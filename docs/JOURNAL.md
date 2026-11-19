@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Lancer `/hr probe` en jeu** (près d'une herbe, « Trouver les herbes » actif) et renvoyer le rapport : `/hr probe`, `/hr probe world`, `/hr probe minimap`, `/hr probe zoom`. Le résultat décide de la suite (R1).
+1. **Sonde v2** (diagnostics bruts, lecture avec la souris posée sur un point jaune, latence d'une image, conventions supplémentaires, puis déplacement furtif de la minimap) : proposée, en attente de feu vert. Premier rapport : aucune lecture (voir journal).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -31,6 +31,14 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Effets de bord limités : curseur logiciel remis à faux, zoom restauré, base jamais touchée.
 - Vérifié hors jeu sur un faux minimap (lecture seulement avec curseur logiciel et convention écran, écart mesuré 0,4 yd, cas sans lecture, valeurs secrètes, fonction absente, zoom). Cela confirme aussi la cohérence de la projection inverse avec celle de `Overlay.lua`, sur le faux monde seulement.
 - Pas implémenté : `/hr probe blink` (déplacement furtif de la minimap, F30), volontairement laissé à plus tard.
+
+### 2026-11-19 — Premier rapport de `/hr probe` (build 70959)
+- Client : version 1.60.1, build 70959, toc 16001, langue enUS. Minimap 198x198 unités, zoom 0, rayon de vue 233,3 yd, rotation désactivée. Curseur hors de la minimap.
+- Pistages actifs : Find Herbs, Flight Master, Innkeeper, Account Completed Quests, Track Quest POIs. Aucune fonction manquante.
+- Balayages (687 interrogations chacun, 0,6 ms sans curseur logiciel, 1,2 ms avec) : **0 réponse** en `cursor/hard`, `cursor/soft`, `ui/hard`, `ui/soft`. Aucune erreur renvoyée par les appels. Verdict de la sonde : aucune lecture.
+- Interprétation prudente : les fonctions existent et s'exécutent, mais rien n'est lu dans ces conditions. Compatible avec une restriction de lecture introduite par les builds récents (70862 puis 70938, d'après NodeRadar), avec un besoin du vrai curseur sur la minimap, avec une latence d'une image entre `UpdateMouseoverAtPoint` et la lecture, ou avec une autre convention de coordonnées. À confirmer qu'un point jaune d'herbe était visible pendant l'essai.
+- Limite de la sonde v1 : elle ne distingue pas « aucune donnée » de « données dans une autre forme » (le texte est lu seulement dans `lines[1].leftText`), et ne teste ni la lecture avec la souris réellement posée sur un point, ni le décalage d'une image.
+- Correction de contexte : le client n'est pas annoncé en 12.1.x (voir `CLAUDE.md`).
 
 ## Décisions
 | Réf. | Décision | Date | Statut |

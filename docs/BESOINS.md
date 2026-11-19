@@ -68,7 +68,7 @@ La route d'origine est conservée (`r.original`) ; on ne la recalcule pas, on **
 Activer « Trouver les herbes » au lancement d'une route (`C_Minimap.GetNumTrackingTypes`, `GetTrackingInfo`, `SetTracking`, signatures à confirmer en jeu).
 
 ## 5. Questions ouvertes
-1. La lecture de la minimap fonctionne-t-elle sur le client du joueur (build, curseur, soft cursor) ?
+1. La lecture de la minimap fonctionne-t-elle sur le client du joueur ? Premier rapport (build 70959) : 0 réponse dans 4 configurations, curseur hors minimap, sans erreur. Causes possibles : restriction du build, vrai curseur requis, latence d'une image, convention de coordonnées. Sonde v2 à faire.
 2. Taille de la zone qui réagit autour d'un point jaune, donc pas utile de la croix.
 3. Erreur réelle de nos coordonnées par rapport aux nœuds.
 4. Durées de réapparition des herbes sur Forever.

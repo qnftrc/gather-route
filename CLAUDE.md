@@ -1,7 +1,7 @@
 # CLAUDE.md — contexte du projet gather-route
 
 ## Objectif
-Le joueur utilise TomTom (add-on WoW) sur le serveur « Forever » (client retail 12.1.x, contenu type vanilla, données Wowhead Forever). Avant, il passait par un planner HTML hors-jeu : saisie manuelle région / X / Y / herbes, copie des `/way x, y`, collage via `/ttpaste`. Le but : tout faire en jeu, avec position et région détectées automatiquement, et une route optimisée pilotée par TomTom.
+Le joueur utilise TomTom (add-on WoW) sur le serveur « Forever » (le client signale la version 1.60.1, build 70959, toc 16001 d'après `/hr probe` ; contenu type vanilla, données Wowhead Forever. La mention « 12.1.x » vient du TOC de TomTom et d'un commentaire de son code, pas du client). Avant, il passait par un planner HTML hors-jeu : saisie manuelle région / X / Y / herbes, copie des `/way x, y`, collage via `/ttpaste`. Le but : tout faire en jeu, avec position et région détectées automatiquement, et une route optimisée pilotée par TomTom.
 
 Réponse apportée : un add-on **séparé**, `HerbRoute/`, qui dépend de TomTom et n'utilise que son API publique documentée (README de TomTom, section « Supported Addon API »). Jamais `TomTom.private`.
 

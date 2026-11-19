@@ -29,7 +29,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 ## Cadré (vérification des points sur la minimap)
 | Réf. | Fonctionnalité | Statut | Dépend de | Fichiers prévus |
 |---|---|---|---|---|
-| F20 | `/hr probe` : diagnostic de la lecture de la minimap (fonctions, valeurs secrètes, balayage avec 2 conventions de coordonnées et curseur logiciel, curseur monde/minimap, zoom, hors disque, étalonnage, écart à la base) avec rapport dans le chat, dans `HerbRouteDB` et dans une fenêtre à copier | **Livré** (testé hors jeu sur faux minimap, **à lancer en jeu**) | Test en jeu | `Probe.lua` |
+| F20 | `/hr probe` : diagnostic de la lecture de la minimap (fonctions, valeurs secrètes, balayage avec 2 conventions de coordonnées et curseur logiciel, curseur monde/minimap, zoom, hors disque, étalonnage, écart à la base) avec rapport dans le chat, dans `HerbRouteDB` et dans une fenêtre à copier | **Livré** (testé hors jeu sur faux minimap, **lancé une fois en jeu : aucune lecture, sonde v2 à faire) | Test en jeu | `Probe.lua` |
 | F21 | Activation automatique du pistage « Trouver les herbes » | Cadré | F20 | `Probe.lua` ou `Verify.lua` |
 | F22 | Sondage aux points connus avec croix de 17 positions, arrêt à la première réponse, dédoublonnage | Cadré | F20 | `Probe.lua` |
 | F23 | Déclenchement à l'entrée d'un point dans le disque (seuil 85 % du rayon), 2 à 3 interrogations par point | Cadré | F22 | `Verify.lua` |
@@ -43,7 +43,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 ## Idées et options
 | Réf. | Fonctionnalité | Statut | Remarque |
 |---|---|---|---|
-| F30 | Contournements de lecture : curseur logiciel, déplacement furtif de la minimap (`/hr probe blink`) | Idée, à tester | Selon le résultat de F20 ; le déplacement furtif touche à la position de la minimap |
+| F30 | Contournements de lecture : curseur logiciel, déplacement furtif de la minimap (`/hr probe blink`) | Idée, **prioritaire après le premier rapport (aucune lecture)** | Selon le résultat de F20 ; le déplacement furtif touche à la position de la minimap |
 | F31 | Dézoom temporaire de la minimap pendant la passe | Idée | Élargit le champ de détection mais change l'affichage |
 | F32 | Mémoire de récolte (états pris et vide, événement de récolte, bouton « rien ici ») | Idée, optionnelle | Séparée de la base ; durée de vie entre trajets à décider |
 | F33 | Recalcul complet de la route après changements d'état | Idée, désactivé par défaut | Remplacé par le simple retrait de points (D7) |
