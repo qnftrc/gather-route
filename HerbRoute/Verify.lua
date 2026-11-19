@@ -651,23 +651,23 @@ local function finishScan(r, cells, counts, R)
         end
         local used, sumx, sumy, sumRatio = 0, 0, 0, 0
         local listed = {}
+        local LOCAL = 20
         for _, c in ipairs(cands) do
-            local best, bd
-            for _, b in ipairs(blobs) do
-                local dx, dy = b.x - c.x, b.y - c.y
-                local d = math.sqrt(dx * dx + dy * dy)
-                if not bd or d < bd then best, bd = b, d end
+            local n, cx, cy = 0, 0, 0
+            for _, h in ipairs(hits) do
+                local dx, dy = h.x - c.x, h.y - c.y
+                if dx * dx + dy * dy <= LOCAL * LOCAL then n, cx, cy = n + 1, cx + h.x, cy + h.y end
             end
-            if best and bd <= 1.5 * SCAN_STEP then
+            if n > 0 then
+                cx, cy = cx / n, cy / n
                 used = used + 1
-                sumx, sumy = sumx + (best.x - c.x), sumy + (best.y - c.y)
-                if c.d > 0 then sumRatio = sumRatio + math.sqrt(best.x ^ 2 + best.y ^ 2) / math.sqrt(c.x ^ 2 + c.y ^ 2) end
-                if #listed < 8 then
-                    listed[#listed + 1] = ("%.0f: (%+.0f,%+.0f)"):format(math.sqrt(c.x ^ 2 + c.y ^ 2), best.x - c.x, best.y - c.y)
-                end
+                sumx, sumy = sumx + (cx - c.x), sumy + (cy - c.y)
+                local rp = math.sqrt(c.x ^ 2 + c.y ^ 2)
+                if rp > 0 then sumRatio = sumRatio + math.sqrt(cx ^ 2 + cy ^ 2) / rp end
+                if #listed < 8 then listed[#listed + 1] = ("%.0f: (%+.0f,%+.0f)"):format(rp, cx - c.x, cy - c.y) end
             end
         end
-        say("Scan: %d blip group(s); %d of %d projected point(s) have one within %d units.", #blobs, used, #cands, 1.5 * SCAN_STEP)
+        say("Scan: %d blip group(s); %d of %d projected point(s) have blip cells within %d units (offset = centre of those cells minus the projection).", #blobs, used, #cands, LOCAL)
         if used > 0 then
             say("Scan: offsets blip minus projection (distance from the center: dx,dy in units): %s", table.concat(listed, "; "))
             say("Scan: mean offset (%+.1f, %+.1f) units, mean radial ratio blip/projection %.2f (1 = correct scale).", sumx / used, sumy / used, sumRatio / used)
