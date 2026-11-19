@@ -386,6 +386,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Cause du manque de candidats : le fer est épars (quelques points par vue), et le scan ne comparait que les points du **même type** que le point courant, alors que la minimap ne distingue pas les types (le nom est secret).
 - Correction : le scan compare désormais **tous les points restants de la route** (tous types de la catégorie) à moins de 80 % du rayon, au lieu des seuls points du type courant. À refaire en dézoomant la minimap (« − ») et idéalement avec plusieurs minerais cochés, près de points jaunes.
 
+### 2026-11-19 — Deuxième `/hr verify scan` (carte ASCII) : deux points projetés tombent sur des points jaunes
+- Capture de la carte (l'en-tête chiffré n'est pas visible) : deux points projetés `o` situés l'un juste au nord du joueur, l'autre à environ 6 caractères (48 unités) à l'est, **chacun entouré de `X`** : au-dessus et en dessous du `o` (zone de réponse d'un nœud sur deux rangées de cases), à environ un caractère (≤ 8 unités) près en x et centré en y. Autres `X` non appariés : un au nord, deux groupes au sud-ouest.
+- Lecture : première **indication positive** de la projection en jeu : deux points de la base coïncident avec des nœuds à 10 et 50 unités du centre. Limites : seulement deux points, proches du centre (l'erreur d'échelle y est faible) ; les points éloignés (près de 85 % du rayon, ceux des sondages en avance) ne sont pas testés ; un décalage d'environ un caractère vers la gauche pourrait être systématique (à mesurer sur plus de points). Les `X` sans `o` sont des nœuds absents de la route (autres types ou autres points) ou absents de la base.
+- Suite : refaire le scan minimap dézoomée avec davantage de points de la route dans le disque, et lire les lignes d'en-tête (compte des points projetés et des appariements).
+
 ## Commits
 | Commit | Contenu |
 |---|---|
