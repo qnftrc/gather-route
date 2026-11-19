@@ -288,6 +288,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Réglage : `/hr verify ahead on|off` (automatique, **activé par défaut**, `HerbRouteDB.verifyAhead`) ; `/hr verify ahead` seul lance une passe à la demande même si l'automatique est coupé.
 - Limites : un sondage = un déplacement de la minimap (R18) : la passe en avance en ajoute sans plafond par route ; dans une zone dense, un nœud voisin peut répondre à la place du point sondé (faux « présent »). Testé hors jeu seulement.
 
+### 2026-11-19 — Tracé absent de la carte du monde (F11, retour du joueur)
+- Constat : capture de la carte (Stranglethorn Vale) avec une route active, aucun tracé ni point de l'add-on.
+- Causes plausibles trouvées dans le code (**non confirmées en jeu**) : (1) tout l'overlay, carte comprise, était abandonné à l'initialisation si `HereBeDragons-2.0` était introuvable, alors que la carte n'en a pas besoin ; (2) le cadre de la carte était créé une seule fois au chargement, or `WorldMapFrame` peut ne pas exister encore (Blizzard_WorldMap chargé à la demande) ; (3) le tracé n'était affiché que si l'ID de la carte ouverte était **exactement** celui de la route : si `TomTom.NameToMapId` (repli par préfixe, plus petit ID) a choisi un autre ID pour le même nom de zone, tout restait caché ; (4) un premier rafraîchissement à l'ouverture pouvait se faire avant la mise en page du canevas.
+- Corrections : cadre créé à la demande (au premier affichage de la carte, ou au chargement de `Blizzard_WorldMap`), carte indépendante de HereBeDragons (message si la bibliothèque manque : seule la minimap est alors désactivée), carte acceptée si son nom correspond à celui de la région, second rafraîchissement à l'image suivante, diagnostic ajouté à `/hr debug` (« Map overlay: frame created, map ID, route map, canvas, lines »).
+- À faire en jeu : lancer une route, ouvrir la carte, puis `/hr debug` et coller la ligne « Map overlay » si le tracé manque encore (elle indique laquelle des quatre causes joue).
+
 ## Commits
 | Commit | Contenu |
 |---|---|

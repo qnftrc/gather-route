@@ -21,7 +21,7 @@ function RunTimers()
   return n
 end
 wipe = function(t) for k in pairs(t) do t[k]=nil end end
-tinsert = table.insert; UISpecialFrames = {}
+tinsert = table.insert; UISpecialFrames = {}; hooksecurefunc = function() end
 SlashCmdList = {}
 printed = {}
 print = function(...) printed[#printed+1] = table.concat({...}, " ") end
@@ -30,6 +30,7 @@ local function widget()
   return setmetatable(w, {
     __index = function(t, k) local c = widget(); rawset(t, k, c); return c end,
     __call = function(self) return self end,
+    __add = function() return 1 end, __sub = function() return 1 end, __mul = function() return 1 end, __div = function() return 1 end,
   })
 end
 CreateFrame = function() return widget() end

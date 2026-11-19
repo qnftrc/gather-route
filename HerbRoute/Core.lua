@@ -104,6 +104,7 @@ local function handleSlash(msg)
         HR:SkipPoint()
     elseif cmd == "debug" then
         HR:DebugRegions()
+        HR:OverlayStatus()
     elseif cmd == "tracking" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then

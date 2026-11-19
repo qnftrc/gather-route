@@ -55,14 +55,59 @@ end
 
 -- World map ----------------------------------------------------------------
 
-local function refreshMap()
-    if not mapFrame then return end
-    local r = HR.route
+local refreshMap
+
+-- The world map frame may not exist when the addon loads (Blizzard_WorldMap is
+-- load-on-demand on some clients), so the overlay frame is created on first need.
+local function ensureMapFrame()
+    if mapFrame then return true end
+    -- Frames added to the world map taint Blizzard's gamepad code (see
+    -- TomTom/core/position.lua), so the map overlay is skipped in that mode.
+    if TomTom:IsGamepadUI() or not WorldMapFrame or not WorldMapFrame.GetCanvas then return false end
     local canvas = WorldMapFrame:GetCanvas()
-    if not r or not HR.db.showMap or not WorldMapFrame:IsShown()
-        or WorldMapFrame:GetMapID() ~= r.mapID then
-        mapFrame:Hide()
+    if not canvas then return false end
+    mapFrame = CreateFrame("Frame", nil, canvas)
+    mapFrame:SetAllPoints()
+    mapFrame:SetFrameLevel(canvas:GetFrameLevel() + 50)
+    mapFrame:Hide()
+    WorldMapFrame:HookScript("OnShow", function()
+        refreshMap()
+        C_Timer.After(0, refreshMap)
+    end)
+    WorldMapFrame:HookScript("OnHide", refreshMap)
+    if WorldMapFrame.OnMapChanged then
+        hooksecurefunc(WorldMapFrame, "OnMapChanged", refreshMap)
+    end
+    return true
+end
+
+function HR:OverlayStatus()
+    local r = self.route
+    local shown = WorldMapFrame and WorldMapFrame.IsShown and WorldMapFrame:IsShown()
+    local canvas = mapFrame and WorldMapFrame:GetCanvas()
+    self:Print(("Map overlay: frame %s, map shown %s, map ID %s, route map %s, canvas %sx%s, %d line(s), showMap %s"):format(
+        mapFrame and "created" or "NOT created", tostring(shown),
+        tostring(WorldMapFrame and WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()), tostring(r and r.mapID),
+        canvas and tostring(canvas:GetWidth()) or "?", canvas and tostring(canvas:GetHeight()) or "?",
+        #mapLines, tostring(self.db.showMap)))
+end
+
+function refreshMap()
+    local r = HR.route
+    if not r or not HR.db.showMap or not WorldMapFrame or not WorldMapFrame:IsShown() then
+        if mapFrame then mapFrame:Hide() end
         return
+    end
+    if not ensureMapFrame() then return end
+    local canvas = WorldMapFrame:GetCanvas()
+    local shownMap = WorldMapFrame:GetMapID()
+    if shownMap ~= r.mapID then
+        -- the same zone can exist under several map IDs: accept the one shown if it carries the region's name
+        local info = C_Map and C_Map.GetMapInfo and shownMap and C_Map.GetMapInfo(shownMap)
+        if not (info and type(info.name) == "string" and HR.normalize(info.name) == HR.normalize(r.region)) then
+            mapFrame:Hide()
+            return
+        end
     end
     mapFrame:Show()
 
@@ -206,10 +251,10 @@ HR.ComputeRouteWorld = computeWorld
 HR.ViewRadius = viewRadius
 
 function HR:UpdateOverlay()
-    if not hbd then return end
     local r = self.route
-    if r and not r.world then computeWorld(r) end
+    if r and not r.world and hbd then computeWorld(r) end
     refreshMap()
+    if not hbd then return end
     if miniFrame then
         miniFrame:SetShown(r ~= nil)
         if r then refreshMinimap() end
@@ -218,9 +263,17 @@ end
 
 function HR:InitOverlay()
     hbd = LibStub and LibStub("HereBeDragons-2.0", true)
-    if not hbd then return end
-
     mapLines, mapDots, miniLines, miniDots = {}, {}, {}, {}
+    ensureMapFrame()
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("ADDON_LOADED")
+    f:SetScript("OnEvent", function(_, _, name)
+        if name == "Blizzard_WorldMap" then ensureMapFrame() end
+    end)
+    if not hbd then
+        HR:Print("HereBeDragons-2.0 not found: the minimap overlay is disabled.")
+        return
+    end
 
     miniFrame = CreateFrame("Frame", nil, Minimap)
     miniFrame:SetAllPoints(Minimap)
@@ -233,18 +286,4 @@ function HR:InitOverlay()
         if HR.route and not HR.route.world then computeWorld(HR.route) end
         refreshMinimap()
     end)
-
-    -- Frames added to the world map taint Blizzard's gamepad code (see
-    -- TomTom/core/position.lua), so the map overlay is skipped in that mode.
-    if not TomTom:IsGamepadUI() and WorldMapFrame and WorldMapFrame.GetCanvas then
-        mapFrame = CreateFrame("Frame", nil, WorldMapFrame:GetCanvas())
-        mapFrame:SetAllPoints()
-        mapFrame:SetFrameLevel(WorldMapFrame:GetCanvas():GetFrameLevel() + 50)
-        mapFrame:Hide()
-        WorldMapFrame:HookScript("OnShow", refreshMap)
-        WorldMapFrame:HookScript("OnHide", refreshMap)
-        if WorldMapFrame.OnMapChanged then
-            hooksecurefunc(WorldMapFrame, "OnMapChanged", refreshMap)
-        end
-    end
 end
