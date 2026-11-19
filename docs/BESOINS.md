@@ -36,7 +36,7 @@ Teste en jeu : existence de `UpdateMouseoverAtPoint` et `GetMinimapMouseover`, n
 - Positions interrogées dédoublonnées sur une grille de pixels (les doublons du JSON sont à 0,1 % les uns des autres).
 - Une réponse est rattachée au candidat le plus proche de la position interrogée ; en cas d'égalité, tous les voisins sont marqués actifs.
 - Interrogations étalées sur plusieurs images. Cadence : toutes les 2 s en mouvement, plus rarement à l'arrêt, et à chaque changement de tronçon. Seulement si la minimap est visible, le pistage actif et le curseur dans le monde.
-- Bonus : l'écart entre le pas qui répond et le centre mesure l'erreur de notre coordonnée. Il peut servir à régler le pas ou à recaler la base.
+- Mesure seulement : l'écart entre le pas qui répond et le centre donne l'erreur de nos coordonnées. Il sert à régler le pas de la croix ; il ne modifie **jamais** la base de données.
 - Limites : ne découvre pas de nœud absent de la base ; ne sort pas du disque (dézoomer temporairement élargit le champ mais change l'affichage de la minimap). Les noms d'infobulle sont localisés : hypothèse client en anglais.
 
 ### 4.3 Retracé en direct (B4)
@@ -49,6 +49,7 @@ Teste en jeu : existence de `UpdateMouseoverAtPoint` et `GetMinimapMouseover`, n
 
 ### 4.3 bis Vérification et suppression de points (B6, remplace le recalcul complet)
 La route d'origine est conservée (`r.original`) ; on ne la recalcule pas, on **retire des points**. Le re-calcul complet de 4.3 devient optionnel (désactivé par défaut).
+- **Contrainte : base intacte.** `HerbRoute_Data` (la base des points) n'est jamais modifiée ni réduite. Seuls les **waypoints TomTom du trajet en cours** sont retirés (`TomTom:RemoveWaypoint`), plus l'état en mémoire du trajet courant. Chaque nouvelle génération repart de la base complète.
 - **Source de vérité** : la liste ordonnée de la route. « Retirer un point » = le marquer retiré dans cette liste, appeler `TomTom:RemoveWaypoint(uid)` si ce point a un waypoint TomTom (tous les points en mode Tout afficher, seulement le point courant en mode Suivi), et rafraîchir les tracés. En mode Suivi, l'avancement saute les points retirés ; les tracés relient les voisins restants.
 - **Cycle de vérification** : candidats = points restants, non confirmés, situés dans le disque de la minimap, les plus proches d'abord. Interrogation avec le motif de 4.2. Le nom de l'infobulle doit être celui de l'herbe du point.
   - Réponse : point *confirmé* (conservé, recontrôlé rarement).
@@ -60,6 +61,7 @@ La route d'origine est conservée (`r.original`) ; on ne la recalcule pas, on **
 - **Tests** : un faux minimap dans `tools/test_addon.py` (blips simulés, tooltips renvoyés par point) pour valider états, retraits, cadence et garde-fous. Le comportement réel reste à valider en jeu.
 
 ### 4.4 Mémoire de récolte (repli, indépendant de la minimap)
+*Les états pris/vide de cette mémoire sont séparés de la base (`HerbRouteDB`, jamais `HerbRoute_Data`) et optionnels : à confirmer avant de les faire survivre d'un trajet à l'autre, puisque chaque génération repart de la base complète.*
 États *pris* / *vide* stockés dans `HerbRouteDB` avec la date. La récolte (`UNIT_SPELLCAST_SUCCEEDED`) marque le point le plus proche comme pris ; le bouton Skip devient « rien ici ». Les points marqués depuis moins de N minutes sont filtrés avant le calcul. N réglable ; durées de réapparition de Forever inconnues, à mesurer.
 
 ### 4.5 Pistage automatique
