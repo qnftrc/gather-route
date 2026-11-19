@@ -24,6 +24,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B12 | Sonder automatiquement, en plus du manuel, tous les futurs waypoints qui entrent dans les 85 % du rayon de vue de la minimap | Réponse du joueur |
 | B13 | ~~Tenir compte du relief~~ : **annulé par le joueur** (2026-11-19), la distance à vol d'oiseau est conservée | Demande du joueur, puis annulation |
 | B14 | Récupérer les positions des gisements de minerais de Wowhead Forever par la même méthode que pour les herbes (export depuis le navigateur), à ajouter à la base sans toucher à l'existant | Demande du joueur |
+| B15 | Appliquer aux minerais le même retrait de waypoints qu'aux herbes | Demande du joueur |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.

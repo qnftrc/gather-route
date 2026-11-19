@@ -78,8 +78,8 @@ end
 
 -- Why a probe cannot run right now, or nil.
 local function blocked(ignoreRest, noRecipe)
-    local r = HR.route
-    if HR:TrackingActive(r and r.category) ~= true then return HR:TrackingName(r and r.category) .. " tracking is not active" end
+    local category = (HR.route and HR.route.category) or HR.verifyCategory
+    if HR:TrackingActive(category) ~= true then return HR:TrackingName(category) .. " tracking is not active" end
     if not noRecipe and not recipeOpts() then
         return "run /hr verify calibrate once (the probe method is not calibrated for this build)"
     end
@@ -425,8 +425,15 @@ local function captureDot(name)
     return sx / es - cx, sy / es - cy
 end
 
-function HR:VerifyCalibrate()
-    self:Print("Calibration, phase A in 3 s: put the mouse ON a yellow herb dot of the minimap and keep it still.")
+local function categoryOf(arg)
+    arg = (arg or ""):lower()
+    if arg == "ores" or arg == "ore" or arg == "minerals" then return "ores" end
+    return "herbs"
+end
+
+function HR:VerifyCalibrate(arg)
+    self.verifyCategory = categoryOf(arg)
+    self:Print(("Calibration, phase A in 3 s: put the mouse ON a yellow %s dot of the minimap and keep it still."):format(self.verifyCategory == "ores" and "ore" or "herb"))
     C_Timer.After(3, function()
         local ox, oy = captureDot("Calibration")
         if not ox then return end
@@ -484,8 +491,9 @@ end
 -- delays after phase A while the mouse rests in the world.
 local ARMING_TIMES = {6, 10, 15, 20, 30, 45, 60}
 
-function HR:VerifyArming()
-    self:Print("Arming test, phase A in 3 s: put the mouse ON a yellow herb dot of the minimap, then move it into the world within 4 s and keep it still for about a minute. The minimap blinks briefly at each check.")
+function HR:VerifyArming(arg)
+    self.verifyCategory = categoryOf(arg)
+    self:Print("Arming test, phase A in 3 s: put the mouse ON a yellow " .. (self.verifyCategory == "ores" and "ore" or "herb") .. " dot of the minimap, then move it into the world within 4 s and keep it still for about a minute. The minimap blinks briefly at each check.")
     C_Timer.After(3, function()
         local ox, oy = captureDot("Arming test")
         if not ox then return end

@@ -438,8 +438,8 @@ Minimap = {
   GetAlpha = function() return 1 end, SetAlpha = function() alphaCalled = true end,
 }
 C_Minimap = {
-  GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 1 end,
-  GetTrackingInfo = function() return {name = "Find Herbs", active = tracking, spellID = 2383} end,
+  GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 2 end,
+  GetTrackingInfo = function(i) if i == 2 then return {name = "Find Minerals", active = tracking, spellID = 2580} end return {name = "Find Herbs", active = tracking, spellID = 2383} end,
   SetTracking = function() end,
 }
 local hbd = {}
@@ -739,6 +739,46 @@ assert(r.removed[target] and msgs() ~= nil, "manual pass must remove the empty p
 go("verify ahead on"); assert(HR.db.verifyAhead == true)
 go("verify ahead off"); assert(HR.db.verifyAhead == false)
 HR.db.verifyAhead = nil
+go("stop")
+
+-- 12. ores: same verification and removal, driven by Find Minerals
+reset(); HR.db.verify = "report"; HR.db.verifyAhead = nil; HR.verifyHits = 0
+go("ores copper vein")
+local oreR = HR.route
+assert(oreR and oreR.category == "ores", msgs())
+local orePts = oreR.points
+local oreFirst = orePts[1]
+local oreCount = #HerbRoute_OreData["Elwynn Forest"]["Copper Vein"]
+go("stop")
+reset(); HR.db.verify = "remove"; HR.verifyHits = 3
+nodes = {}
+for j = 2, #orePts do
+  local p = orePts[j]
+  local dx, dy = p.x - oreFirst.x, p.y - oreFirst.y
+  if dx * dx + dy * dy > 14 * 14 then nodes[#nodes + 1] = {p.x, p.y} end
+end
+go("ores copper vein")
+r = HR.route
+assert(r.category == "ores" and r.removed[1] and r.index > 1 and not r.removed[r.index], msgs())
+assert(msgs():find("has no node: removed", 1, true) and msgs():find("Copper Vein", 1, true), msgs())
+assert(#HerbRoute_OreData["Elwynn Forest"]["Copper Vein"] == oreCount, "the ore database must not change")
+assert(sx == 0 and sy == 0)
+go("stop")
+-- a node under the first ore point: confirmed, kept
+reset(); HR.db.verify = "remove"; HR.verifyHits = 0
+nodes = {{oreFirst.x, oreFirst.y}}
+go("ores copper vein")
+r = HR.route
+assert(r.vstate[1] and r.vstate[1].confirmed and not r.removed[1] and HR.verifyHits >= 1, msgs())
+go("stop")
+-- the guard names the ore tracking
+reset(); HR.db.verify = "report"; HR.verifyHits = 3; nodes = {}; tracking = false
+go("ores copper vein")
+printed = {}; HR:VerifyStatus()
+assert(msgs():find("Find Minerals tracking is not active", 1, true), msgs())
+go("stop"); tracking = true
+go("verify calibrate ores"); assert(HR.verifyCategory == "ores"); RunTimers()
+go("verify calibrate"); assert(HR.verifyCategory == "herbs"); RunTimers()
 go("stop")
 
 -- 8. off, and commands

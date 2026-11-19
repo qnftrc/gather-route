@@ -339,6 +339,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Existant intact : `OreDataGatherMate.lua` non modifié ; `Data/OreDataWowhead.lua` ajouté au chargement après lui. Tests mis à jour (42 régions, 9 440 points de minerais).
 - Outil : `merge_wowhead_ores.py` accepte `--zone ID=Région` et ignore les entrées sans points.
 
+### 2026-11-19 — Retrait des minerais sur la même méthode que les herbes (F52, B15)
+- Demande du joueur : « ajoute le retrait des minerais en te basant sur la même méthode que celui des herbes ». Le code de vérification et de retrait était déjà commun (catégorie portée par la route, garde « pistage actif » sur le pistage de la catégorie) mais **jamais testé** sur les minerais.
+- Ajouté : tests hors jeu sur une route de minerais (cuivre d'Elwynn Forest) : retrait d'un point vide en mode `remove` avec avancée de la route, point à nœud confirmé et gardé, base de minerais inchangée, garde « Find Minerals tracking is not active » ; faux pistage à deux types (herbes 2383, minéraux 2580). `/hr verify calibrate ores` et `/hr verify arming ores` : le pistage attendu pendant la calibration est celui des minerais, les messages parlent d'un point de minerai ; la méthode calibrée reste mémorisée par build et partagée.
+- Décisions inchangées : un sondage vide suffit (D6/D20), mode `report` par défaut, vérification en avance (D19), base jamais modifiée (D8).
+- Non validé en jeu : la réponse réelle de la minimap sur un point de minerai ; recommandation : `/hr verify calibrate ores` sur un point de minerai connu, puis `report` avant `remove`.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
