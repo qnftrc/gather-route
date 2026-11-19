@@ -40,7 +40,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F28 | Tracés : ignorer les points retirés, couleur des points confirmés | Cadré | F24 | `Overlay.lua` |
 | F29 | Faux minimap dans les tests pour valider états, retraits et garde-fous | Cadré | F23 | `tools/test_addon.py` |
 | F34 | Vérification par **présence** d'un point (noms secrets acceptés, faux positifs possibles entre nœuds voisins) | Cadré (D10) | F35 | `Verify.lua` |
-| F35 | Sondage positionnel : déplacement furtif de la minimap sous le curseur au repos (`/hr probe blink`), avec garde-fous (souris au repos, aucun bouton enfoncé, restauration) | Cadré, **prochaine étape**, accord à obtenir | Test en jeu | `Probe.lua` |
+| F35 | Sondage positionnel : déplacement de la minimap sous le curseur au repos (`/hr probe blink`, variante `blink hidden`), garde-fous (pas en combat, aucun bouton enfoncé, souris immobile, restauration des ancrages et de l'alpha, délai de sécurité) | **Livré** (testé hors jeu sur moteur simulé, **à lancer en jeu**) | Test en jeu | `Probe.lua` |
 
 ## Idées et options
 | Réf. | Fonctionnalité | Statut | Remarque |

@@ -13,7 +13,7 @@ Copier le dossier `HerbRoute` dans `Interface/AddOns/` à côté de `TomTom`, pu
 - `/hr <herbe>[, <herbe>]` : route dans la région actuelle (`all` pour toutes les herbes).
 - `/hr <région>: <herbe>[, <herbe>]` : route dans une autre région (départ au centre de la carte).
 - `/hr stop` : supprime la route (waypoints, flèche, tracé). `/hr skip` : passe le point courant.
-- `/hr probe` : diagnostic de la lecture de la minimap (rapport dans le chat et dans une fenêtre à copier). Variantes : `world` ou `minimap` (lancement après 3 s, le temps de placer la souris), `zoom` (teste chaque niveau de zoom, restauré ensuite), `copy` (rouvre le dernier rapport). À lancer près d'une herbe, « Trouver les herbes » actif.
+- `/hr probe` : diagnostic de la lecture de la minimap (rapport dans le chat et dans une fenêtre à copier). Variantes : `world` ou `minimap` (lancement après 3 s, le temps de placer la souris), `zoom` (teste chaque niveau de zoom, restauré ensuite), `blink` (essai volontaire : souris posée **sans bouger** sur un point jaune, au centre de la minimap, la minimap est déplacée brièvement sous le curseur puis remise en place ; `blink hidden` la rend invisible pendant l'essai), `copy` (rouvre le dernier rapport). À lancer près d'une herbe, « Trouver les herbes » actif.
 - `/hr debug` : affiche les régions résolues vers un mapID. Pour une région non résolue :
   `/hr setmap <région>: <mapID>`.
 

@@ -479,6 +479,167 @@ local function runZoom()
     step()
 end
 
+-- /hr probe blink: with the real mouse resting on a blip, move the minimap
+-- under it and see whether the reading follows. Opt-in; the minimap anchors
+-- and alpha are always restored.
+local function waitFrames(n, fn)
+    if n <= 0 then return fn() end
+    C_Timer.After(0, function() waitFrames(n - 1, fn) end)
+end
+
+local function present()
+    local ok, data = pcall(C_TooltipInfo.GetMinimapMouseover)
+    return ok and data ~= nil
+end
+
+local function buttonDown()
+    if not IsMouseButtonDown then return false end
+    return (IsMouseButtonDown("LeftButton") or IsMouseButtonDown("RightButton")
+        or IsMouseButtonDown("MiddleButton")) and true or false
+end
+
+local function savePoints()
+    local pts = {}
+    for i = 1, Minimap:GetNumPoints() do
+        local point, rel, relPoint, x, y = Minimap:GetPoint(i)
+        pts[#pts + 1] = {point, rel, relPoint, x or 0, y or 0}
+    end
+    return pts
+end
+
+local function placeMinimap(pts, dx, dy)
+    Minimap:ClearAllPoints()
+    for _, p in ipairs(pts) do
+        Minimap:SetPoint(p[1], p[2], p[3], p[4] + dx, p[5] + dy)
+    end
+end
+
+local SHIFT = 40
+local CANDIDATES = {{SHIFT, 0}, {-SHIFT, 0}, {0, SHIFT}, {0, -SHIFT}, {28, 28}, {-28, 28}, {28, -28}, {-28, -28}}
+
+local function runBlink(hidden)
+    lines = {}
+    add("HerbRoute probe blink%s %s", hidden and " (hidden)" or "", date("%Y-%m-%d %H:%M:%S"))
+    local steps, finished = {}, false
+    local pts, alpha
+
+    local function conclude(msg)
+        if finished then return end
+        finished = true
+        if pts then
+            pcall(placeMinimap, pts, 0, 0)
+            pcall(Minimap.SetAlpha, Minimap, alpha)
+            add("Minimap anchors and alpha restored.")
+        end
+        if msg then add("ABORTED: %s", msg) end
+
+        local control = steps[1] and steps[1].control and steps[1] or nil
+        if control and control.r1 ~= nil then add("Control (no shift): %s", control.r1 and "data present" or "no data") end
+        local followed, unchanged = {}, 0
+        for _, variant in ipairs({false, true}) do
+            local total, abs1, abs3, back = 0, 0, 0, true
+            for _, st in ipairs(steps) do
+                if not st.control and st.update == variant and st.r3 ~= nil then
+                    total = total + 1
+                    if not st.r1 then abs1 = abs1 + 1 end
+                    if not st.r3 then abs3 = abs3 + 1 end
+                    if not st.back then back = false end
+                    add("  %s shift (%d,%d): +1 frame %s, +3 frames %s, back %s", variant and "update" or "plain",
+                        st.dx, st.dy, st.r1 and "present" or "absent", st.r3 and "present" or "absent",
+                        st.back and "present" or "absent")
+                end
+            end
+            local label = variant and "update" or "plain"
+            if total > 0 then
+                if back and abs1 == total then
+                    followed[#followed + 1] = label .. " (1 frame)"
+                elseif back and abs3 == total then
+                    followed[#followed + 1] = label .. " (3 frames)"
+                elseif abs1 == 0 and abs3 == 0 then
+                    unchanged = unchanged + 1
+                end
+            end
+        end
+        if #followed > 0 then
+            add("RESULT: the reading follows the moved minimap with %s.", table.concat(followed, ", "))
+            add("  Moving the minimap under a resting cursor can sample positions.")
+        elseif unchanged > 0 then
+            add("RESULT: the reading did not change when the minimap moved.")
+            add("  The hover is not refreshed without real mouse motion in these variants.")
+        else
+            add("RESULT: inconclusive (another blip under the cursor, or the reading was not stable).")
+        end
+        finish()
+    end
+
+    if InCombatLockdown and InCombatLockdown() then return conclude("in combat") end
+    if buttonDown() then return conclude("a mouse button is held") end
+    if not (Minimap.GetNumPoints and Minimap.GetPoint and Minimap.SetPoint and Minimap.ClearAllPoints) then
+        return conclude("the minimap anchors cannot be read")
+    end
+    if not GetCursorPosition or cursorInside() ~= true then return conclude("the cursor is not inside the minimap") end
+    if not present() then return conclude("no data under the cursor: rest the mouse on a herb blip") end
+
+    local sx, sy = GetCursorPosition()
+    local cx, cy = Minimap:GetCenter()
+    local es = Minimap:GetEffectiveScale()
+    local halfW = Minimap:GetWidth() / 2
+    local ox, oy = sx / es - cx, sy / es - cy
+
+    -- Only shifts that keep the cursor inside the minimap disc are meaningful.
+    local valid = {}
+    for _, c in ipairs(CANDIDATES) do
+        local rx, ry = ox - c[1], oy - c[2]
+        if #valid < 4 and rx * rx + ry * ry <= (0.8 * halfW) ^ 2 then valid[#valid + 1] = c end
+    end
+    if #valid < 2 then return conclude("move the mouse closer to the minimap center") end
+
+    steps[1] = {control = true, dx = 0, dy = 0, update = false}
+    for _, variant in ipairs({false, true}) do
+        for _, c in ipairs(valid) do steps[#steps + 1] = {dx = c[1], dy = c[2], update = variant} end
+    end
+
+    pts, alpha = savePoints(), Minimap:GetAlpha()
+    C_Timer.After(30, function() conclude("timeout") end)
+
+    local function stillOk()
+        if InCombatLockdown and InCombatLockdown() then conclude("combat started") return false end
+        if buttonDown() then conclude("a mouse button was pressed") return false end
+        local x, y = GetCursorPosition()
+        if math.abs(x - sx) > 3 or math.abs(y - sy) > 3 then conclude("the mouse moved") return false end
+        return true
+    end
+
+    local i = 0
+    local function nextStep()
+        if finished then return end
+        i = i + 1
+        local st = steps[i]
+        if not st then return conclude() end
+        if not stillOk() then return end
+        placeMinimap(pts, st.dx, st.dy)
+        if hidden then Minimap:SetAlpha(0) end
+        if st.update then pcall(Minimap.UpdateMouseoverAtPoint, Minimap, sx, sy) end
+        waitFrames(1, function()
+            if finished then return end
+            st.r1 = present()
+            waitFrames(2, function()
+                if finished then return end
+                st.r3 = present()
+                placeMinimap(pts, 0, 0)
+                Minimap:SetAlpha(alpha)
+                if st.update then pcall(Minimap.UpdateMouseoverAtPoint, Minimap, sx, sy) end
+                waitFrames(3, function()
+                    if finished then return end
+                    st.back = present()
+                    nextStep()
+                end)
+            end)
+        end)
+    end
+    nextStep()
+end
+
 function Probe:Run(arg)
     arg = (arg or ""):lower()
     if arg == "copy" then
@@ -487,6 +648,10 @@ function Probe:Run(arg)
         return self:ShowReport(saved.text)
     elseif arg == "zoom" then
         return runZoom()
+    elseif arg == "blink" or arg == "blink hidden" then
+        HR:Print(("Blink test in %d s: put the mouse ON a herb blip of the minimap, near its center, and keep it still."):format(COUNTDOWN))
+        C_Timer.After(COUNTDOWN, function() runBlink(arg == "blink hidden") end)
+        return
     elseif arg == "world" or arg == "minimap" then
         HR:Print(("Probe in %d s: put the mouse %s."):format(COUNTDOWN, arg == "world" and "in the world" or "over the minimap"))
         C_Timer.After(COUNTDOWN, function() runMain(arg) end)

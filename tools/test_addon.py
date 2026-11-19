@@ -2,9 +2,21 @@ from lupa import LuaRuntime
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute(r'''
 -- Minimal WoW / TomTom mock
-local timers = {}
-C_Timer = {After = function(_, f) timers[#timers+1] = f end}
-function RunTimers() local n=0 while #timers>0 do local t=table.remove(timers,1) t() n=n+1 end return n end
+local timers, now, seq = {}, 0, 0
+C_Timer = {After = function(d, f) seq = seq + 1; timers[#timers+1] = {t = now + (d or 0), s = seq, f = f} end}
+function RunTimers()
+  local n = 0
+  while #timers > 0 do
+    local bi = 1
+    for i = 2, #timers do
+      local a, b = timers[i], timers[bi]
+      if a.t < b.t or (a.t == b.t and a.s < b.s) then bi = i end
+    end
+    local x = table.remove(timers, bi)
+    now = math.max(now, x.t); x.f(); n = n + 1
+  end
+  return n
+end
 wipe = function(t) for k in pairs(t) do t[k]=nil end end
 tinsert = table.insert; UISpecialFrames = {}
 SlashCmdList = {}
@@ -99,18 +111,41 @@ lua.execute(r'''
 -- in the "cursor" convention (screen pixels = units * effective scale).
 local cxm, cym, es = 500, 400, 2
 local soft, last, zoom = false, nil, 3
+local sx, sy, alphaV, fresh, cached, bl = 0, 0, 1, false, false, nil
+local curx, cury, mouseDown, inCombat = (cxm + 20) * es, (cym + 10) * es, false, false
+UIParent = {}
+GetCursorPosition = function() return curx, cury end
+IsMouseButtonDown = function() return mouseDown end
+InCombatLockdown = function() return inCombat end
 local blips, mode = {}, "ok"
 Minimap = {
-  GetCenter = function() return cxm, cym end, GetWidth = function() return 140 end,
+  GetCenter = function() return cxm + sx, cym + sy end, GetWidth = function() return 140 end,
   GetHeight = function() return 140 end, GetEffectiveScale = function() return es end,
   GetZoom = function() return zoom end, SetZoom = function(_, z) zoom = z end,
   GetZoomLevels = function() return 3 end, IsVisible = function() return true end,
-  UpdateMouseoverAtPoint = function(_, x, y) last = {x, y} end,
+  UpdateMouseoverAtPoint = function(_, x, y) last = {x, y}; fresh = true end,
   SetUsingSoftCursor = function(_, b) soft = b end,
+  GetNumPoints = function() return 1 end,
+  GetPoint = function() return "CENTER", UIParent, "CENTER", sx, sy end,
+  ClearAllPoints = function() end,
+  SetPoint = function(_, _, _, _, x, y) sx, sy = x, y end,
+  GetAlpha = function() return alphaV end, SetAlpha = function(_, a) alphaV = a end,
 }
+local function blinkPresent()
+  if not bl then return false end
+  local bx, by = (cxm + sx + bl[1]) * es, (cym + sy + bl[2]) * es
+  return (bx - curx) ^ 2 + (by - cury) ^ 2 <= 100
+end
 C_Minimap = {GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 2 end,
   GetTrackingInfo = function(i) if i == 1 then return {name = "Find Herbs", active = true} end return {name = "Find Minerals", active = false} end}
 C_TooltipInfo = {GetMinimapMouseover = function()
+  local hit = {lines = {{leftText = "Wild Steelbloom"}}}
+  if mode == "blink" then return blinkPresent() and hit or nil end
+  if mode == "blink_stale" then return hit end
+  if mode == "blink_update" then
+    if fresh then cached = blinkPresent(); fresh = false end
+    return cached and hit or nil
+  end
   if mode == "echo" then return {lines = {{leftText = "Wild Steelbloom"}}} end
   if mode == "none" or not soft or not last then return nil end
   for _, b in ipairs(blips) do
@@ -183,5 +218,35 @@ Minimap.UpdateMouseoverAtPoint = saved
 
 HR.Probe.best = nil
 assert(run("probe zoom"):find("Run /hr probe first", 1, true))
+-- blink
+bl = {20, 10}
+local function blink(m, arg)
+  mode = m; fresh = true; sx, sy, alphaV = 0, 0, 1
+  local r = run("probe " .. (arg or "blink"))
+  assert(sx == 0 and sy == 0 and alphaV == 1, "minimap not restored")
+  return r
+end
+local b = blink("blink")
+assert(b:find("RESULT: the reading follows the moved minimap with plain (1 frame), update (1 frame)", 1, true), b)
+assert(b:find("Control (no shift): data present", 1, true) and b:find("plain shift (40,0)", 1, true), b)
+local bh = blink("blink", "blink hidden")
+assert(bh:find("(hidden)", 1, true) and bh:find("RESULT: the reading follows", 1, true), bh)
+local bs = blink("blink_stale")
+assert(bs:find("RESULT: the reading did not change when the minimap moved", 1, true), bs)
+cached = true
+local bu = blink("blink_update")
+assert(bu:find("RESULT: the reading follows the moved minimap with update (1 frame)", 1, true) and not bu:find("with plain", 1, true), bu)
+inCombat = true
+assert(blink("blink"):find("ABORTED: in combat", 1, true))
+inCombat = false; mouseDown = true
+assert(blink("blink"):find("ABORTED: a mouse button is held", 1, true))
+mouseDown = false
+local savedCur = curx
+curx = 5000
+assert(blink("blink"):find("ABORTED: the cursor is not inside the minimap", 1, true))
+curx = savedCur
+bl = nil
+assert(blink("blink"):find("ABORTED: no data under the cursor", 1, true))
+bl = {20, 10}
 io.write("PROBE TESTS OK\n")
 ''')

@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Relancer la sonde v2a** (`/hr probe minimap`, souris posée sur un point jaune d'herbe) puis, après accord, écrire la **sonde v2b** (`/hr probe blink` : déplacer brièvement la minimap sous le curseur au repos pour obtenir un sondage positionnel). Le résultat décide de la suite (R1, R12).
+1. **Lancer `/hr probe blink`** en jeu (souris immobile sur un point jaune, près du centre de la minimap), puis `/hr probe blink hidden` si la première version gêne, et renvoyer les rapports. Le résultat décide de la suite (R1, R12). Relancer aussi `/hr probe minimap` (sonde v2a) pour obtenir la structure des données.
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -48,6 +48,14 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Le joueur accepte les noms secrets : l'herbe attendue est celle du waypoint, la présence suffit (décision D10, avec ses limites).
 - Correction de la sonde (v2a, livrée) : détection de l'écho du survol réel (verdict dédié), lecture de base sans appel de sondage, structure des données, présence comptée même sans texte, lecture une image plus tard, position du curseur par calcul géométrique. Test hors jeu complété (cas d'écho, valeurs secrètes).
 - Correction du journal : la ligne R1 de la première séance n'avait pas été mise à jour par erreur de script ; c'est fait.
+
+### 2026-11-19 — `/hr probe blink` écrit (F35, sonde v2b)
+- Principe : avec le vrai curseur immobile sur un point jaune, la minimap est déplacée de 40 unités (4 directions compatibles avec un curseur qui reste dans le disque), la lecture est relevée 1 et 3 images plus tard, puis la minimap est remise en place et la lecture de retour relevée. Deux variantes par déplacement : simple, et avec `UpdateMouseoverAtPoint` à la position du curseur.
+- Verdict : la lecture « suit » la minimap si elle disparaît à chaque déplacement et revient au retour ; « inchangée » si elle reste présente (le survol n'est pas rafraîchi sans mouvement réel de la souris) ; sinon non concluant (autre point sous le curseur, lecture instable).
+- Garde-fous : abandon en combat, bouton de souris enfoncé, souris déplacée de plus de 3 pixels, curseur hors du disque, absence de donnée au départ ; ancrages et alpha de la minimap toujours restaurés ; délai de sécurité de 30 s.
+- Option `blink hidden` : minimap rendue invisible (alpha 0) pendant les déplacements, pour limiter l'effet visuel ; à comparer avec la version visible.
+- Vérifié hors jeu sur un moteur simulé (quatre comportements et six cas d'abandon). Le comportement réel du moteur est inconnu.
+- Risques : effet visible sur la minimap pendant l'essai (quelques dixièmes de seconde), clic intercepté si un bouton est pressé (d'où la garde), conflit avec un autre add-on de minimap (position réancrée).
 
 ## Décisions
 | Réf. | Décision | Date | Statut |
