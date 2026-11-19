@@ -38,7 +38,7 @@ Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en
 | Tranche | Histoires |
 |---|---|
 | **Essentiel** | ✅ Lecture d'un point jaune par la minimap, présence = au moins une ligne d'infobulle (F34, F36, F38) · ✅ Calibration de la méthode de sondage, herbes et minerais (F47) · 🟦 Vérification du point courant, modes `report` et `remove` (F39, F22–F24) |
-| **Confort** | 🟦 Vérification en avance sur toute la route (F49) · 🟦 Retrait des minerais, même méthode (F52) · 🟦 Pistage isolé pendant la route, rétabli à l'arrêt (F21) · ✅ Projection des points sur la minimap vérifiée : 3 unités d'écart, échelle 1,01 (F46) |
+| **Confort** | 🟦 Vérification en avance sur toute la route (F49) · 🟦 Sondage du plus proche au plus éloigné (F62) · 🟦 Retrait des minerais, même méthode (F52) · 🟦 Pistage isolé pendant la route, rétabli à l'arrêt (F21) · ✅ Projection des points sur la minimap vérifiée : 3 unités d'écart, échelle 1,01 (F46) |
 | **Plus tard** | 💡 Dézoom temporaire pendant la passe (F31) |
 
 ### 6. Ajuster en route
@@ -61,7 +61,7 @@ Archivée : voir [archives/STORY_MAP_DIAGNOSTIC.md](archives/STORY_MAP_DIAGNOSTI
 | Tranche | Contenu |
 |---|---|
 | **Validé en jeu** | Lecture et sondage par la minimap (F34, F36, F38), calibration herbes et minerais (F47), projection des points (F46), `/hr probe` (F20), diagnostic `/hr map`, tracé de la carte du monde (F11) |
-| **Livré, à tester en jeu** | Génération et suivi de route (F1 à F6, F8), fenêtre (F10), touches et bouton Skip (F53), tracé de la minimap (F12), vérification du point courant et en avance (F39, F49), retrait des minerais (F52), isolement du pistage (F21), `/hr reroute` (F55), `/hr revive` (F60), `/hr nearest` (F61), `/hr merge` (F54), bases de minerais (F16, F51) |
+| **Livré, à tester en jeu** | Génération et suivi de route (F1 à F6, F8), fenêtre (F10), touches et bouton Skip (F53), tracé de la minimap (F12), vérification du point courant et en avance (F39, F49), retrait des minerais (F52), isolement du pistage (F21), `/hr reroute` (F55), `/hr revive` (F60), `/hr nearest` (F61), sondage par proximité (F62), `/hr merge` (F54), bases de minerais (F16, F51) |
 | **Idées** | F25, F29, F31, F32, F33, F44 |
 | **Hors périmètre ou annulé** | F40, F41, F42, F43 · relief (B13) · F56, F57, F58 |
 

@@ -59,6 +59,7 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 | F55 | Réordonnancement après retraits (`/hr reroute`) | Livré |
 | F60 | Réinsertion des points skippés ou retirés qui réapparaissent sur la minimap (`/hr revive`) | Livré |
 | F61 | Cible = point rempli le plus proche après une sonde positive, recalcul à l'arrivée (`/hr nearest`) | Livré |
+| F62 | Sondage par proximité : un seul groupe de candidats, le plus proche d'abord | Livré |
 
 **B5. Diagnostiquer** (activité archivée de la story map, code conservé)
 | Réf. | Fonctionnalité | État |
@@ -95,6 +96,7 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 | F55 | **Réordonnancement de la route après retraits** (`/hr reroute [on|off|now]`, case dans la fenêtre, désactivé par défaut) : plus proche voisin puis 2-opt depuis la position réelle du joueur sur les points restants (point courant compris), repli sur le point courant, état de vérification conservé, base intacte | **Livré**, testé hors jeu ; non testé en jeu | Hors jeu : oui | Non | `Runner.lua`, `Core.lua`, `UI.lua` |
 | F60 | **Réinsertion des points skippés ou retirés qui réapparaissent** (B19, D26) : mémoire de la route en cours (Skip, touche, retrait externe, point absent), sonde `hidden` quand le point entre dans 85 % du rayon, réinsertion au moindre coût avec nouveau waypoint et message, rien si rien détecté ; `/hr revive [on|off]` (activée par défaut), case dans la fenêtre ; herbes et minerais | **Livré**, testé hors jeu (faux minimap) ; non testé en jeu | Hors jeu : oui | Non | `Runner.lua`, `Verify.lua`, `Core.lua`, `UI.lua`, `tools/test_addon.py` |
 | F61 | **Reroutage vers le point rempli le plus proche** (B20, D27) : après une sonde positive (point courant, en avance ou skippé qui revient), le point confirmé le plus proche de la position du joueur dans la minimap devient la cible (point déplacé en tête de route, nouveau waypoint TomTom, message « Nearest: … »), sans seuil de distance ; à l'arrivée, un seul recalcul de la route depuis la position (comme `/hr reroute now`, indépendant de cette option) ; un skip annule le recalcul ; `/hr nearest [on|off]` (activée par défaut), case dans la fenêtre | **Livré**, testé hors jeu (faux minimap) ; non testé en jeu | Hors jeu : oui | Non | `Runner.lua`, `Verify.lua`, `Core.lua`, `UI.lua`, `tools/test_addon.py` |
+| F62 | **Sondage par proximité** (B21, D28) : les points en avance dans la minimap (F49) et les points skippés qui reviennent (F60) forment un seul groupe, sondé du plus proche au plus éloigné de la position du joueur ; le point courant reste sondé en premier ; un point sans conclusion n'en bloque plus d'autres | **Livré**, testé hors jeu (ordre des distances) ; non testé en jeu | Hors jeu : oui | Non | `Verify.lua`, `tools/test_addon.py` |
 
 ## Cadré (vérification des points sur la minimap)
 | Réf. | Fonctionnalité | Statut | Dépend de | Fichiers prévus |
