@@ -13,6 +13,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B3 | Interroger la minimap aux emplacements de notre base, et autour de chacun (croix de 2 pas dans les 8 directions) | Question sur l'imprécision des coordonnées |
 | B4 | Retracer la route en direct selon les résultats et la présence des points sur la minimap | Dernière demande |
 | B5 | (information) Comprendre la portée maximale de 15 yd de l'add-on Lueur | Capture des réglages de Lueur |
+| B6 | **Version simplifiée de B4 (prioritaire)** : garder la route d'origine générée, vérifier sur la minimap que chaque point existe, et retirer de la route (avec `TomTom:RemoveWaypoint`) les points sans correspondance, au fil de l'eau, à une cadence fonction du rayon de la minimap. C'est l'add-on qui interroge la minimap et retire les points lui-même | Dernier résumé du joueur |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.
@@ -46,6 +47,18 @@ Teste en jeu : existence de `UpdateMouseoverAtPoint` et `GetMinimapMouseover`, n
 - Garde-fous contre les faux négatifs : un point n'est déclaré vide qu'après plusieurs passes sans réponse ; sans pistage actif ou sonde fonctionnelle, aucun point n'est marqué vide (on retombe sur la mémoire de récolte) ; un point vide est réinterrogé après un délai.
 - Affichage : couleurs par état sur la carte et la minimap (actif, inconnu, vide atténué ou masqué), en plus du tronçon courant.
 
+### 4.3 bis Vérification et suppression de points (B6, remplace le recalcul complet)
+La route d'origine est conservée (`r.original`) ; on ne la recalcule pas, on **retire des points**. Le re-calcul complet de 4.3 devient optionnel (désactivé par défaut).
+- **Source de vérité** : la liste ordonnée de la route. « Retirer un point » = le marquer retiré dans cette liste, appeler `TomTom:RemoveWaypoint(uid)` si ce point a un waypoint TomTom (tous les points en mode Tout afficher, seulement le point courant en mode Suivi), et rafraîchir les tracés. En mode Suivi, l'avancement saute les points retirés ; les tracés relient les voisins restants.
+- **Cycle de vérification** : candidats = points restants, non confirmés, situés dans le disque de la minimap, les plus proches d'abord. Interrogation avec le motif de 4.2. Le nom de l'infobulle doit être celui de l'herbe du point.
+  - Réponse : point *confirmé* (conservé, recontrôlé rarement).
+  - Pas de réponse : compteur d'échecs +1 ; au K-ième échec consécutif (K = 2 par défaut), le point est retiré.
+- **Cadence** : un point doit être vérifié avant que le joueur arrive à portée de récolte (~20 yd). Intervalle = (R − 20) / (3 × v), borné entre 1,5 s et 6 s, avec R le rayon de vue de la minimap en yards (`C_Minimap.GetViewRadius`) et v la vitesse du joueur (`GetUnitSpeed("player")`). À l'arrêt : 6 s. Exemples : R = 67 yd et v = 7 yd/s donnent environ 2,2 s ; R = 233 yd donne 6 s (plafond). Les interrogations d'une passe sont étalées sur plusieurs images.
+- **Garde-fous** : aucun retrait si le pistage de l'herbe n'est pas actif, si la minimap n'est pas visible, si le joueur n'est pas sur la carte de la route, ou si la lecture est jugée non fonctionnelle (aucune réponse sur toute une passe avec plusieurs candidats : message d'avertissement, on ne retire rien). Pas de retrait en combat.
+- **Restauration** : `/hr restore` remet la route d'origine ; compteurs (conservés, confirmés, retirés) dans l'UI.
+- **Modules** : nouveau `Probe.lua` (primitives de lecture et `/hr probe`), nouveau `Verify.lua` (boucle, états, cadence), modifications de `Runner.lua` (état retiré, `RemovePoint`, avancement), `Overlay.lua` (ignorer les retirés, couleur des confirmés), `UI.lua` (case « Vérifier avec la minimap », compteurs), `Core.lua` (commandes).
+- **Tests** : un faux minimap dans `tools/test_addon.py` (blips simulés, tooltips renvoyés par point) pour valider états, retraits, cadence et garde-fous. Le comportement réel reste à valider en jeu.
+
 ### 4.4 Mémoire de récolte (repli, indépendant de la minimap)
 États *pris* / *vide* stockés dans `HerbRouteDB` avec la date. La récolte (`UNIT_SPELLCAST_SUCCEEDED`) marque le point le plus proche comme pris ; le bouton Skip devient « rien ici ». Les points marqués depuis moins de N minutes sont filtrés avant le calcul. N réglable ; durées de réapparition de Forever inconnues, à mesurer.
 
@@ -61,7 +74,7 @@ Activer « Trouver les herbes » au lancement d'une route (`C_Minimap.GetNumTrac
 6. Une passe de 17 interrogations par candidat est-elle acceptable pour les performances en jeu ?
 
 ## 6. Ordre de réalisation proposé
-1. `/hr probe` (validation).
-2. États des points et mémoire de récolte (4.4), utile même si la minimap est bloquée.
-3. Interrogation des candidats avec la croix (4.2), activation automatique du pistage (4.5).
-4. Retracé en direct (4.3) et couleurs par état sur les tracés.
+1. `/hr probe` (validation en jeu).
+2. États des points, `RemovePoint` et restauration (Runner/Overlay), puis mémoire de récolte (4.4), utile même si la minimap est bloquée.
+3. Vérification et suppression (4.3 bis) avec la croix (4.2) et l'activation automatique du pistage (4.5).
+4. Optionnel : recalcul complet (4.3) et couleurs supplémentaires sur les tracés.
