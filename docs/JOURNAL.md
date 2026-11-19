@@ -304,6 +304,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Rapport en jeu (carte « Map & Quest Log ») : cadre visible, alpha 1, strate MEDIUM niveau 53 (canevas MEDIUM niveau 3), échelle 0,50, 1002x668 ; carré et ligne tests **visibles** (le joueur les voit). Le cadre de l'overlay et le rendu des lignes sont donc bons : **le défaut est dans le dessin de la route** elle-même. Observation à vérifier : la moitié de la diagonale (de 20 % à 50 %) ne semblait pas visible, seule la moitié vers 80 % l'est.
 - Ajouté : `/hr map` avec une route active dessine aussi la route en **magenta épais** pendant 20 s et rapporte : nombre de segments visibles, extrémités du premier segment, taille du canevas, premier point et départ de la route, position du premier point. Cela départage coordonnées fausses, segments masqués et route absente au moment du test.
 
+### 2026-11-19 — Rapport `/hr map` avec route : segments positionnés correctement mais en grande partie masqués
+- Rapport en jeu (route de 126 points, Stranglethorn Vale) : 126 segments « visibles » sur 126, premier segment de (316,-521) à (276,-546) (départ 31,6 / 78,0 et point 1 = 27,6 / 81,8 : coordonnées **justes**, mon affichage du rapport lisait mal l'ordre des valeurs de `GetStartPoint`), premier point 277 / -546 (juste). Sur la capture, seuls quelques fragments magenta apparaissent (près du lac Nazferiti et de Mosh'Ogg) et la diagonale rouge de test n'est visible que sur sa moitié basse.
+- Conclusion : le tracé est bien calculé et placé ; il est **recouvert par un autre élément de la carte** (couches d'exploration ou de pins de Blizzard, dont le niveau de cadre dépasse le 53 que nous utilisions).
+- Correction : cadre de l'overlay en strate `HIGH`, niveau 9000. À retester : si des segments manquent encore, `/hr map` de nouveau.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
