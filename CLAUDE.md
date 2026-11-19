@@ -40,6 +40,7 @@ HerbRoute/
   MinimapUtil.lua    helpers partagés : lecture du survol de la minimap, curseur, déplacement de la minimap
   Probe.lua          /hr probe : diagnostic de la lecture de la minimap
   Verify.lua         vérification du prochain waypoint sur la minimap (/hr verify)
+  Harvest.lua        validation des cueillettes (sort + message de butin) : mémoire des visités, nouveaux nœuds
   UI.lua             fenêtre (région, herbes, départ, mode, rayon, boutons)
 tools/               génération des données et tests (voir tools/README.md)
 ```

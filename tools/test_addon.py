@@ -60,7 +60,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
+for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Harvest","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -891,26 +891,63 @@ go("herbs peacebloom"); assert(HR.route and HR.route.category == "herbs" and HR.
 HR:StopRoute(true)
 go("peacebloom"); assert(HR.route and HR.route.category == "herbs"); HR:StopRoute(true)
 
--- visited memory: points that left the route are kept out of a new route
+-- visited memory: only a validated harvest (gathering cast + loot message) is remembered
 HR.db.skipVisited = true; HR.db.visitedMinutes = 60; HR.db.visited = {}; HR.db.discovered = {}
 printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
 local vr = HR.route
 local nBefore = #vr.points
-local first = vr.points[1]
 HR:SkipPoint(); HR:SkipPoint(); HR:DropPoint(10)
-assert(#HR.db.visited["Elwynn Forest"] == 3, #(HR.db.visited["Elwynn Forest"] or {}))
+assert(#(HR.db.visited["Elwynn Forest"] or {}) == 0, "skip, arrival and removal must not be remembered")
+-- loot without a gathering cast is ignored; wrong item is ignored; then a real harvest
+local target = vr.points[vr.index + 3]
+playerMap = 37; px, py = target.x / 100, target.y / 100
+HR:OnHarvestEvent("CHAT_MSG_LOOT", "You receive loot: [Peacebloom].")
+assert(#(HR.db.visited["Elwynn Forest"] or {}) == 0, "a loot message without a gathering cast is ignored")
+HR:OnHarvestEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 2366)
+HR:OnHarvestEvent("CHAT_MSG_LOOT", "Miaou receives loot: [Peacebloom].")
+assert(#(HR.db.visited["Elwynn Forest"] or {}) == 0, "another player's loot is ignored")
+printed = {}
+local idxT
+for i, p in ipairs(vr.points) do if p == target then idxT = i end end
+HR:OnHarvestEvent("CHAT_MSG_LOOT", "You receive loot: [Peacebloom]x3")
+assert(msgs():find("Harvest: Peacebloom", 1, true) and msgs():find("removed from the route", 1, true), msgs())
+assert(vr.removed[idxT], "the harvested route point must leave the route")
+local rec = HR.db.visited["Elwynn Forest"]
+assert(#rec >= 1 and math.abs(rec[#rec].x - target.x) < 1e-9, "the node position is remembered")
+px, py = 0.5, 0.5
 HR:StopRoute(true)
 printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
 local skippedN = tonumber(msgs():match("(%d+) point%(s%) skipped"))
-assert(skippedN and skippedN >= 3 and #HR.route.points == nBefore - skippedN, #HR.route.points .. " " .. msgs())
+assert(skippedN and skippedN >= 1 and #HR.route.points == nBefore - skippedN, #HR.route.points .. " " .. msgs())
 HR:StopRoute(true)
 HR.db.visited["Elwynn Forest"][1].t = os.time() - 61 * 60
 printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
-assert(#HR.route.points > nBefore - skippedN and #HR.route.points < nBefore, "an entry older than the limit must expire")
+assert(#HR.route.points == nBefore and not msgs():find("skipped", 1, true), "an entry older than the limit must expire")
 HR:StopRoute(true)
 SlashCmdList.HERBROUTE("visited off"); assert(HR.db.skipVisited == false)
 printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
 assert(#HR.route.points == nBefore, "off: nothing is skipped")
+-- a harvest with no known point nearby is stored as a new node (and remembered)
+HR.db.skipVisited = true
+px, py = 0.97, 0.03
+HR:OnHarvestEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 2366)
+printed = {}; HR:OnHarvestEvent("CHAT_MSG_LOOT", "You receive loot: [Peacebloom]")
+assert(msgs():find("stored as a new node", 1, true), msgs())
+local drow0 = HR.db.discovered.herbs["Elwynn Forest"]
+assert(drow0 and #drow0 == 1 and drow0[1].item == "Peacebloom" and drow0[1].x == 97 and drow0[1].y == 3)
+HR.db.discovered = {}; HR.dataRev = (HR.dataRev or 0) + 1; HR.db.visited = {}
+px, py = 0.5, 0.5
+assert(HR.ParseSelfLoot("You receive loot: |cff1eff00|Hitem:3820::::::::|h[Stranglekelp]|h|r.") == "Stranglekelp")
+assert(HR.ParseSelfLoot("You receive loot: [Peacebloom]x2") == "Peacebloom" and HR.ParseSelfLoot("Bob receives loot: [Peacebloom].") == nil)
+-- ore loot ("Copper Ore") is matched with the vein ("Copper Vein") of the data
+local cu = HerbRoute_OreData["Elwynn Forest"]["Copper Vein"][1]
+HR.db.visited = {}
+px, py = cu[1] / 100, cu[2] / 100
+HR:OnHarvestEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 2575)
+printed = {}; HR:OnHarvestEvent("CHAT_MSG_LOOT", "You receive loot: [Copper Ore]")
+assert(msgs():find("Harvest: Copper Ore", 1, true) and #HR.db.visited["Elwynn Forest"] == 1, msgs())
+HR.db.visited = {}; HR.db.discovered = {}
+px, py = 0.5, 0.5
 -- /hr add: a node at the player's position is added to the running route and kept apart from the data
 HR.db.skipVisited = true
 local nAdd = #HR.route.points
@@ -1006,7 +1043,7 @@ assert(list() == "Find Herbs,Flight Master", list())
 -- the window opens on the saved category without error
 HR.db.category = "ores"
 local ns2 = {}
-for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
+for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Harvest","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns2)
 end

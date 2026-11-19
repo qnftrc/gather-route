@@ -85,8 +85,6 @@ function HR:Advance()
     if not r or r.mode ~= "follow" then return end
     if r.current then removeUID(r.current) end
     r.current = nil
-    local left = r.points[r.index]
-    if left then self:RememberVisited(r.region, left.x, left.y) end
     r.index = r.index + 1
     while r.removed[r.index] do r.index = r.index + 1 end
     if r.index > #r.points then return finish(self) end
@@ -120,8 +118,8 @@ end
 local VISITED_TOL = 1.0
 local VISITED_CAP = 3000
 
--- Points that left the route (reached, skipped or found empty) are remembered, apart from
--- the data files, so that a new route does not bring them back for a while.
+-- Points the player really harvested (validated by the loot message, see Harvest.lua) are
+-- remembered, apart from the data files, so that a new route does not bring them back for a while.
 function HR:RememberVisited(region, x, y)
     self.db.visited = self.db.visited or {}
     local list = self.db.visited[region]
@@ -200,18 +198,22 @@ end
 
 -- Adds a node the player found: stored in HerbRouteDB.discovered (never in the data files)
 -- and inserted into the running route. Returns false when it is already known.
-function HR:AddNode(r, x, y, item)
-    local category = r.category or "herbs"
+function HR:StoreNode(category, region, x, y, item)
     self.db.discovered = self.db.discovered or {}
     local byRegion = self.db.discovered[category] or {}
     self.db.discovered[category] = byRegion
-    local list = byRegion[r.region] or {}
-    byRegion[r.region] = list
+    local list = byRegion[region] or {}
+    byRegion[region] = list
     for _, d in ipairs(list) do
         if (d.x - x) ^ 2 + (d.y - y) ^ 2 <= 0.5 ^ 2 then return false end
     end
     list[#list + 1] = {x = x, y = y, item = item, t = time()}
     self.dataRev = (self.dataRev or 0) + 1
+    return true
+end
+
+function HR:AddNode(r, x, y, item)
+    if not self:StoreNode(r.category or "herbs", r.region, x, y, item) then return false end
     local pos = self:InsertPoint(r, {x = x, y = y, herb = item or HR.SEEN_ITEM, new = true})
     if r.vstate then r.vstate[pos] = {misses = 0, none = 0, nextAt = 0, confirmed = true} end
     self:ScheduleReroute()
@@ -330,7 +332,6 @@ function HR:DropPoint(i)
     local r = self.route
     if not r or r.removed[i] then return end
     r.removed[i] = true
-    if r.points[i] and i ~= r.index then self:RememberVisited(r.region, r.points[i].x, r.points[i].y) end
     r.rev = (r.rev or 0) + 1
     r.removedCount = (r.removedCount or 0) + 1
     self:ScheduleReroute()
