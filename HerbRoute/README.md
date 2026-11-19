@@ -10,6 +10,7 @@ Copier le dossier `HerbRoute` dans `Interface/AddOns/` à côté de `TomTom`, pu
 ## Utilisation
 - `/hr` ouvre la fenêtre : région (pré-sélectionnée selon votre position), herbes, position de départ
   (prise automatiquement sur votre personnage, modifiable), mode, distance d'arrivée.
+- **Touches** : Échap > Options > Raccourcis clavier > AddOns > HerbRoute : « Skip the current point », « Stop the route », « Open or close the window ». `/hr button` affiche ou masque un petit bouton **Skip** cliquable (Maj + glisser pour le déplacer, position mémorisée).
 - `/hr <herbe>[, <herbe>]` : route dans la région actuelle (`all` pour toutes les herbes).
 - `/hr <région>: <herbe>[, <herbe>]` : route dans une autre région (départ au centre de la carte).
 - `/hr ores <minerai>[, <minerai>]` et `/hr ores <région>: <minerai>|all` : mêmes routes pour les minerais (données GatherMate). Dans la fenêtre, les cases **Herbs** / **Ores** choisissent la catégorie, puis la région, puis les types. Pendant une route de minerais, seul « Trouver les minéraux » reste actif.

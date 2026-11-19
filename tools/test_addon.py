@@ -859,5 +859,11 @@ end
 ns2.db = {region = "Elwynn Forest", herbs = {}, ores = {}, category = "ores", mode = "follow", radius = 15, overrides = {}}
 ns2:ToggleUI()
 assert(ns2.db.category == "ores")
+-- skip button and key binding functions
+ns2.db.skipButton = nil
+ns2:ToggleSkipButton(true); assert(ns2.db.skipButton.shown == true)
+ns2:ToggleSkipButton(); assert(ns2.db.skipButton.shown == false)
+ns2:InitSkipButton()
+assert(BINDING_NAME_HERBROUTE_SKIP and BINDING_HEADER_HERBROUTE)
 io.write("ORE TESTS OK\n")
 ''')

@@ -1,0 +1,11 @@
+<Bindings>
+  <Binding name="HERBROUTE_SKIP" header="HERBROUTE" category="ADDONS">
+    HerbRoute:SkipPoint()
+  </Binding>
+  <Binding name="HERBROUTE_STOP" category="ADDONS">
+    HerbRoute:StopRoute()
+  </Binding>
+  <Binding name="HERBROUTE_WINDOW" category="ADDONS">
+    HerbRoute:ToggleUI()
+  </Binding>
+</Bindings>

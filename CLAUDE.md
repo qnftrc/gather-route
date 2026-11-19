@@ -29,6 +29,7 @@ HerbRoute/
   Data/HerbDataGatherMate.lua  GÉNÉRÉ (tools/merge_gathermate.py) : points GatherMate ajoutés en fin de liste, base d'origine intacte (D17)
   Data/OreDataGatherMate.lua  GÉNÉRÉ (tools/merge_gathermate.py --category ores) : `HerbRoute_OreData[région][minerai]`, catégorie séparée (D18)
   Data/OreDataWowhead.lua  GÉNÉRÉ (tools/merge_wowhead_ores.py) : points de minerais Wowhead ajoutés en fin de liste, `OreDataGatherMate.lua` intact (D17/D18)
+  Bindings.xml       raccourcis clavier (Skip, Stop, fenêtre), chargé automatiquement hors table des matières
   Core.lua           init, SavedVariables, slash /herbroute et /hr
   Tracking.lua       isolement du pistage pendant une route (sauvegarde et rétablissement)
   Resolver.lua       région <-> mapID, position et région courantes

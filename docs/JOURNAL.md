@@ -355,6 +355,10 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Demande : « fais-le pour tous les points de la route ». Fait : la limite de 40 points (`MINIMAP_AHEAD`) est supprimée, tous les points restants de la route sont parcourus à chaque rafraîchissement (10 par seconde) ; seuls les segments qui traversent le disque sont dessinés. Un segment hors du disque reste invisible : le disque est limité par le zoom de la minimap (bouton « − » pour élargir jusqu'à environ 230 yd).
 - Coût : un calcul de découpe par point et par rafraîchissement ; non mesuré en jeu (route de plusieurs centaines de points).
 
+### 2026-11-19 — Skip associable à une touche (F53, B16)
+- Demande du joueur : un bouton d'interface skip associable à une touche. Livré : `Bindings.xml` (hors table des matières, chargé automatiquement) avec trois actions dans Options > Raccourcis clavier > AddOns > HerbRoute : « Skip the current point » (`HerbRoute:SkipPoint()`), « Stop the route », « Open or close the window » ; et un bouton **Skip** à l'écran, optionnel (`/hr button`, Maj + glisser pour le déplacer, position et état mémorisés dans `HerbRouteDB.skipButton`). La fonction de skip est celle de `/hr skip` (aucun changement de comportement).
+- Risque : le format de `Bindings.xml` (attributs `header`, `category`) n'a pas été éprouvé sur ce client ; si les actions n'apparaissent pas dans la liste des raccourcis, le bouton et `/hr skip` (utilisable en macro) restent disponibles.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
