@@ -1,0 +1,14 @@
+## Interface: 120105, 120007, 120100, 11509, 16001, 20506, 38002, 40402, 50504
+## Title: HerbRoute
+## Notes: Generates an optimized herb gathering route and sends it to TomTom
+## Version: 1.0.0
+## Dependencies: TomTom
+## SavedVariables: HerbRouteDB
+
+Data\HerbData.lua
+Core.lua
+Resolver.lua
+RouteMath.lua
+Runner.lua
+Overlay.lua
+UI.lua
