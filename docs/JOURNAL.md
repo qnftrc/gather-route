@@ -417,6 +417,9 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Le joueur annule la mémoire des points visités (F56), les nouveaux nœuds par `/hr discover` et `/hr add` (F57) et la validation des cueillettes par le message de butin (F58), ainsi que les besoins ajoutés avec elles. Retirés par `git revert` (commits `3a4c08b` et `b4c9588`, conservés dans l'historique) : code, commandes, raccourci clavier « Scan the minimap for new nodes », module `Harvest.lua`, tests, besoins, décisions et statuts correspondants.
 - Conservés : le réordonnancement `/hr reroute` (D22, F55), le scan avec décalages et la projection validée, et tout ce qui précède. Aucun fichier de données n'avait été modifié par ces fonctionnalités.
 
+### 2026-11-19 — Story map
+- Demande du joueur : story map de toutes les fonctions. Livrée : [STORY_MAP.md](STORY_MAP.md) : huit activités (choisir, générer, suivre, voir, vérifier, ajuster, entretenir les données, diagnostiquer), trois tranches par activité, légende d'état (validé en jeu, livré non testé, défaut à retester, idée, hors périmètre, annulé) et tranches de livraison.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
