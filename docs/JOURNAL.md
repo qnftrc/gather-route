@@ -408,6 +408,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Effets : la numérotation « i/N » change (N diminue des points retirés en avance) ; le tracé carte et minimap se redessine. Option désactivée : route strictement inchangée, comme avant.
 - Tests hors jeu : option coupée (aucun changement), option active (tête et point courant intacts, points retirés absents, état de vérification déplacé avec son point, base inchangée), commandes. Non testé en jeu.
 
+### 2026-11-19 — Réordonnancement depuis la position réelle du joueur (D22 précisée)
+- Demande du joueur : partir de **sa position réelle** plutôt que du point courant. Fait : `HR:Reroute` démarre à la position du joueur (via TomTom) quand il se trouve sur la carte de la route ; **le point courant est alors réordonné avec les points devant lui** : la prochaine cible peut changer (le waypoint TomTom est alors remplacé par la nouvelle cible), sinon le départ aurait ignoré le point courant ou l'aurait forcé en première étape. Hors de la carte de la route (ou sans position), repli sur l'ancien comportement : départ au point courant, qui reste la cible. Les points derrière le courant ne bougent pas ; l'état de vérification suit chaque point ; base intacte.
+- Message : « Reroute from your position (ou the current point): N point(s) reordered, distance a -> b ».
+- Effet à connaître : en marchant, la cible suivante peut changer d'un retrait à l'autre ; le tracé se redessine. Option toujours désactivée par défaut. Tests hors jeu mis à jour (départ joueur, repli, waypoint TomTom aligné sur la cible).
+
 ## Commits
 | Commit | Contenu |
 |---|---|

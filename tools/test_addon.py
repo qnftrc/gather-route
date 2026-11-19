@@ -868,7 +868,7 @@ local marked = origPoints[40]
 rr.vstate[40] = {marker = true}
 for _, i in ipairs({10, 20, 30, 50, 60}) do HR:DropPoint(i) end
 RunTimers()
-assert(#rr.points == #origPoints and not msgs():find("Reroute:", 1, true), "off: the route must keep its order")
+assert(#rr.points == #origPoints and not msgs():find("Reroute from", 1, true), "off: the route must keep its order")
 HR:StopRoute(true)
 HR.db.reroute = true
 printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
@@ -879,13 +879,15 @@ local n0 = #origPoints
 rr.vstate = {}
 marked = origPoints[40]
 rr.vstate[40] = {marker = true}
-rr.index = 3
+HR:SkipPoint(); HR:SkipPoint(); assert(rr.index == 3)
 local head = {origPoints[1], origPoints[2], origPoints[3]}
 for _, i in ipairs({10, 20, 30, 50, 60}) do HR:DropPoint(i) end
 RunTimers()
-assert(msgs():find("Reroute: ", 1, true), msgs())
+assert(msgs():find("Reroute from", 1, true), msgs())
 assert(#rr.points == n0 - 5, #rr.points .. " vs " .. n0 - 5)
-assert(rr.points[1] == head[1] and rr.points[2] == head[2] and rr.points[3] == head[3] and rr.index == 3, "the head and the current point must stay")
+assert(rr.points[1] == head[1] and rr.points[2] == head[2] and rr.index == 3, "the points behind must stay")
+assert(msgs():find("from your position", 1, true), msgs())
+assert(#WP() == 1 and math.abs(WP()[1][2] - rr.points[3].x / 100) < 1e-9 and math.abs(WP()[1][3] - rr.points[3].y / 100) < 1e-9, "TomTom must point at the (possibly new) current point")
 local seen = {}
 for i, p in ipairs(rr.points) do seen[p] = i end
 for _, i in ipairs({10, 20, 30, 50, 60}) do assert(not seen[origPoints[i]], "removed point still present") end
@@ -894,6 +896,17 @@ assert(next(rr.removed) == nil or true)
 local count = 0
 for _, items in pairs(HerbRoute_Data) do for _, pts in pairs(items) do count = count + #pts end end
 assert(count == 14642, "the database must not change")
+-- player not on the route's map: the current point stays the start and the target
+HR:StopRoute(true)
+printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
+rr = HR.route
+HR:SkipPoint(); HR:SkipPoint(); assert(rr.index == 3)
+local keepCur = rr.points[3]
+playerMap = 999
+for _, i in ipairs({10, 20, 30}) do HR:DropPoint(i) end
+RunTimers()
+playerMap = 37
+assert(msgs():find("from the current point", 1, true) and rr.points[3] == keepCur, msgs())
 SlashCmdList.HERBROUTE("reroute off"); assert(HR.db.reroute == false)
 SlashCmdList.HERBROUTE("reroute on"); assert(HR.db.reroute == true)
 HR:StopRoute(true)

@@ -117,20 +117,25 @@ end
 
 local REROUTE_DELAY = 1.5
 
--- Reorders the points still ahead of the current one (nearest neighbour then 2-opt, as for
--- a new route) starting from the current point. The database is never touched; the
--- verification state of the points ahead follows them to their new places.
+-- Reorders the route from the player's real position (nearest neighbour then 2-opt, as for a
+-- new route). The current point is reordered with the points ahead, so the next target can
+-- change; when the player's position is not on the route's map, the current point is the
+-- start and stays the target. The database is never touched; the verification state of each
+-- point follows it to its new place.
 function HR:Reroute()
     local r = self.route
     if not r or r.mode ~= "follow" or self.rerouting then return end
     local index, rev = r.index, r.rev or 0
     local cur = r.points[index]
+    local m, px, py = self:GetPlayerPosition()
+    local fromPlayer = m ~= nil and m == r.mapID
+    local first = fromPlayer and index or index + 1
     local tail = {}
-    for i = index + 1, #r.points do
+    for i = first, #r.points do
         if not r.removed[i] then tail[#tail + 1] = r.points[i] end
     end
     if #tail < 3 then return end
-    local start = {x = cur.x, y = cur.y}
+    local start = fromPlayer and {x = px, y = py} or {x = cur.x, y = cur.y}
     local before = HR.Math.pathLength(tail, start)
     self.rerouting = true
     local co = coroutine.create(function()
@@ -151,9 +156,9 @@ function HR:Reroute()
             return self:ScheduleReroute()
         end
         local old = {}
-        for i = index + 1, #r.points do old[r.points[i]] = i end
+        for i = first, #r.points do old[r.points[i]] = i end
         local points, vstate = {}, {}
-        for i = 1, index do
+        for i = 1, first - 1 do
             points[i] = r.points[i]
             vstate[i] = r.vstate and r.vstate[i]
         end
@@ -162,13 +167,19 @@ function HR:Reroute()
             vstate[#points] = r.vstate and r.vstate[old[p]]
         end
         local removed = {}
-        for i = 1, index do if r.removed[i] then removed[i] = true end end
+        for i = 1, first - 1 do if r.removed[i] then removed[i] = true end end
         r.points, r.removed = points, removed
         if r.vstate then r.vstate = vstate end
         r.world = nil
         r.rev = rev + 1
         local after = HR.Math.pathLength(result, start)
-        self:Print(("Reroute: %d point(s) ahead reordered, distance %.1f -> %.1f."):format(#result, before, after))
+        self:Print(("Reroute from %s: %d point(s) reordered, distance %.1f -> %.1f."):format(
+            fromPlayer and "your position" or "the current point", #result, before, after))
+        if fromPlayer and r.points[index] ~= cur then
+            if r.current then removeUID(r.current) end
+            r.current = nil
+            showCurrent(r)
+        end
         self:RouteChanged()
     end
     step()
