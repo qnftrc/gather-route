@@ -284,9 +284,9 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 
 ### 2026-11-19 — Vérification en avance des points à portée de minimap (F49, besoin B12)
 - Question restée ouverte : le balayage des points futurs dans 85 % du rayon de vue doit-il être manuel seulement ? **Réponse du joueur : automatique aussi.**
-- Livré : à chaque tick, quand le point courant n'a rien à sonder, l'add-on sonde le **prochain point non décidé** situé dans le disque (85 %), parmi les 60 suivants de la route. Même méthode, mêmes garde-fous, même règle qu'ailleurs : une ligne = nœud confirmé (le dernier contrôle à 35 yd reste fait quand il devient courant), un sondage vide = absent (retiré en mode `remove`, signalé en `report`). Rien n'est sondé en avance tant qu'aucun nœud n'a été confirmé dans la session (D16) ; la base n'est jamais touchée (D8).
+- Livré : à chaque tick, quand le point courant n'a rien à sonder, l'add-on sonde le **prochain point non décidé** situé dans le disque (85 %), parmi **tous** les suivants de la route (la limite initiale de 60 a été levée à la demande du joueur ; coût : un parcours géométrique de la route à chaque tick de 0,25 s). Même méthode, mêmes garde-fous, même règle qu'ailleurs : une ligne = nœud confirmé (le dernier contrôle à 35 yd reste fait quand il devient courant), un sondage vide = absent (retiré en mode `remove`, signalé en `report`). Rien n'est sondé en avance tant qu'aucun nœud n'a été confirmé dans la session (D16) ; la base n'est jamais touchée (D8).
 - Réglage : `/hr verify ahead on|off` (automatique, **activé par défaut**, `HerbRouteDB.verifyAhead`) ; `/hr verify ahead` seul lance une passe à la demande même si l'automatique est coupé.
-- Limites : un sondage = un déplacement de la minimap (R18) : la passe en avance en ajoute jusqu'à 60 par route ; dans une zone dense, un nœud voisin peut répondre à la place du point sondé (faux « présent »). Testé hors jeu seulement.
+- Limites : un sondage = un déplacement de la minimap (R18) : la passe en avance en ajoute sans plafond par route ; dans une zone dense, un nœud voisin peut répondre à la place du point sondé (faux « présent »). Testé hors jeu seulement.
 
 ## Commits
 | Commit | Contenu |

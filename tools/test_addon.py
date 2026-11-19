@@ -712,7 +712,7 @@ reset(); HR.db.verify = "off"; HR.db.verifyAhead = nil
 go("peacebloom")
 local ptsA = HR.route.points
 local target, bestD
-for j = 3, 50 do
+for j = 3, #ptsA do
   local dc = (ptsA[j].x - 50) ^ 2 + (ptsA[j].y - 50) ^ 2
   if dc < 40 * 40 then
     local nearest = math.huge

@@ -392,15 +392,13 @@ local function step(r)
     end, nil, recipeOpts())
 end
 
-local AHEAD_SCAN = 60  -- route points looked at beyond the current one
-
 -- Probes the next undecided point, beyond the current one, that is inside the
 -- minimap. Returns true while such a point remains (probed now or waiting).
 local function aheadStep(r)
     if HR.verifyHits == 0 then return false end
     local cur = r.vstate[r.index]
     if cur and cur.checking and not cur.final then return false end
-    for j = r.index + 1, math.min(#r.points, r.index + AHEAD_SCAN) do
+    for j = r.index + 1, #r.points do
         local st = r.vstate[j]
         if not st then
             st = {misses = 0, none = 0, nextAt = 0}
