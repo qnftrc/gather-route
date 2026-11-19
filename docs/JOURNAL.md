@@ -345,6 +345,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Décisions inchangées : un sondage vide suffit (D6/D20), mode `report` par défaut, vérification en avance (D19), base jamais modifiée (D8).
 - Non validé en jeu : la réponse réelle de la minimap sur un point de minerai ; recommandation : `/hr verify calibrate ores` sur un point de minerai connu, puis `report` avant `remove`.
 
+### 2026-11-19 — Comparaison des bases HerbRoute et GatherMate (outil `tools/compare_sources.py`)
+- Demande du joueur : comparer les bases d'herbes et de minerais de HerbRoute et de GatherMate, avec un nouvel envoi de `AddOns.rar`. Constat : cette archive est **identique octet pour octet** à la précédente (même empreinte) : aucune donnée nouvelle.
+- Outil en lecture seule : herbes = `HerbData.lua` (base d'origine, Wowhead) contre GatherMate ; minerais = export Wowhead contre GatherMate ; correspondance à 0,5 % de la carte, même région et même type ; rapport complet dans [COMPARAISON_BASES.md](COMPARAISON_BASES.md).
+- Résultats : voir la réponse ; herbes 13 256 (Wowhead) contre 14 605 (GatherMate), 97,5 % des points Wowhead retrouvés dans GatherMate et 87,4 % des points GatherMate dans Wowhead ; minerais 10 651 contre 11 011, 94,6 % et 90,3 %. Aucune modification de la base.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
