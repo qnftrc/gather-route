@@ -300,6 +300,10 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Ajouté : `/hr map` (ouvrir la carte dans les 5 s) affiche pendant 20 s un carré rouge au centre et une diagonale rouge sur le cadre de l'overlay, et rapporte la visibilité du cadre, son alpha effectif, sa strate et son niveau (comparés à ceux du canevas), son échelle et sa taille. Selon ce qui est visible (carré seul, diagonale seule, rien), la prochaine correction est ciblée (niveau de cadre, remplacement des lignes par des textures, changement de parent).
 - Non fait volontairement : modifier au hasard le parent ou l'ancrage avant d'avoir ce résultat.
 
+### 2026-11-19 — Résultat de `/hr map` : le cadre et les lignes s'affichent, pas le tracé de la route
+- Rapport en jeu (carte « Map & Quest Log ») : cadre visible, alpha 1, strate MEDIUM niveau 53 (canevas MEDIUM niveau 3), échelle 0,50, 1002x668 ; carré et ligne tests **visibles** (le joueur les voit). Le cadre de l'overlay et le rendu des lignes sont donc bons : **le défaut est dans le dessin de la route** elle-même. Observation à vérifier : la moitié de la diagonale (de 20 % à 50 %) ne semblait pas visible, seule la moitié vers 80 % l'est.
+- Ajouté : `/hr map` avec une route active dessine aussi la route en **magenta épais** pendant 20 s et rapporte : nombre de segments visibles, extrémités du premier segment, taille du canevas, premier point et départ de la route, position du premier point. Cela départage coordonnées fausses, segments masqués et route absente au moment du test.
+
 ## Commits
 | Commit | Contenu |
 |---|---|

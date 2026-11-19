@@ -56,6 +56,7 @@ end
 -- World map ----------------------------------------------------------------
 
 local refreshMap
+local boostUntil = 0
 
 -- The world map frame may not exist when the addon loads (Blizzard_WorldMap is
 -- load-on-demand on some clients), so the overlay frame is created on first need.
@@ -122,6 +123,30 @@ function HR:OverlayTest()
             tostring(mapFrame:GetEffectiveScale()), tostring(mapFrame:GetWidth()), tostring(mapFrame:GetHeight()),
             tostring(testTex:IsVisible()), tostring(testLine:IsVisible())))
         HR:Print("Map overlay test: do you see a red square at the centre and a red diagonal? (they disappear in 20 s)")
+        local r = HR.route
+        if r then
+            boostUntil = GetTime() + 20
+            refreshMap()
+            local l1, d1 = mapLines[1], mapDots[1]
+            local function pt(o)
+                if not o or not o.GetPoint then return "none" end
+                local ok, p, rel, rp, x, y = pcall(o.GetPoint, o)
+                return ok and ("%s %.0f,%.0f"):format(tostring(p), tonumber(x) or 0, tonumber(y) or 0) or "?"
+            end
+            local a, b = "?", "?"
+            if l1 and l1.GetStartPoint then
+                local ok1, p1, _, _, x1, y1 = pcall(l1.GetStartPoint, l1)
+                local ok2, p2, _, _, x2, y2 = pcall(l1.GetEndPoint, l1)
+                if ok1 then a = ("%.0f,%.0f"):format(tonumber(x1) or 0, tonumber(y1) or 0) end
+                if ok2 then b = ("%.0f,%.0f"):format(tonumber(x2) or 0, tonumber(y2) or 0) end
+            end
+            local visible = 0
+            for _, l in ipairs(mapLines) do if l:IsVisible() then visible = visible + 1 end end
+            HR:Print(("Map overlay test: route has %d point(s), %d line(s) visible of %d, first line %s -> %s (canvas %.0fx%.0f), route point 1 = %.1f,%.1f, start %.1f,%.1f, first dot %s. The route is drawn in thick magenta for 20 s."):format(
+                #r.points, visible, #mapLines, a, b, w, h, r.points[1].x, r.points[1].y, r.start.x, r.start.y, pt(d1)))
+        else
+            HR:Print("Map overlay test: no active route (start one with /hr, then run /hr map again to test the route itself).")
+        end
         C_Timer.After(20, function() testTex:Hide() testLine:Hide() refreshMap() end)
     end)
 end
@@ -159,8 +184,10 @@ function refreshMap()
             used = used + 1
             local line = getLine(mapLines, mapFrame, used)
             local c = color(i, r.index)
+            local boost = GetTime() < boostUntil
+            if boost then c = {1, 0, 1, 1} end
             line:SetColorTexture(c[1], c[2], c[3], c[4])
-            line:SetThickness(i == r.index and 3 or 2)
+            line:SetThickness(boost and 6 or (i == r.index and 3 or 2))
             line:SetStartPoint("TOPLEFT", canvas, prev.x / 100 * w, -prev.y / 100 * h)
             line:SetEndPoint("TOPLEFT", canvas, p.x / 100 * w, -p.y / 100 * h)
             line:Show()
@@ -173,7 +200,7 @@ function refreshMap()
     for i = r.index, r.mode == "follow" and last or 0 do
         if not (r.removed and r.removed[i]) then
             dots = dots + 1
-            local d = getDot(mapDots, mapFrame, dots, 10)
+            local d = getDot(mapDots, mapFrame, dots, GetTime() < boostUntil and 24 or 10)
             d:ClearAllPoints()
             d:SetPoint("CENTER", canvas, "TOPLEFT", pts[i].x / 100 * w, -pts[i].y / 100 * h)
             d:Show()
