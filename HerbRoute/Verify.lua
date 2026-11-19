@@ -105,15 +105,12 @@ end
 
 -- Distance to the point and its offset on the minimap (units, y up), same
 -- projection as the route overlay.
-local function geometry(r, i)
-    local hbd = hbdLib()
-    if not hbd or not HR.ComputeRouteWorld or not HR.ViewRadius then return end
-    if not r.world then HR.ComputeRouteWorld(r) end
+local function project(hbd, wx, wy, winstance)
     local px, py, instance = hbd:GetPlayerWorldPosition()
-    if not px or not r.world or instance ~= r.world.instance then return end
+    if not px or instance ~= winstance then return end
     local radius = HR.ViewRadius()
     if not radius then return end
-    local dx, dy = px - r.world.x[i], py - r.world.y[i]
+    local dx, dy = px - wx, py - wy
     local rx, ry = dx, dy
     if GetCVar("rotateMinimap") == "1" then
         local facing = GetPlayerFacing and GetPlayerFacing()
@@ -129,6 +126,14 @@ local function geometry(r, i)
         ox = fx * halfW,
         oy = -fy * halfH,
     }
+end
+
+local function geometry(r, i)
+    local hbd = hbdLib()
+    if not hbd or not HR.ComputeRouteWorld or not HR.ViewRadius then return end
+    if not r.world then HR.ComputeRouteWorld(r) end
+    if not r.world then return end
+    return project(hbd, r.world.x[i], r.world.y[i], r.world.instance)
 end
 
 -- One probe. done(result, cause): "line" (a node is there), "empty" (the
@@ -164,7 +169,7 @@ local function probe(ox, oy, done, detail, opts)
         if finished then return end
         finished = true
         pcall(MM.placeMinimap, pts, 0, 0)
-        if opts.alpha then pcall(Minimap.SetAlpha, Minimap, alpha0) end
+        if opts.alpha or opts.hidden then pcall(Minimap.SetAlpha, Minimap, alpha0) end
         if soft then pcall(Minimap.SetUsingSoftCursor, Minimap, false) end
         if hiddenUID and TomTom.ShowWaypoint then pcall(TomTom.ShowWaypoint, TomTom, hiddenUID) end
         MM.waitFrames(2, function()
@@ -213,6 +218,7 @@ local function probe(ox, oy, done, detail, opts)
         if finished then return end
         if not pcall(MM.placeMinimap, pts, hx, hy) then return finish("none", "the minimap could not be moved") end
         if opts.alpha then pcall(Minimap.SetAlpha, Minimap, alpha0) end
+        if opts.hidden then pcall(Minimap.SetAlpha, Minimap, 0) end
         if opts.soft and Minimap.SetUsingSoftCursor then
             soft = pcall(Minimap.SetUsingSoftCursor, Minimap, true)
         end
@@ -357,6 +363,50 @@ local function aheadStep(r)
     return false
 end
 
+local REVIVE_STAYS = 3  -- empty probes of one skipped point per stay inside the minimap
+local REVIVE_GAP = 30    -- seconds between two probes of the same point
+local REVIVE_RETRY = 3
+
+-- Skipped or removed points that are back inside the minimap are probed with
+-- the minimap hidden while it moves. A node found is put back in the route;
+-- nothing found changes nothing and prints nothing.
+local function reviveStep(r)
+    if HR.db.revive == false or not r.skipped or #r.skipped == 0 then return end
+    local hbd = hbdLib()
+    if not hbd or not HR.ViewRadius then return end
+    local now = GetTime()
+    local best, bestG
+    for _, e in ipairs(r.skipped) do
+        if not e.wx then e.wx, e.wy, e.inst = hbd:GetWorldCoordinatesFromZone(e.p.x / 100, e.p.y / 100, r.mapID) end
+        local g = e.wx and project(hbd, e.wx, e.wy, e.inst)
+        if g and g.inside then
+            if not e.inside then e.inside, e.stay, e.nextAt = true, 0, 0 end
+            if e.stay < REVIVE_STAYS and now >= e.nextAt and (not bestG or g.dist < bestG.dist) then
+                best, bestG = e, g
+            end
+        elseif g then
+            e.inside = false
+        end
+    end
+    if not best or blocked() then return end
+    local base = recipeOpts()
+    if not base then return end
+    local opts = {hidden = true}
+    for k, v in pairs(base) do opts[k] = v end
+    probe(bestG.ox, bestG.oy, function(result)
+        if HR.route ~= r then return end
+        if result == "line" then
+            HR.verifyHits = HR.verifyHits + 1
+            HR:ReviveSkipped(best)
+        elseif result == "empty" then
+            best.stay = best.stay + 1
+            best.nextAt = GetTime() + REVIVE_GAP
+        else
+            best.nextAt = GetTime() + REVIVE_RETRY
+        end
+    end, nil, opts)
+end
+
 function HR:StartVerify()
     local r = self.route
     if not r then return end
@@ -366,14 +416,17 @@ function HR:StartVerify()
     local function tick()
         if HR.route ~= r then return end
         updateRest()
-        if r.mode == "follow" and HR.db.verify ~= "off" and not probing then
-            step(r)
-            if not probing and (HR.db.verifyAhead or r.aheadOnce) then
-                if not aheadStep(r) and r.aheadOnce then
-                    r.aheadOnce = nil
-                    HR:Print(("Verify ahead: done (%d point(s) probed ahead, %d removed so far)."):format(r.vstats.ahead or 0, r.removedCount or 0))
+        if r.mode == "follow" and not probing then
+            if HR.db.verify ~= "off" then
+                step(r)
+                if not probing and (HR.db.verifyAhead or r.aheadOnce) then
+                    if not aheadStep(r) and r.aheadOnce then
+                        r.aheadOnce = nil
+                        HR:Print(("Verify ahead: done (%d point(s) probed ahead, %d removed so far)."):format(r.vstats.ahead or 0, r.removedCount or 0))
+                    end
                 end
             end
+            if not probing then reviveStep(r) end
         end
         C_Timer.After(TICK, tick)
     end

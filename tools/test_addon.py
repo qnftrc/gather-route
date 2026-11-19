@@ -775,6 +775,84 @@ go("verify calibrate ores"); assert(HR.verifyCategory == "ores"); RunTimers()
 go("verify calibrate"); assert(HR.verifyCategory == "herbs"); RunTimers()
 go("stop")
 
+-- 13. F60: skipped and removed points that respawn inside the minimap are put back in the route
+local alphaLog = {}
+local baseSetAlpha = Minimap.SetAlpha
+Minimap.SetAlpha = function(_, a) alphaLog[#alphaLog + 1] = a; alphaCalled = true end
+local function far(p, d) local dx, dy = p.x - first.x, p.y - first.y return dx * dx + dy * dy > d * d end
+reset(); HR.db.verify = "off"; HR.db.revive = true; HR.verifyHits = 0
+go("peacebloom")
+r = HR.route
+local before = #r.points
+local skippedP = r.points[1]
+assert(skippedP.x == first.x and skippedP.y == first.y)
+go("skip")
+assert(r.skipped and #r.skipped == 1 and r.skipped[1].cause == "skip" and r.skipped[1].p == skippedP, "the skip must be remembered: " .. msgs())
+local gone = r.skipped[1]
+-- the skipped point is not in the minimap (player far away): no probe, no message
+local probes0 = setCalls
+ppx, ppy = 1000 - first.x + 300, 1000 - first.y
+nodes = {{first.x, first.y}}
+printed = {}; RunTimers()
+assert(setCalls == probes0 and #r.skipped == 1 and msgs() == "", "nothing must happen while the point is out of the minimap: " .. msgs())
+-- back inside, no node: nothing printed, nothing changed, point still watched
+ppx, ppy = 1000 - first.x + 10, 1000 - first.y
+nodes = {}
+printed = {}; alphaLog = {}; RunTimers()
+assert(#r.skipped == 1 and msgs() == "" and #r.points == before and (r.revivedCount or 0) == 0, "an empty probe must be silent: " .. msgs())
+assert(setCalls > probes0, "the point inside the minimap must be probed")
+assert(alphaLog[1] == 0 and alphaLog[#alphaLog] == 1, "the minimap must be hidden while it moves and restored")
+assert(sx == 0 and sy == 0)
+local pointsSeen = r.points[r.index]
+-- the node is back: the point is re-inserted, with a message, and the minimap is restored
+nodes = {{first.x, first.y}}
+r.skipped[1].nextAt = 0; r.skipped[1].stay = 0
+printed = {}; RunTimers()
+assert(msgs():find("Revive:", 1, true) and msgs():find("respawned inside the minimap (skipped earlier)", 1, true), msgs())
+assert(#r.skipped == 0 and r.revivedCount == 1 and #r.points == before + 1, "the point must be back in the route")
+local back
+for j, p in ipairs(r.points) do if p ~= first and p.x == first.x and p.y == first.y and j >= r.index then back = j end end
+assert(back and not r.removed[back], "revived point missing from the route")
+assert(WP()[1] and #WP() == 1, "a single TomTom waypoint must be active")
+assert(sx == 0 and sy == 0 and #HerbRoute_Data["Elwynn Forest"]["Peacebloom"] == peaceCount, "database changed")
+-- off: no probe at all
+reset(); HR.db.verify = "off"; HR.db.revive = false
+go("peacebloom"); r = HR.route; go("skip")
+ppx, ppy = 1000 - first.x + 10, 1000 - first.y; nodes = {{first.x, first.y}}
+probes0 = setCalls; printed = {}; RunTimers()
+assert(setCalls == probes0 and #r.skipped == 1 and (r.revivedCount or 0) == 0, "revive off must not probe")
+go("revive on"); assert(HR.db.revive == true and msgs():find("Revive skipped points: on", 1, true), msgs())
+go("revive off"); assert(HR.db.revive == false)
+HR.db.revive = true
+go("stop")
+-- a point removed by the verification (absent) that comes back
+reset(); HR.db.verify = "remove"; HR.verifyHits = 3; HR.db.revive = true
+nodes = othersNodes()
+go("peacebloom"); r = HR.route
+assert(r.removed[1] and r.skipped and r.skipped[1].cause == "absent" and r.skipped[1].p == r.points[1], "a point removed as absent must be remembered: " .. msgs())
+local removedBefore = r.removedCount
+HR.db.verify = "off"
+nodes = {{first.x, first.y}}
+r.skipped[1].nextAt = 0; r.skipped[1].stay = 0
+printed = {}; RunTimers()
+assert(msgs():find("(removed earlier)", 1, true) and r.revivedCount == 1 and r.removedCount == removedBefore - 1, msgs())
+-- arrival does not count as skipped
+reset(); HR.db.verify = "off"; go("peacebloom"); r = HR.route
+HR:Advance()
+assert(not r.skipped or #r.skipped == 0, "reaching a point is not a skip")
+go("stop")
+-- ores: same, driven by Find Minerals
+reset(); HR.db.verify = "off"; HR.db.revive = true
+go("ores copper vein"); r = HR.route
+local oreP = r.points[1]
+ppx, ppy = 1000 - oreP.x + 300, 1000 - oreP.y
+go("skip")
+ppx, ppy = 1000 - oreP.x + 10, 1000 - oreP.y; nodes = {{oreP.x, oreP.y}}
+printed = {}; RunTimers()
+assert(msgs():find("Revive: Copper Vein respawned", 1, true) and r.revivedCount == 1, msgs())
+go("stop")
+Minimap.SetAlpha = baseSetAlpha
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)

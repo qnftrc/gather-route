@@ -57,6 +57,7 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 | F52 | Retrait des minerais | Livré, calibration validée |
 | F47 | Calibration de la méthode de sondage | Livré et validé en jeu |
 | F55 | Réordonnancement après retraits (`/hr reroute`) | Livré |
+| F60 | Réinsertion des points skippés ou retirés qui réapparaissent sur la minimap (`/hr revive`) | Livré |
 
 **B5. Diagnostiquer** (activité archivée de la story map, code conservé)
 | Réf. | Fonctionnalité | État |
@@ -91,6 +92,7 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 | F53 | **Skip associable à une touche** : raccourcis clavier `Bindings.xml` (Skip, Stop, fenêtre) dans Options > Raccourcis clavier > AddOns, et bouton Skip optionnel (`/hr button`, déplaçable par Maj + glisser) | **Livré**, testé hors jeu (fonctions, sans rendu) ; non testé en jeu | Hors jeu : partiel | Non | `Bindings.xml`, `Core.lua`, `UI.lua` |
 | F54 | **Fusion des voisins à 1 unité** au chargement (herbes 14 642 → 10 458, minerais 9 440 → 8 834), `/hr merge [on|off]`, activée par défaut, fichiers de données intacts | **Livré**, testé hors jeu ; non testé en jeu | Hors jeu : oui | Non | `Resolver.lua`, `Runner.lua`, `Core.lua` |
 | F55 | **Réordonnancement de la route après retraits** (`/hr reroute [on|off|now]`, case dans la fenêtre, désactivé par défaut) : plus proche voisin puis 2-opt depuis la position réelle du joueur sur les points restants (point courant compris), repli sur le point courant, état de vérification conservé, base intacte | **Livré**, testé hors jeu ; non testé en jeu | Hors jeu : oui | Non | `Runner.lua`, `Core.lua`, `UI.lua` |
+| F60 | **Réinsertion des points skippés ou retirés qui réapparaissent** (B19, D26) : mémoire de la route en cours (Skip, touche, retrait externe, point absent), sonde `hidden` quand le point entre dans 85 % du rayon, réinsertion au moindre coût avec nouveau waypoint et message, rien si rien détecté ; `/hr revive [on|off]` (activée par défaut), case dans la fenêtre ; herbes et minerais | **Livré**, testé hors jeu (faux minimap) ; non testé en jeu | Hors jeu : oui | Non | `Runner.lua`, `Verify.lua`, `Core.lua`, `UI.lua`, `tools/test_addon.py` |
 
 ## Cadré (vérification des points sur la minimap)
 | Réf. | Fonctionnalité | Statut | Dépend de | Fichiers prévus |
@@ -111,7 +113,6 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 | F46 | `/hr verify scan` : balayage de la minimap avec la méthode calibrée, carte ASCII des points jaunes (`X`) et des points projetés (`o`) dans la fenêtre à copier, symétries comparées | **Livré et validé en jeu** : l'essai avec la variante curseur logiciel était invalide ; depuis la calibration (`plain`), les scans voient les points jaunes, regroupent les cases en nœuds et mesurent décalages et échelle : **projection juste (3 unités d'écart, échelle 1,01)** | F47 | `Verify.lua` |
 | F47 | `/hr verify calibrate` : choisit en jeu, sur un point jaune pointé par le joueur et une position témoin, la méthode de sondage parmi sept, la mémorise avec le numéro de build ; sans calibration valide la vérification ne sonde pas | **Livré et validé en jeu** : six méthodes sur sept voient le point, « plain » mémorisée (build 70959), « curseur logiciel + mise à jour » invalide | F39 | `Verify.lua` |
 | F48 | `/hr verify arming` : sonde le point connu et un témoin à 6, 10, 15, 20, 30, 45 et 60 s après un survol réel, souris immobile, pour mesurer combien de temps la lecture reste possible (R26) | **Livré** (testé hors jeu), **à lancer en jeu** | F47 | `Verify.lua` |
-| F60 | **Détection des points skippés qui réapparaissent** dans le disque de la minimap (B19) : mémoire de la route en cours seulement, sondage par la méthode calibrée, signalement ; périmètre et réaction à valider | **Cadré** (rien de codé) | F47, F39 | `Runner.lua`, `Verify.lua`, `Overlay.lua`, `Core.lua`, `UI.lua` |
 | F44 | Test `blink chain` : déplacer la minimap directement d'une position à l'autre sous le curseur, sans la remettre, pour savoir si la lecture se rafraîchit | Idée | F36 | `Probe.lua` |
 | F35 | ~~Déplacement de la minimap sous un curseur déjà sur la minimap (`/hr probe blink`)~~ | **Retiré** : non concluant en jeu, remplacé par F36 | n/a | n/a |
 | F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) ; verdict sur la présence = au moins une ligne | **Livré et validé en jeu** sur deux points, en version visible et cachée : touché = ligne à +1 image, contrôles à 40 unités = aucune ; **déplacement jugé gênant** par le joueur ; verdict corrigé (un contrôle vide suffit, les points voisins sont signalés) ; autres zooms non testés | Test en jeu (zooms) | `Probe.lua` |

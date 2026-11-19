@@ -65,9 +65,18 @@ local function finish(self)
     self:StopRoute(true)
 end
 
-function HR:Advance()
+local function noteSkipped(r, p, cause)
+    r.skipped = r.skipped or {}
+    for _, e in ipairs(r.skipped) do
+        if e.p == p then return end
+    end
+    r.skipped[#r.skipped + 1] = {p = p, cause = cause, stay = 0, nextAt = 0}
+end
+
+function HR:Advance(skipped)
     local r = self.route
     if not r or r.mode ~= "follow" then return end
+    if skipped and r.points[r.index] then noteSkipped(r, r.points[r.index], "skip") end
     if r.current then removeUID(r.current) end
     r.current = nil
     r.index = r.index + 1
@@ -80,7 +89,7 @@ end
 function HR:SkipPoint()
     local r = self.route
     if not r then return self:Print("No active route.") end
-    self:Advance()
+    self:Advance(true)
 end
 
 local REROUTE_DELAY = 1.5
@@ -167,12 +176,76 @@ end
 function HR:DropPoint(i)
     local r = self.route
     if not r or r.removed[i] then return end
+    if r.points[i] then noteSkipped(r, r.points[i], "absent") end
     r.removed[i] = true
     r.rev = (r.rev or 0) + 1
     r.removedCount = (r.removedCount or 0) + 1
     self:ScheduleReroute()
     if i == r.index then self:Advance() end
     self:RouteChanged()
+end
+
+local function shiftFrom(t, pos)
+    local out = {}
+    for j, v in pairs(t) do out[j >= pos and j + 1 or j] = v end
+    return out
+end
+
+-- Puts a skipped or removed point that has respawned back into the route, at
+-- the cheapest place from the player's position on (it becomes the current
+-- target when that is the cheapest). The database is never touched.
+function HR:ReviveSkipped(entry)
+    local r = self.route
+    if not r or r.mode ~= "follow" then return false end
+    local live = {}
+    for j = r.index, #r.points do
+        if not r.removed[j] then live[#live + 1] = j end
+    end
+    if #live == 0 then return false end
+    local p = entry.p
+    local dist = HR.Math.distance
+    local bestPos, bestCost
+    local m, px, py = self:GetPlayerPosition()
+    if m ~= nil and m == r.mapID then
+        local s, b = {x = px, y = py}, r.points[live[1]]
+        bestPos, bestCost = live[1], dist(s, p) + dist(p, b) - dist(s, b)
+    end
+    for k = 1, #live do
+        local a, nextj = r.points[live[k]], live[k + 1]
+        local cost
+        if nextj then
+            local b = r.points[nextj]
+            cost = dist(a, p) + dist(p, b) - dist(a, b)
+        else
+            cost = dist(a, p)
+        end
+        if not bestCost or cost < bestCost then bestPos, bestCost = live[k] + 1, cost end
+    end
+    local np = {}
+    for k, v in pairs(p) do np[k] = v end
+    table.insert(r.points, bestPos, np)
+    r.removed = shiftFrom(r.removed, bestPos)
+    if r.vstate then
+        r.vstate = shiftFrom(r.vstate, bestPos)
+        r.vstate[bestPos] = {misses = 0, none = 0, nextAt = 0, confirmed = true}
+    end
+    r.world = nil
+    r.rev = (r.rev or 0) + 1
+    if entry.cause == "absent" and (r.removedCount or 0) > 0 then r.removedCount = r.removedCount - 1 end
+    r.revivedCount = (r.revivedCount or 0) + 1
+    for k, e in ipairs(r.skipped or {}) do
+        if e == entry then table.remove(r.skipped, k) break end
+    end
+    local becomesCurrent = bestPos == r.index
+    if becomesCurrent then
+        if r.current then removeUID(r.current) end
+        r.current = nil
+        showCurrent(r)
+    end
+    self:Print(("Revive: %s respawned inside the minimap (%s earlier): back in the route as point %d/%d%s."):format(
+        np.herb, entry.cause == "absent" and "removed" or "skipped", bestPos, #r.points, becomesCurrent and ", next target" or ""))
+    self:RouteChanged()
+    return true
 end
 
 function HR:OnWaypointRemoved(uid)
@@ -195,7 +268,7 @@ function HR:OnWaypointRemoved(uid)
             if bulk then
                 self:StopRoute()
             else
-                self:Advance()
+                self:Advance(true)
             end
         end)
     end

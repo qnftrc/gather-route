@@ -246,9 +246,13 @@ local function build()
         HR.db.reroute = self:GetChecked() and true or false
     end)
 
-    ui.radiusText = label(ui, "", "TOPLEFT", 16, -478)
+    ui.revive = check(ui, "Put skipped points back when they respawn", 12, -466, function(self)
+        HR.db.revive = self:GetChecked() and true or false
+    end)
+
+    ui.radiusText = label(ui, "", "TOPLEFT", 16, -502)
     local slider = CreateFrame("Slider", nil, ui, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -480)
+    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -504)
     slider:SetSize(190, 16)
     slider:SetMinMaxValues(5, 40)
     slider:SetValueStep(1)
@@ -287,6 +291,7 @@ local function build()
         ui.isolate:SetChecked(HR.db.isolateTracking)
         ui.verify:SetChecked(HR.db.verify ~= "off")
         ui.reroute:SetChecked(HR.db.reroute == true)
+        ui.revive:SetChecked(HR.db.revive ~= false)
         ui.slider:SetValue(HR.db.radius)
         if not dirty then fillPosition() end
         HR:UpdateUI()
