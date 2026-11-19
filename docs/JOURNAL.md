@@ -92,6 +92,10 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Tests à faire en jeu : (1) `/hr probe watch` avec seul « Trouver les herbes » actif ; (2) `/hr probe minimap` avec **tous les pistages désactivés** : si des données sont présentes, la présence est générique de façon certaine.
 - Si `type` ne distingue rien : abandon de la vérification par la minimap, repli sur la mémoire de récolte (F32).
 
+### 2026-11-19 — Tableau récapitulatif
+- Demande du joueur : un tableau des choix de conception et des tests à faire par fonctionnalité. Écrit dans [RECAPITULATIF.md](RECAPITULATIF.md) à partir de ce journal, du suivi des fonctionnalités et du besoin (aucune décision nouvelle).
+- Rappel qui en ressort : aucune fonctionnalité de l'add-on de route n'a été testée en jeu (`/hr debug`, route, tracés, interface) ; seules les sondes l'ont été. Un ordre de test est proposé en fin de document.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|

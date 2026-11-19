@@ -1,0 +1,68 @@
+# Récapitulatif : choix de conception et tests à faire
+
+Synthèse de [FONCTIONNALITES.md](FONCTIONNALITES.md), [JOURNAL.md](JOURNAL.md) (décisions D1 à D10, risques R1 à R14) et [BESOINS.md](BESOINS.md). En cas de divergence, ces trois fichiers font foi.
+
+Rappel : **aucune fonctionnalité de l'add-on de route n'a encore été testée en jeu**. Seules les sondes `/hr probe` l'ont été (elles prouvent que l'add-on se charge). « Hors jeu » = test par script ou faux environnement, déjà fait.
+
+## 1. Add-on de route (livré, v1.0.0)
+| Réf. | Fonctionnalité | Choix de conception | Test hors jeu | Tests à faire en jeu |
+|---|---|---|---|---|
+| F1 | Base des points (45 régions, 29 herbes, 13 256 points) | Générée depuis le JSON, aucun point supprimé ni dédupliqué ; jamais modifiée (D8) | Comptage identique au JSON | Une route passe bien sur un Goldthorn connu de Wild Shore (point de la base à 27,6 / 81,8) |
+| F2 | Région vers mapID | Réutilise `TomTom.NameToMapId` (correspondance normalisée, repli par préfixe), surcharge `/hr setmap`, aucun mapID en dur | Faux TomTom (4 régions) | `/hr debug` : combien des 45 régions sont résolues, notamment Riverglades, Shen'dralas, Zephras Isle |
+| F3 | Position et région courantes | Position via `TomTom:GetCurrentPlayerPosition`, remontée aux cartes parentes | Faux TomTom | Région pré-sélectionnée correcte dans plusieurs zones et sous-zones, comportement en ville ou en grotte |
+| F4 | Route optimisée | Port à l'identique du planner HTML (plus proche voisin puis 2-opt à fenêtre, distance en % sans correction d'aspect) (D2) | 4 cas identiques au JS (dont 702 et 742 points) | Comparer une route réelle avec le planner HTML sur la même zone |
+| F5 | Génération sans gel | Coroutine découpée par `C_Timer`, annulation par jeton | Oui (mock) | Zone à 700 points : pas de saccade ni de message d'erreur |
+| F6 | Mode Suivi | Un seul waypoint à la fois, `SetCustomWaypoint`, rayon d'arrivée 15 yd (réglable), `crazy=true`, pattern du README TomTom (D3) | Avancement, skip, fin de route | La flèche avance bien à l'arrivée, le rayon convient, le ping et les doublons proches se comportent bien |
+| F7 | Mode Tout afficher | Tous les points en pins TomTom, `persistent=false`, nettoyés à l'arrivée | Oui (mock) | Performance avec ~700 pins sur carte et minimap, ordre de la flèche |
+| F8 | Skip, Stop, retrait externe | Retrait du point courant par TomTom = point suivant ; plusieurs retraits dans la même image = arrêt | Oui (mock) | Clic droit sur un pin, `/way reset all` (avec la route seule, vu comme un « skip »), `/hr stop`, `/hr skip` |
+| F9 | Commandes `/hr` | Région optionnelle avant « : », herbes séparées par des virgules, `all` | Oui (mock) | `/hr Fadeleaf`, `/hr Stranglethorn Vale: Goldthorn`, `/hr stop`, noms inconnus |
+| F10 | Fenêtre | Cadres natifs, liste de régions maison, départ pré-rempli (champ modifiable) | Non (rendu non testable) | Ouverture, listes, cases, boutons, curseur de rayon, erreurs Lua (`/console scriptErrors 1`) |
+| F11 | Tracé carte du monde | Lignes de l'add-on (TomTom ne trace que des pins), tronçon courant vert, suivants dorés, précédent grisé ; désactivé en mode manette | Non | Affichage sur la bonne carte, zoom, ouverture et fermeture de la carte |
+| F12 | Tracé minimap | Projection calquée sur HereBeDragons-Pins (rayon de vue, rotation, disque à 0,9), 40 points d'avance, découpe au disque (D4) | Non | Rotation, zoom, bord du disque, conflit avec d'autres add-ons de minimap |
+| F13 | Réglages mémorisés | `HerbRouteDB` (région, herbes, mode, rayon, cases) | Partiel | Persistance après `/reload` |
+
+## 2. Sondes de diagnostic (`/hr probe`)
+| Réf. | Fonctionnalité | Choix de conception | État | Tests à faire en jeu |
+|---|---|---|---|---|
+| F20 | `/hr probe`, `/hr probe minimap` : environnement, pistages, fonctions, lecture du survol réel avec **valeurs des champs numériques** | Aucun effet durable, `pcall` partout, rapport dans le chat, `HerbRouteDB` et une fenêtre à copier ; jeu de sondes réduit le 2026-11-19 | Livré, 2 rapports en jeu | `/hr probe minimap` avec **tous les pistages désactivés** (présence générique de façon certaine ?), puis sur point jaune et sur sol vide pour comparer `type` et `line1type` |
+| F36 | `/hr probe blink world [hidden]` | Méthode de NodeRadar : curseur au repos dans le monde, minimap déplacée dessous, contrôles décalés de 40 unités, garde-fous (combat, bouton, souris bougée), restauration systématique | Livré, 1 rapport : le survol est rafraîchi, mais 4 positions sur 4 présentes | À refaire seulement si F38 montre que la lecture varie avec les points |
+| F38 | `/hr probe watch` | 15 s, journalise les changements de présence et de signature (`type`, `line1type`) avec la position du curseur, ignore `dataInstanceID` pour détecter un changement | Livré, jamais lancé en jeu | Seul « Trouver les herbes » actif, souris déplacée lentement : sol vide, points d'herbe, puis hors minimap ; coller le rapport |
+| F35 | Ancien `blink` (curseur déjà sur la minimap) | Retiré : non concluant | Retiré | Aucun |
+
+## 3. Vérification des points par la minimap (cadrée, **conditionnelle**)
+Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désactivés » : la présence de données est très probablement générique (données présentes sur sol vide).
+
+| Réf. | Fonctionnalité | Choix de conception | État | Tests à prévoir |
+|---|---|---|---|---|
+| F21 | Activation automatique de « Trouver les herbes » | Seulement si inactif ; prudence : NodeRadar signale qu'un rétablissement du pistage lance un sort avec temps de recharge sur la barre d'actions | Cadré | Aucun effet sur les barres d'actions ni les temps de recharge |
+| F22 | Sondage aux points connus, croix de 17 positions, arrêt à la première réponse (D5) | Positions en yards converties en pixels selon le zoom, dédoublonnage ; **à réévaluer** (zone de réponse d'environ 25 unités, un sondage au centre pourrait suffire) | Cadré, bloqué par R12 et R13 | Résolution réelle selon le zoom (environ 50 yd au zoom 1, 17 yd au zoom le plus fort, estimation) |
+| F23 | Déclenchement à l'entrée dans le disque (D6) | Test de distance léger toutes les 0,25 à 0,5 s, 2 à 3 interrogations par point (à l'entrée, +1,5 s, avant 30 yd) | Cadré | Délai d'apparition d'un point (R8), coût par passe (R9) |
+| F24 | Retrait des waypoints sans correspondance | `TomTom:RemoveWaypoint` + état du trajet en cours seulement ; **base intacte** (D8) ; K échecs consécutifs avant retrait (D7) | Cadré | Faux négatifs (R2), reprise après `/hr restore` |
+| F25 | `/hr restore` | Remet la route d'origine conservée | Cadré | Aller-retour complet après plusieurs retraits |
+| F26 | Garde-fous | Aucun retrait sans pistage actif, minimap visible, bonne carte, hors combat, lecture jugée fonctionnelle | Cadré | Cas : pistage coupé, carte différente, combat |
+| F27 | Interface | Case « Vérifier avec la minimap », compteurs conservés, confirmés, retirés | Cadré | Rendu et mise à jour |
+| F28 | Tracés | Ignorer les points retirés, couleur des confirmés | Cadré | Rendu carte et minimap |
+| F29 | Faux minimap dans les tests | Étendre `tools/test_addon.py` | Cadré | États, retraits, garde-fous |
+| F34 | Vérification par **présence** (D10) | Noms secrets acceptés, l'herbe attendue étant celle du waypoint | **À risque** : présence probablement générique | Dépend de F38 : `type`/`line1type` distinguent-ils point et sol ? |
+| F37 | Cartographie de la présence par `blink` sur une grille | Pas voisin de la zone de réponse, relevé de `type` et `dataInstanceID` | Conditionnel à F38 | Fraction de positions présentes, résolution |
+
+**Repli si rien ne distingue un point du sol** : abandon de la vérification par la minimap, mémoire de récolte (F32).
+
+## 4. Idées et hors périmètre
+| Réf. | Fonctionnalité | Choix de conception / raison | Test à prévoir |
+|---|---|---|---|
+| F32 | Mémoire de récolte (états pris et vide, événement de récolte, bouton « rien ici ») | Séparée de la base (`HerbRouteDB`), optionnelle ; durée de vie entre trajets à décider ; devient le repli principal | Détection d'une récolte par l'événement de sort, durées de réapparition (R5) |
+| F31 | Dézoom temporaire de la minimap | Élargit le champ mais change l'affichage | Sans objet tant que la lecture n'est pas positionnelle |
+| F33 | Recalcul complet de la route | Désactivé, remplacé par le simple retrait de points (D7) | Aucun |
+| F30 | Contournements de lecture | Devenu F36 | Voir F36 |
+| F40 | Routes multi-régions | Hors périmètre v1 | Aucun |
+| F41 | Interface en français, client non anglais | Hors périmètre ; hypothèse client anglais (R6) | `/hr debug` si la langue du client change |
+| F42 | Aperçu du tracé dans la fenêtre | Hors périmètre (le tracé est sur la carte et la minimap) | Aucun |
+| F43 | Recalage de la base | Interdit par la contrainte D8 | Aucun |
+
+## 5. Ordre de test conseillé
+1. Installer le dernier zip, `/console scriptErrors 1`, `/reload`.
+2. `/hr debug`, puis une route simple (`/hr` ou `/hr <herbe>`) : F2, F3, F5, F6, F9, F10.
+3. Tracés carte et minimap : F11, F12. Mode Tout afficher : F7. Stop, skip, retrait : F8. Persistance : F13.
+4. Sondes : `/hr probe watch` (F38), puis `/hr probe minimap` avec tous les pistages désactivés (F20). Coller les rapports.
+5. Selon les résultats : vérification par la minimap (bloc 3) ou mémoire de récolte (F32).

@@ -29,6 +29,7 @@ Détails : [HerbRoute/README.md](HerbRoute/README.md).
 | `docs/BESOINS.md` | Expression de besoin en cours : points actifs, minimap, retracé en direct |
 | `docs/JOURNAL.md` | Journal de pilotage : décisions, risques, prochaines actions |
 | `docs/FONCTIONNALITES.md` | Suivi des fonctionnalités et de leur état de vérification |
+| `docs/RECAPITULATIF.md` | Tableau des choix de conception et des tests à faire, par fonctionnalité |
 
 ## État
 Logique et algorithme vérifiés hors-jeu (identiques au planner HTML, tests sur environnement simulé). L'interface et le tracé minimap n'ont pas encore été testés dans le client : voir la section « État et risques » de `CLAUDE.md`.
