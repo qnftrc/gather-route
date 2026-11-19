@@ -1,7 +1,8 @@
 import json, subprocess, sys
+# usage: python3 -I tools/test_math.py <planner.html> <regions_waypoints.json>
 from lupa import LuaRuntime
-H = "/root/.claude/uploads/0652591d-2a69-5e47-bd49-6110d93816eb/89c4c2ab-WoW_Forever_Herb_Planner.html"
-D = json.load(open("/root/.claude/uploads/0652591d-2a69-5e47-bd49-6110d93816eb/23e1e8d5-wowhead_forever_herbes_regions_waypoints.json"))
+H = sys.argv[1]
+D = json.load(open(sys.argv[2], encoding="utf-8"))
 cases = [
   {"region":"Stranglethorn Vale","herbs":["Fadeleaf"],"start":{"x":50,"y":50}},
   {"region":"Stranglethorn Vale","herbs":sorted(D["regions"]["Stranglethorn Vale"]["herbs"]),"start":{"x":30.5,"y":70.2}},
