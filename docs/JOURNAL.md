@@ -4,6 +4,11 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-19 — Ouverture de F60 : points skippés qui réapparaissent (B19)
+- Demande du joueur : nouvelle fonctionnalité dans l'activité 6 « Ajuster en route », dédiée à la détection des points déjà skippés qui réapparaissent dans le cadre de la minimap. **Cadrée seulement, rien de codé** ; le plan est présenté au joueur et attend ses réponses (définition de « skippé », réaction à la détection).
+- Contradiction à lever : F56 (mémoire des points visités) est annulée. F60 n'est pas une mémoire persistante : seul l'état de la route en cours serait gardé, rien dans `HerbRouteDB`, base intacte (D8). À confirmer par le joueur.
+- Plan : enregistrer la cause à chaque saut (`Skip`, retrait externe, point absent), sonder ces points quand ils entrent dans 85 % du rayon de vue avec les sondes de `Verify.lua`, signaler ceux qui répondent, option de réinsertion dans la route désactivée par défaut.
+
 ### 2026-11-19 — Remise à zéro des prochaines actions
 - Demande du joueur : la section « Prochaines actions » est supprimée, on repart de zéro. Les éléments écartés (relief B13, mémoire des visités et nouveaux nœuds F56 à F58, mode Tout afficher D25, sonde `C_Navigation`) restent écartés ; ils sont consignés dans les décisions, BESOINS.md et FONCTIONNALITES.md.
 - Branche de travail : `main` seule ; la branche de session locale (identique à `main`) est supprimée.

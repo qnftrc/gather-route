@@ -28,6 +28,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B16 | Un bouton « skip » dans l'interface, associable à une touche | Demande du joueur |
 | B17 | Fusionner les doublons des bases à une unité de coordonnée près, sans toucher aux fichiers de données | Demande du joueur |
 | B18 | Ajuster la route en temps réel d'après la minimap : réordonner les points restants après des retraits, sous forme d'une fonction activable et désactivable à volonté | Demande du joueur |
+| B19 | Détecter les points **déjà skippés** qui réapparaissent dans le cadre de la minimap (activité « Ajuster en route ») ; périmètre et réaction à préciser (voir le journal) | Demande du joueur |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.

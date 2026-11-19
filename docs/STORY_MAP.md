@@ -45,6 +45,7 @@ Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en
 | Tranche | Histoires |
 |---|---|
 | **Confort** | 🟦 Réordonnancement des points restants depuis ma position, option `/hr reroute` (F55) |
+| **Cadré** | 💡 Détecter les points skippés qui réapparaissent dans ma minimap (F60, B19) : définition de « skippé » et réaction à valider |
 | **Plus tard** | 💡 `/hr restore` : remettre la route d'origine (F25) · 💡 Mémoire de récolte (F32) · 💡 Recalcul complet (F33, remplacé en partie par F55) · ✖ Mémoire des points visités, nouveaux nœuds par balayage, validation par le butin (F56 à F58, annulés) |
 
 ### 7. Entretenir les données
