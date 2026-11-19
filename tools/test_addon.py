@@ -187,6 +187,35 @@ assert(run("probe minimap"):find("RESULT: no data under the cursor", 1, true))
 assert(table.concat(printed, "\n"):find("The cursor is not inside the minimap", 1, true))
 curx = savedCur
 
+-- readable numbers are logged
+local numData = {type = 21, dataInstanceID = 77, lines = {{leftText = "x", type = 0}}}
+local savedTip = C_TooltipInfo.GetMinimapMouseover
+C_TooltipInfo.GetMinimapMouseover = function() return numData end
+t = run("probe")
+assert(t:find("dataInstanceID:number=77, lines:table, type:number=21 | lines[1]: leftText:string, type:number=0", 1, true), t)
+C_TooltipInfo.GetMinimapMouseover = savedTip
+
+-- watch: presence and signature changes while the "mouse" moves
+local stage = 0
+local savedPos = GetCursorPosition
+C_TooltipInfo.GetMinimapMouseover = function()
+  if stage == 1 then return {type = 21, dataInstanceID = 5, lines = {{type = 0}}} end
+  if stage == 2 then return {type = 21, dataInstanceID = 6, lines = {{type = 0}}} end
+  if stage == 3 then return {type = 9, dataInstanceID = 7, lines = {{type = 1}}} end
+  return nil
+end
+C_Timer.After(3 + 1, function() stage = 1 end)
+C_Timer.After(3 + 5, function() stage = 2 end)
+C_Timer.After(3 + 8, function() stage = 3 end)
+C_Timer.After(3 + 12, function() stage = 0 end)
+local wtxt = run("probe watch")
+assert(wtxt:find("probe watch", 1, true) and wtxt:find("type=21 id=5 line1type=0", 1, true), wtxt)
+assert(wtxt:find("type=9 id=7 line1type=1", 1, true) and wtxt:find(": none", 1, true), wtxt)
+assert(not wtxt:find("id=6", 1, true), "an id-only change must not create an event")
+assert(wtxt:find("samples,", 1, true), wtxt)
+C_TooltipInfo.GetMinimapMouseover = savedTip
+stage = 0
+
 -- removed commands now print the usage
 for _, old in ipairs({"probe zoom", "probe blink", "probe world"}) do
   local u = run(old)

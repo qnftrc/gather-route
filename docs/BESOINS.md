@@ -38,6 +38,11 @@ Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/ma
 - Zone de réponse d'un nœud : environ 25 sur 25 unités (16 px à l'écran sur 70888).
 - Toute la minimap peut répondre pour des objets non-herbes (quêtes, PNJ, joueurs) : sans le nom, un faux positif est possible (D10).
 
+### 3 quater Sol vide : présence générique probable
+- `/hr probe minimap` avec la souris sur un **sol vide** de la minimap : lecture de base **présente**. Avec le curseur hors de la minimap : aucune donnée. La présence dépend donc surtout de la position du curseur sur la minimap, pas d'un point jaune.
+- Conséquence : la vérification par **présence** (B7, D10, F34) est remise en cause. Elle ne redevient possible que si un champ numérique lisible (`type`, `dataInstanceID`, `lines[1].type`) distingue un point du sol. Test : `/hr probe watch`, puis `/hr probe minimap` avec tous les pistages désactivés.
+- Repli si rien ne distingue : abandon de la vérification par la minimap, mémoire de récolte (4.4) seule. La base reste intacte dans tous les cas.
+
 ## 4. Conception envisagée
 
 ### 4.1 Sondes de validation (`/hr probe`) — première étape (écrites, jouées en partie)

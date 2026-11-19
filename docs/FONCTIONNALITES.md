@@ -29,7 +29,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 ## Cadré (vérification des points sur la minimap)
 | Réf. | Fonctionnalité | Statut | Dépend de | Fichiers prévus |
 |---|---|---|---|---|
-| F20 | `/hr probe` et `/hr probe minimap` : environnement, pistages actifs, fonctions présentes, lecture du survol réel (présence, forme des données, valeurs secrètes), rapport dans le chat, `HerbRouteDB` et une fenêtre à copier. Réduite le 2026-11-19 (voir « Retiré ») | **Livré** (testé hors jeu sur faux minimap ; 2 rapports en jeu : présence lisible sous le vrai curseur, nom secret, sondage par position sans effet) | Test en jeu (contrôle sol vide à faire) | `Probe.lua` |
+| F20 | `/hr probe` et `/hr probe minimap` : environnement, pistages actifs, fonctions présentes, lecture du survol réel (présence, forme des données avec **valeurs des champs numériques**, valeurs secrètes), rapport dans le chat, `HerbRouteDB` et une fenêtre à copier. Réduite le 2026-11-19 (voir « Retiré ») | **Livré** (testé hors jeu sur faux minimap ; 2 rapports en jeu : présence lisible sous le vrai curseur, nom secret, sondage par position sans effet) | Test en jeu (contrôle sol vide à faire) | `Probe.lua` |
 | F21 | Activation automatique du pistage « Trouver les herbes » | Cadré | F20 | `Probe.lua` ou `Verify.lua` |
 | F22 | Sondage aux points connus avec croix de 17 positions, arrêt à la première réponse, dédoublonnage | Cadré | F20 | `Probe.lua` |
 | F23 | Déclenchement à l'entrée d'un point dans le disque (seuil 85 % du rayon), 2 à 3 interrogations par point | Cadré | F22 | `Verify.lua` |
@@ -39,10 +39,11 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F27 | Interface : case « Vérifier avec la minimap », compteurs (conservés, confirmés, retirés) | Cadré | F24 | `UI.lua` |
 | F28 | Tracés : ignorer les points retirés, couleur des points confirmés | Cadré | F24 | `Overlay.lua` |
 | F29 | Faux minimap dans les tests pour valider états, retraits et garde-fous | Cadré | F23 | `tools/test_addon.py` |
-| F34 | Vérification par **présence** d'un point (noms secrets acceptés, faux positifs possibles entre nœuds voisins) | Cadré (D10) | F35 | `Verify.lua` |
+| F34 | Vérification par **présence** d'un point (noms secrets acceptés) | **À risque** : présence probablement générique (sol vide présent), dépend de `type`/`dataInstanceID` (F38) | F38 | `Verify.lua` |
 | F35 | ~~Déplacement de la minimap sous un curseur déjà sur la minimap (`/hr probe blink`)~~ | **Retiré** : non concluant en jeu, remplacé par F36 | n/a | n/a |
 | F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) | **Livré**, lancé en jeu : le moteur rafraîchit bien le survol (présent sous le curseur, absent au retour) mais 4 positions sur 4 sont présentes : non départagé entre présence générique et zone de réponse large | Test en jeu | `Probe.lua` |
-| F37 | Cartographie de la présence par `blink` sur une grille (pas voisin de la zone de réponse), relevé de `type` et `dataInstanceID`, pour séparer présence générique et présence liée aux points et mesurer la résolution | Cadré, **prochaine étape** après la réponse sur le sol vide | Test en jeu | `Probe.lua` |
+| F37 | Cartographie de la présence par `blink` sur une grille (relevé de `type`, `dataInstanceID`) | Cadré, **conditionnel** : seulement si F38 montre que la présence ou la signature varie avec les points | F38 | `Probe.lua` |
+| F38 | `/hr probe watch` : 15 s, journal des changements de `type`/`line1type` et de présence avec la position du curseur, pendant que la souris est déplacée à la main (sol vide, points d'herbe, hors minimap) | **Livré** (testé hors jeu sur moteur simulé, **à lancer en jeu**) | Test en jeu | `Probe.lua` |
 
 ## Idées et options
 | Réf. | Fonctionnalité | Statut | Remarque |

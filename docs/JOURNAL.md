@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Préciser où était la souris pendant `/hr probe minimap`** (sur un point jaune, ou sur un sol vide) et **installer le dernier zip** (sondes allégées). Refaire `/hr probe minimap` avec la souris sur un sol **vide** de la minimap et collez-moi la ligne « Baseline read » : c'est le test qui sépare « présence générique » de « présence liée aux points » (R13).
+1. **Installer le dernier zip** (sondes allégées, `watch`, valeurs des champs numériques), puis lancer `/hr probe watch` (seul « Trouver les herbes » actif, souris déplacée lentement sur sol vide, points d'herbe, puis hors de la minimap) et `/hr probe minimap` avec **tous les pistages désactivés**. Coller les deux rapports. Ils décident entre vérification par la minimap et mémoire de récolte seule (R13).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -83,6 +83,15 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Piste : cartographier la présence par `blink` sur une grille (pas voisin de la zone de réponse), en relevant aussi `type` et `dataInstanceID`, pour mesurer la fraction de positions « présentes » (générique ou liée aux points) et la résolution réelle. Pas encore écrit.
 - Précaution de lecture : avec une zone d'environ 25 unités, la résolution dépend du zoom (environ 50 yd au zoom 1, environ 17 yd au zoom le plus fort, d'après le rayon de vue et la largeur de la minimap, estimation). La présence ne prouve donc qu'un point dans une zone, pas à l'emplacement exact du candidat ; elle ne permettrait de retirer que des candidats sans aucun point alentour.
 
+### 2026-11-19 — Sol vide de la minimap : des données sont présentes
+- Réponse du joueur : pendant `/hr probe minimap`, la souris était sur un **sol vide** de la minimap. La lecture de base était pourtant **présente**.
+- Conclusion : la présence de données est très probablement **générique** (dès que le curseur est sur la minimap), pas liée à un point jaune. Elle ne permet donc pas, seule, de vérifier qu'un nœud existe. C'est cohérent avec `blink world` (4 positions sur 4 présentes) et avec le premier rapport (rien quand le curseur est hors de la minimap).
+- Réserves : la zone de réponse d'un point est grande (environ 25 unités d'après NodeRadar) et la minimap est dense au zoom 1 ; un sol « vide » à l'œil peut encore être dans la zone d'un point. Plusieurs pistages actifs (maîtres de vol, aubergistes, quêtes) ajoutent des points. Non totalement exclu, mais la piste « présence seule » est **remise en cause** (D10 et F34).
+- Ce qui peut encore la sauver : les champs numériques lisibles `type`, `dataInstanceID` et `lines[1].type` pourraient différer entre un point et le sol, ou entre types de points. Leur valeur n'avait pas été relevée.
+- Écrit (sonde) : la lecture de base affiche maintenant les **valeurs** des champs numériques ; `blink world` ajoute la signature à chaque lecture ; nouvelle commande `/hr probe watch` (15 s, la souris déplacée à la main sur sol vide, points d'herbe, puis hors de la minimap) qui journalise chaque changement de `type`/`line1type` avec la position du curseur. Tests hors jeu sur moteur simulé.
+- Tests à faire en jeu : (1) `/hr probe watch` avec seul « Trouver les herbes » actif ; (2) `/hr probe minimap` avec **tous les pistages désactivés** : si des données sont présentes, la présence est générique de façon certaine.
+- Si `type` ne distingue rien : abandon de la vérification par la minimap, repli sur la mémoire de récolte (F32).
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -95,7 +104,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D7 | La route d'origine est conservée ; on retire des points au lieu de la recalculer | 2026-11-19 | Cadrée |
 | D8 | **Base intacte** : `HerbRoute_Data` n'est jamais modifiée ; seuls les waypoints TomTom du trajet en cours sont retirés | 2026-11-19 | Contrainte |
 | D9 | Pas de recalage de la base à partir des écarts mesurés | 2026-11-19 | Contrainte |
-| D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | Retenue (sous réserve d'un sondage positionnel fonctionnel) |
+| D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | **Remise en cause** : la présence est probablement générique (sol vide présent), voir R13 |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
@@ -112,7 +121,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R10 | Tracé minimap (rotation, zoom) jamais vu en jeu | Non testé |
 | R11 | Noms d'infobulle secrets : pas de contrôle du type d'herbe, faux positifs possibles entre nœuds voisins | Accepté (D10) |
 | R12 | `UpdateMouseoverAtPoint` n'a pas d'effet positionnel (confirmé par la documentation de NodeRadar : sans effet dès le build 70862). Seule piste connue : déplacer la minimap sous un curseur au repos dans le monde | Ouvert, test = `/hr probe blink world` |
-| R13 | La présence de données est-elle liée à un point jaune sous le curseur, ou générique dès que le curseur est sur la minimap ? | Ouvert : blink world a montré 4 positions sur 4 présentes (touché et contrôles), minimap sol vide jamais testée avec certitude |
+| R13 | La présence de données est-elle liée à un point jaune ? | **Réponse partielle : données présentes sur sol vide** (présence très probablement générique). Reste à voir si `type`/`dataInstanceID` distinguent point et sol |
 | R14 | Le build 70959 (postérieur à 70938, dernier build documenté par NodeRadar) peut restreindre davantage | Ouvert |
 
 ## Commits

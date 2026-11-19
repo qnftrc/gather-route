@@ -47,6 +47,7 @@ end
 
 local function fieldTag(v)
     if isSecret(v) then return "secret" end
+    if type(v) == "number" then return "number=" .. tostring(v) end
     return type(v)
 end
 
@@ -76,9 +77,26 @@ local function baseline()
     return data ~= nil, describe(data)
 end
 
-local function present()
+-- The readable numbers of the tooltip data (the text and color are secret).
+local function signature(data)
+    if type(data) ~= "table" or isSecret(data) then return "n/a" end
+    local line = type(data.lines) == "table" and data.lines[1]
+    local function n(v)
+        if type(v) == "number" and not isSecret(v) then return tostring(v) end
+        return "?"
+    end
+    return ("type=%s id=%s line1type=%s"):format(n(data.type), n(data.dataInstanceID),
+        type(line) == "table" and n(line.type) or "?")
+end
+
+local function reading()
     local ok, data = pcall(C_TooltipInfo.GetMinimapMouseover)
-    return ok and data ~= nil
+    if not ok or data == nil then return false end
+    return true, signature(data)
+end
+
+local function present()
+    return (reading())
 end
 
 -- Cursor position against the minimap disc (MouseIsOver is not reliable here).
@@ -213,9 +231,10 @@ local function runBlinkWorldB(hidden, ox, oy)
         local control, hit, misses = nil, nil, {}
         for _, st in ipairs(steps) do
             if st.r6 ~= nil then
-                add("  %s (%d,%d): +1 frame %s, +3 frames %s, +6 frames %s, back %s", st.kind, st.dx, st.dy,
+                add("  %s (%d,%d): +1 frame %s, +3 frames %s, +6 frames %s, back %s%s", st.kind, st.dx, st.dy,
                     st.r1 and "present" or "absent", st.r3 and "present" or "absent",
-                    st.r6 and "present" or "absent", st.back and "present" or "absent")
+                    st.r6 and "present" or "absent", st.back and "present" or "absent",
+                    st.sig and (" [" .. st.sig .. "]") or "")
                 if st.kind == "control" then control = st
                 elseif st.kind == "hit" then hit = st
                 else misses[#misses + 1] = st end
@@ -290,7 +309,7 @@ local function runBlinkWorldB(hidden, ox, oy)
         if hidden then Minimap:SetAlpha(0) end
         waitFrames(1, function()
             if finished then return end
-            st.r1 = present()
+            st.r1, st.sig = reading()
             waitFrames(2, function()
                 if finished then return end
                 st.r3 = present()
@@ -334,9 +353,56 @@ local function blinkWorld(hidden)
     C_Timer.After(WORLD_WAIT, function() runBlinkWorldB(hidden, ox, oy) end)
 end
 
+-- /hr probe watch: log how the real hover changes while the mouse is moved by
+-- hand over empty ground, herb dots and outside the minimap.
+local WATCH_SECONDS, WATCH_STEP, WATCH_MAX_EVENTS = 15, 0.2, 80
+
+local function runWatch()
+    lines = {}
+    add("HerbRoute probe watch %s", date("%Y-%m-%d %H:%M:%S"))
+    local tracking, ok = trackingList()
+    if ok then
+        local active = {}
+        for _, t in ipairs(tracking) do if t.active then active[#active + 1] = tostring(t.name) end end
+        add("Tracking active: %s", #active > 0 and table.concat(active, ", ") or "none")
+    end
+    add("Zoom %s, view radius %s yd", tostring(Minimap:GetZoom()), viewRadius() and ("%.1f"):format(viewRadius()) or "n/a")
+    HR:Print(("Move the mouse slowly over the minimap for %d s: empty ground, herb dots, then outside."):format(WATCH_SECONDS))
+    local elapsed, samples, events, last = 0, 0, 0, nil
+    local function tick()
+        if elapsed >= WATCH_SECONDS then
+            add("%d samples, %d changes%s.", samples, events, events > WATCH_MAX_EVENTS and " (list cut)" or "")
+            return finish()
+        end
+        samples = samples + 1
+        local has, sig = reading()
+        local state = has and sig or "none"
+        local key = has and (sig:gsub(" id=%S+", "")) or "none"
+        local inside = cursorInside()
+        key = key .. "|" .. tostring(inside)
+        if key ~= last then
+            last = key
+            events = events + 1
+            if events <= WATCH_MAX_EVENTS then
+                local ox, oy = 0, 0
+                if GetCursorPosition then
+                    local cx, cy = Minimap:GetCenter()
+                    local x, y = GetCursorPosition()
+                    ox, oy = x / Minimap:GetEffectiveScale() - cx, y / Minimap:GetEffectiveScale() - cy
+                end
+                add("t=%.1fs cursor (%.0f,%.0f) inside=%s: %s", elapsed, ox, oy, tostring(inside), state)
+            end
+        end
+        elapsed = elapsed + WATCH_STEP
+        C_Timer.After(WATCH_STEP, tick)
+    end
+    tick()
+end
+
 local function usage()
     HR:Print("/hr probe - environment, functions, read of the real mouse hover")
     HR:Print("/hr probe minimap - same after 3 s, with the mouse on the minimap")
+    HR:Print("/hr probe watch - log how the real hover changes while you move the mouse")
     HR:Print("/hr probe blink world [hidden] - move the minimap under a resting cursor")
     HR:Print("/hr probe copy - reopen the last report")
 end
@@ -348,6 +414,9 @@ function Probe:Run(arg)
     elseif arg == "minimap" then
         HR:Print(("Probe in %d s: put the mouse over the minimap."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() runMain("minimap") end)
+    elseif arg == "watch" then
+        HR:Print(("Watch in %d s: put the mouse over the minimap."):format(COUNTDOWN))
+        C_Timer.After(COUNTDOWN, runWatch)
     elseif arg == "blink world" or arg == "blink world hidden" then
         HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap and keep it still."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() blinkWorld(arg == "blink world hidden") end)
