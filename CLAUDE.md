@@ -48,6 +48,9 @@ Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` 
 ## Évolutions en cours de cadrage
 L'expression de besoin sur les points actifs, l'interrogation de la minimap et le retracé en direct est dans `docs/BESOINS.md` (rien d'implémenté). Elle suppose une validation en jeu de la lecture de la minimap (`/hr probe`) avant tout développement. Le suivi courant est dans `docs/JOURNAL.md` (décisions, risques, prochaines actions) et `docs/FONCTIONNALITES.md` (état de chaque fonctionnalité) : les mettre à jour à chaque séance. Contrainte : la base `HerbRoute_Data` n'est jamais modifiée, seuls les waypoints TomTom du trajet en cours sont retirés.
 
+## Règle de travail (demandée par le joueur)
+Avant de répondre à une question sur le projet ou de modifier quoi que ce soit, **relire** `docs/BESOINS.md`, `docs/JOURNAL.md` et `docs/FONCTIONNALITES.md`, puis vérifier que la réponse ou le changement ne contredit ni une décision (D1 à D9, dont « base intacte »), ni une demande déjà formulée. En cas de contradiction, la signaler au joueur avant d'agir. À la fin d'un échange qui fait avancer le sujet, mettre à jour les trois fichiers (besoin, journal, statut des fonctionnalités), puis committer et pousser.
+
 ## Conventions
 - Pas de commentaires sauf contrainte non évidente. Pas de dépendance Ace.
 - Messages d'UI et de chat en anglais ; documentation en français.
