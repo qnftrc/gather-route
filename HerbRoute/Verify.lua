@@ -630,6 +630,50 @@ local function finishScan(r, cells, counts, R)
     table.sort(cands, function(a, b) return a.d < b.d end)
     while #cands > 40 do cands[#cands] = nil end
 
+    if #hits > 0 and #cands > 0 then
+        local blobs = {}
+        for _, h in ipairs(hits) do
+            local home
+            for _, b in ipairs(blobs) do
+                for _, m in ipairs(b.cells) do
+                    local dx, dy = h.x - m.x, h.y - m.y
+                    if dx * dx + dy * dy <= (1.5 * SCAN_STEP) ^ 2 then home = b break end
+                end
+                if home then break end
+            end
+            if not home then home = {cells = {}} blobs[#blobs + 1] = home end
+            home.cells[#home.cells + 1] = h
+        end
+        for _, b in ipairs(blobs) do
+            local sx, sy = 0, 0
+            for _, m in ipairs(b.cells) do sx, sy = sx + m.x, sy + m.y end
+            b.x, b.y = sx / #b.cells, sy / #b.cells
+        end
+        local used, sumx, sumy, sumRatio = 0, 0, 0, 0
+        local listed = {}
+        for _, c in ipairs(cands) do
+            local best, bd
+            for _, b in ipairs(blobs) do
+                local dx, dy = b.x - c.x, b.y - c.y
+                local d = math.sqrt(dx * dx + dy * dy)
+                if not bd or d < bd then best, bd = b, d end
+            end
+            if best and bd <= 1.5 * SCAN_STEP then
+                used = used + 1
+                sumx, sumy = sumx + (best.x - c.x), sumy + (best.y - c.y)
+                if c.d > 0 then sumRatio = sumRatio + math.sqrt(best.x ^ 2 + best.y ^ 2) / math.sqrt(c.x ^ 2 + c.y ^ 2) end
+                if #listed < 8 then
+                    listed[#listed + 1] = ("%.0f: (%+.0f,%+.0f)"):format(math.sqrt(c.x ^ 2 + c.y ^ 2), best.x - c.x, best.y - c.y)
+                end
+            end
+        end
+        say("Scan: %d blip group(s); %d of %d projected point(s) have one within %d units.", #blobs, used, #cands, 1.5 * SCAN_STEP)
+        if used > 0 then
+            say("Scan: offsets blip minus projection (distance from the center: dx,dy in units): %s", table.concat(listed, "; "))
+            say("Scan: mean offset (%+.1f, %+.1f) units, mean radial ratio blip/projection %.2f (1 = correct scale).", sumx / used, sumy / used, sumRatio / used)
+        end
+    end
+
     if #hits == 0 then
         say("Scan: no blip found on the minimap.")
     elseif #cands < 5 then

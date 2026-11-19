@@ -391,6 +391,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Lecture : première **indication positive** de la projection en jeu : deux points de la base coïncident avec des nœuds à 10 et 50 unités du centre. Limites : seulement deux points, proches du centre (l'erreur d'échelle y est faible) ; les points éloignés (près de 85 % du rayon, ceux des sondages en avance) ne sont pas testés ; un décalage d'environ un caractère vers la gauche pourrait être systématique (à mesurer sur plus de points). Les `X` sans `o` sont des nœuds absents de la route (autres types ou autres points) ou absents de la base.
 - Suite : refaire le scan minimap dézoomée avec davantage de points de la route dans le disque, et lire les lignes d'en-tête (compte des points projetés et des appariements).
 
+### 2026-11-19 — `/hr verify scan` sur du Blindweed (Swamp of Sorrows) et décalages chiffrés
+- Rapport en jeu : 92 cases, 6 avec lignes, 85 vides, 1 inconclusif ; **7 points de Blindweed projetés, 3 à moins de 14 unités d'un point jaune tels que projetés** ; en miroir x : 0, y : 2, x et y : 0 ; « no mirror image fits clearly better ». Carte : deux `X` au nord, deux groupes au sud-ouest, deux `o` à l'est sans `X` à côté.
+- Lecture : aucune symétrie ne s'impose, la projection telle que codée est au moins aussi bonne que n'importe quel miroir (3 contre 2 au mieux) ; 3 points sur 7 coïncident avec un nœud. Les quatre autres points projetés sans nœud peuvent être des nœuds **absents** (déjà récoltés, zone fréquentée) autant que des erreurs de projection : le scan seul ne tranche pas. Avec les deux points de fer du scan précédent, aucun signe d'erreur systématique, mais pas de preuve non plus.
+- Ajouté : le scan regroupe les cases à lignes en **groupes** (un nœud = environ 2x2 cases), apparie chaque point projeté au groupe le plus proche (moins de 24 unités) et affiche les **décalages** groupe moins projection (avec la distance au centre), leur **moyenne** et le **rapport radial moyen** groupe / projection (1 = échelle juste). Un décalage constant signale une translation, un rapport différent de 1 une échelle fausse. Visible même avec moins de 5 points. Test hors jeu ajouté.
+
 ## Commits
 | Commit | Contenu |
 |---|---|

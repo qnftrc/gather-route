@@ -691,6 +691,7 @@ hitR = 12
 go("verify scan")
 assert(msgs():find("as projected %d+, mirrored in x") or msgs():find("as projected", 1, true), msgs())
 assert(msgs():find("no mirror image fits clearly better", 1, true), msgs())
+assert(msgs():find("blip group(s)", 1, true) and msgs():find("mean offset", 1, true) and msgs():find("radial ratio", 1, true), msgs())
 assert(HR.db.scan and HR.db.scan.text:find("Map (8 units per character", 1, true) and HR.db.scan.text:find("X", 1, true) and HR.db.scan.text:find("o", 1, true), "map missing")
 assert(sx == 0 and sy == 0, "minimap not restored after the scan")
 nodes = {}
