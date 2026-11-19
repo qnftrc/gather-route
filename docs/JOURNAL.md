@@ -175,6 +175,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Si aucune méthode ne détecte le point : « Calibration failed », la vérification reste désactivée (R25) et la mémoire de récolte redevient le repli.
 - Tests hors jeu : calibration sur quatre moteurs simulés (méthode simple, `SetAlpha` requis, curseur logiciel requis, aucune méthode), échec propre, absence de point en phase A, refus de sonder sans calibration ou avec un autre build, usage de la méthode mémorisée.
 
+### 2026-11-19 — Un seul sondage vide pour déclarer un point absent
+- Demande du joueur : un point est déclaré absent après **un seul** sondage vide (au lieu de deux), conformément à sa règle simple : au moins une ligne d'infobulle = nœud présent, données sans ligne = absent, retrait et passage au suivant.
+- Garde-fous conservés : « aucune donnée » reste **inconclusif** (jamais un retrait), aucun retrait avant un premier point confirmé dans la session, mode `report` par défaut, base intacte. Le dernier contrôle avant arrivée (moins de 35 yd) retire aussi après un seul sondage vide.
+- Risque accru : un faux négatif (nœud existant non vu : erreur de coordonnées, zone de réponse) retire désormais le waypoint dès le premier essai ; le mode `report` permet de le constater sans rien retirer avant de passer à `/hr verify remove`.
+- Tests hors jeu adaptés (un retrait au premier sondage vide, la route continue sur un point avec nœud).
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -183,7 +189,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D3 | Deux modes : Suivi (un waypoint à la fois) et Tout afficher | 2026-11-19 | Appliquée |
 | D4 | Tracés carte et minimap dessinés par l'add-on | 2026-11-19 | Appliquée (non testée en jeu) |
 | D5 | ~~Sondage de la minimap aux seuls emplacements connus, avec croix de 17 positions~~ → **un seul sondage par candidat, par déplacement de la minimap sous le curseur** (`UpdateMouseoverAtPoint` sans effet) | 2026-11-19 | **Révisée** après `blink world` |
-| D6 | Vérification déclenchée à l'entrée du **prochain waypoint** dans le disque de la minimap (85 % du rayon), 2 sondages vides d'affilée pour déclarer l'absence, un dernier contrôle à moins de 35 yd | 2026-11-19 | **Appliquée** (F39, non testée en jeu) |
+| D6 | Vérification déclenchée à l'entrée du **prochain waypoint** dans le disque de la minimap (85 % du rayon), **1 sondage vide** pour déclarer l'absence (décision du joueur), un dernier contrôle à moins de 35 yd | 2026-11-19 | **Appliquée** (F39, non testée en jeu) |
 | D7 | La route d'origine est conservée ; on retire des points au lieu de la recalculer | 2026-11-19 | Cadrée |
 | D8 | **Base intacte** : `HerbRoute_Data` n'est jamais modifiée ; seuls les waypoints TomTom du trajet en cours sont retirés | 2026-11-19 | Contrainte |
 | D9 | Pas de recalage de la base à partir des écarts mesurés | 2026-11-19 | Contrainte |
@@ -217,7 +223,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R19 | Résolution dépendante du zoom : zone d'environ 20 unités, soit de l'ordre de 50 yd au zoom 0 et 17 yd au zoom le plus fort (estimation) | À mesurer à plusieurs zooms |
 | R20 | Un autre add-on ancré à la minimap (ou son habillage) peut perturber le déplacement | À observer en jeu |
 | R21 | La projection d'un point de la base sur la minimap (formule du tracé minimap) n'a jamais été vérifiée en jeu : si elle est fausse, tous les sondages tombent à côté | Garde-fou : aucun retrait avant un premier point confirmé ; à valider en jeu |
-| R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoquerait un retrait à tort | Atténué par 2 sondages, mode `report` par défaut, base intacte ; à mesurer en jeu |
+| R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoque un retrait à tort, **dès le premier sondage vide** | Atténué par le mode `report` par défaut, l'absence de retrait avant un premier point confirmé, la base intacte ; à mesurer en jeu |
 | R23 | Les passes exigent une souris immobile dans le monde, et un vrai mouvement après avoir dirigé à la souris : avec la souris tenue pour la caméra, elles seront souvent en attente | Garde « bouger la souris une fois » ajoutée ; raison visible par `/hr verify` ; à mesurer |
 | R24 | La vérification n'obtenait aucune donnée de survol, puis une variante renvoyait des lectures sans valeur | **Rouvert** : seule `blink world` a détecté un point connu ; la méthode est maintenant choisie par calibration sur un point connu |
 | R25 | Aucune des sept méthodes ne détecte un point connu en jeu : la vérification serait impossible sur ce build | Ouvert, test = `/hr verify calibrate` |

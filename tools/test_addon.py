@@ -458,11 +458,11 @@ C_TooltipInfo = {GetMinimapMouseover = function()
   local cu, cv = GetCursorPosition()
   local dx, dy = cu / es - (cxm + sx), cv / es - (cym + sy)
   if dx * dx + dy * dy > 70 ^ 2 then return nil end
-  for _, n in ipairs(nodes) do
+  for idx, n in ipairs(nodes) do
     local ox, oy = offsetOf(n)
     if (dx - ox) ^ 2 + (dy - oy) ^ 2 <= hitR * hitR then
       linesSeen = linesSeen + 1
-      if afterFirstLine then nodes = {} end
+      if afterFirstLine then table.remove(nodes, idx) end
       return {type = 21, dataInstanceID = 1, lines = {{type = 0}}}
     end
   end
@@ -484,6 +484,16 @@ end
 reset(); HR.db.verify = "report"; HR.verifyHits = 0
 go("peacebloom") -- generate to know the first point
 local first = HR.route.points[1]
+local pts1 = HR.route.points
+local function othersNodes() -- nodes on every point except those next to the first one
+  local out = {}
+  for j = 2, #pts1 do
+    local p = pts1[j]
+    local dx, dy = p.x - first.x, p.y - first.y
+    if dx * dx + dy * dy > 14 * 14 then out[#out + 1] = {p.x, p.y} end
+  end
+  return out
+end
 reset()
 nodes = {{first.x, first.y}}
 go("peacebloom")
@@ -495,6 +505,7 @@ assert(sx == 0 and sy == 0, "minimap not restored")
 
 -- 2. remove mode, a blip was confirmed earlier: an empty point is removed
 reset(); HR.db.verify = "remove"; HR.verifyHits = 3
+nodes = othersNodes()
 go("peacebloom")
 r = HR.route
 assert(r.removed[1] and r.removedCount >= 1, msgs())
@@ -523,7 +534,7 @@ nodes = {{first.x, first.y}}
 go("peacebloom")
 r = HR.route; local gen = r.vstats.confirmed
 go("stop"); reset()
-nodes = {{first.x, first.y}}; afterFirstLine = true
+nodes = othersNodes(); table.insert(nodes, 1, {first.x, first.y}); afterFirstLine = true
 ppx, ppy = 1000 - first.x + 10, 1000 - first.y -- 10 yd from the point
 HR.verifyHits = 1
 go("peacebloom")

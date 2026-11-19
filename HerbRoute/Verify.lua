@@ -16,7 +16,7 @@ local NEAR = 35     -- yards: last check of a confirmed point before arrival
 local REST = 0.5    -- seconds the cursor must stay still
 local TICK = 0.25
 local RETRY = 1.5   -- delay before a second probe of the same point
-local MISSES = 2    -- empty probes in a row needed to call a point absent
+local MISSES = 1    -- empty probes needed to call a point absent
 
 local MM = HR.MM
 local rest = {}
