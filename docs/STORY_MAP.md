@@ -45,6 +45,7 @@ Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en
 | Tranche | Histoires |
 |---|---|
 | **Confort** | 🟦 Réordonnancement des points restants depuis ma position, option `/hr reroute` (F55) · 🟦 Réinsertion des points skippés ou retirés qui réapparaissent dans ma minimap, minimap cachée, `/hr revive` (F60) · 🟦 Cible = point rempli le plus proche après une sonde, route recalculée à l'arrivée, `/hr nearest` (F61) |
+| **Cadré** | 💡 Gestion des faux positifs des sondes : voisin dans la zone de réponse, point vide réinséré ou ciblé à tort (F63, B22) |
 | **Plus tard** | 💡 `/hr restore` : remettre la route d'origine (F25) · 💡 Mémoire de récolte (F32) · 💡 Recalcul complet (F33, remplacé en partie par F55) · ✖ Mémoire des points visités, nouveaux nœuds par balayage, validation par le butin (F56 à F58, annulés) |
 
 ### 7. Entretenir les données
