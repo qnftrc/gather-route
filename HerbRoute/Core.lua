@@ -13,6 +13,7 @@ local defaults = {
     isolateTracking = true,
     verify = "report",
     verifyAhead = true,
+    mergeDuplicates = true,
     skipButton = {shown = false},
     overrides = {},
 }
@@ -88,6 +89,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
+    HR:Print("/hr merge [on|off] - merge points closer than 1% of the map (the data files stay untouched)")
     HR:Print("/hr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > HerbRoute)")
     HR:Print("/hr stop | skip | debug | map (test of the world map overlay)")
     HR:Print("/hr tracking [on|off|status|restore] - keep only Find Herbs during a route")
@@ -109,6 +111,18 @@ local function handleSlash(msg)
         HR:StopRoute()
     elseif cmd == "skip" then
         HR:SkipPoint()
+    elseif cmd == "merge" then
+        local arg = rest:lower()
+        if arg == "on" or arg == "off" then HR.db.mergeDuplicates = arg == "on" end
+        local function total(cat)
+            local n = 0
+            for _, region in ipairs(HR:GetRegions(cat)) do
+                for _, item in ipairs(HR:GetHerbs(region, cat)) do n = n + HR:CountPoints(region, item, cat) end
+            end
+            return n
+        end
+        HR:Print(("Merge of neighbouring points (within %.1f%% of the map): %s. Points now: %d herbs, %d ores. The data files are never changed."):format(
+            HR.MERGE_TOL, HR.db.mergeDuplicates == true and "on" or "off", total("herbs"), total("ores")))
     elseif cmd == "button" then
         HR:ToggleSkipButton()
     elseif cmd == "map" then

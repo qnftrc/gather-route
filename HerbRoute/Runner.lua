@@ -220,7 +220,7 @@ function HR:GenerateRoute(region, herbs, start, category)
 
     local points = {}
     for _, herb in ipairs(herbs) do
-        for _, p in ipairs(self.categories[category].data[region][herb] or {}) do
+        for _, p in ipairs(self:DataFor(category)[region][herb] or {}) do
             points[#points + 1] = {x = p[1], y = p[2], herb = herb}
         end
     end

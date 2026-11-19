@@ -811,6 +811,29 @@ for _, regions in pairs(HerbRoute_OreData) do for _, pts in pairs(regions) do to
   assert(p[1] >= 0 and p[1] <= 100 and p[2] >= 0 and p[2] <= 100) end end end
 assert(total == 9440, total)
 
+-- merge of neighbouring points: files untouched, counts match the reference greedy merge
+local function sumCounts(cat)
+  local n = 0
+  for _, region in ipairs(HR:GetRegions(cat)) do
+    for _, item in ipairs(HR:GetHerbs(region, cat)) do n = n + HR:CountPoints(region, item, cat) end
+  end
+  return n
+end
+local rawHerbs, rawOres = sumCounts("herbs"), sumCounts("ores")
+assert(rawHerbs == 14642 and rawOres == 9440, rawHerbs .. "/" .. rawOres)
+HR.db.mergeDuplicates = true
+assert(sumCounts("herbs") == 10458 and sumCounts("ores") == 8834, sumCounts("herbs") .. "/" .. sumCounts("ores"))
+local rawCount = 0
+for _, items in pairs(HerbRoute_Data) do for _, pts in pairs(items) do rawCount = rawCount + #pts end end
+assert(rawCount == 14642, "the raw data must not change")
+SlashCmdList.HERBROUTE("merge"); assert(table.concat(printed, " "):find("10458 herbs, 8834 ores", 1, true), table.concat(printed, " "))
+if HR.route then HR:StopRoute(true) end
+printed = {}; SlashCmdList.HERBROUTE("ores copper vein"); RunTimers()
+assert(HR.route and #HR.route.points == HR:CountPoints("Elwynn Forest", "Copper Vein", "ores") and #HR.route.points < #HerbRoute_OreData["Elwynn Forest"]["Copper Vein"], "the route must use the merged points")
+HR:StopRoute(true)
+SlashCmdList.HERBROUTE("merge off"); assert(sumCounts("herbs") == 14642)
+HR.db.mergeDuplicates = nil
+
 local herbsBefore = HR.db.herbs
 go("ores copper vein")
 local r = HR.route

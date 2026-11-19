@@ -13,6 +13,48 @@ local function sortedRegions(data)
     return list
 end
 
+HR.MERGE_TOL = 1.0 -- percent of the map
+
+-- Keeps the first point of every neighbourhood: a point within `tol` of one already
+-- kept (same region, same type) is dropped. The raw tables are never changed.
+local function mergeNeighbours(data, tol)
+    local out = {}
+    local r2 = (tol + 1e-9) ^ 2
+    for region, items in pairs(data) do
+        local o = {}
+        for item, pts in pairs(items) do
+            local kept, grid = {}, {}
+            for _, p in ipairs(pts) do
+                local kx, ky = math.floor(p[1] / tol), math.floor(p[2] / tol)
+                local dup = false
+                for dx = -1, 1 do
+                    for dy = -1, 1 do
+                        local cell = grid[(kx + dx) * 1000 + (ky + dy)]
+                        if cell then
+                            for _, q in ipairs(cell) do
+                                local ex, ey = p[1] - q[1], p[2] - q[2]
+                                if ex * ex + ey * ey <= r2 then dup = true break end
+                            end
+                        end
+                        if dup then break end
+                    end
+                    if dup then break end
+                end
+                if not dup then
+                    kept[#kept + 1] = p
+                    local key = kx * 1000 + ky
+                    grid[key] = grid[key] or {}
+                    grid[key][#grid[key] + 1] = p
+                end
+            end
+            o[item] = kept
+        end
+        out[region] = o
+    end
+    return out
+end
+HR.MergeNeighbours = mergeNeighbours
+
 HR.categoryRegions = {herbs = sortedRegions(HR.categories.herbs.data), ores = sortedRegions(HR.categories.ores.data)}
 
 HR.regionNames = {}
@@ -29,13 +71,22 @@ HR.regionToMap = {}
 HR.mapToRegion = {}
 HR.unresolved = {}
 
+function HR:DataFor(category)
+    local c = self.categories[category or "herbs"]
+    if self.db and self.db.mergeDuplicates == true then
+        if not c.merged then c.merged = mergeNeighbours(c.data, HR.MERGE_TOL) end
+        return c.merged
+    end
+    return c.data
+end
+
 function HR:GetRegions(category)
     return self.categoryRegions[category or "herbs"] or {}
 end
 
 function HR:GetHerbs(region, category)
     local list = {}
-    local data = self.categories[category or "herbs"].data[region]
+    local data = self:DataFor(category)[region]
     if data then
         for herb in pairs(data) do list[#list + 1] = herb end
         table.sort(list)
@@ -44,7 +95,7 @@ function HR:GetHerbs(region, category)
 end
 
 function HR:CountPoints(region, herb, category)
-    local data = self.categories[category or "herbs"].data
+    local data = self:DataFor(category)
     local pts = data[region] and data[region][herb]
     return pts and #pts or 0
 end

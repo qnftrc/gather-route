@@ -10,6 +10,7 @@ Copier le dossier `HerbRoute` dans `Interface/AddOns/` à côté de `TomTom`, pu
 ## Utilisation
 - `/hr` ouvre la fenêtre : région (pré-sélectionnée selon votre position), herbes, position de départ
   (prise automatiquement sur votre personnage, modifiable), mode, distance d'arrivée.
+- `/hr merge [on|off]` : fusion des points voisins (à moins de 1 % de la carte, même région et même type) au chargement, **activée par défaut** : herbes 14 642 → 10 458 points, minerais 9 440 → 8 834. Les fichiers de données ne sont jamais modifiés ; `off` rétablit tous les points.
 - **Touches** : Échap > Options > Raccourcis clavier > AddOns > HerbRoute : « Skip the current point », « Stop the route », « Open or close the window ». `/hr button` affiche ou masque un petit bouton **Skip** cliquable (Maj + glisser pour le déplacer, position mémorisée).
 - `/hr <herbe>[, <herbe>]` : route dans la région actuelle (`all` pour toutes les herbes).
 - `/hr <région>: <herbe>[, <herbe>]` : route dans une autre région (départ au centre de la carte).
