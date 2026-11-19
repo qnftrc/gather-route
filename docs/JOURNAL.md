@@ -321,6 +321,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Rappel : le minerai « Iron Deposit » existe déjà dans `OreDataGatherMate.lua` (828 points, GatherMate). Un ajout Wowhead devrait suivre D17/D18 : fichier séparé, ajout seulement, doublon à moins de 0,5 %.
 - Suite : le joueur fournit les coordonnées (export depuis son navigateur ou page enregistrée) ; non fait.
 
+### 2026-11-19 — Cadrage : route tenant compte du relief (B13)
+- Constat : le tracé est maintenant visible sur la carte du monde (capture du joueur) et montre de longs tronçons à travers des massifs. Question du joueur : tenir compte de la topologie plutôt que de la distance à vol d'oiseau ; il demande les étapes, pas le code.
+- Contradiction à lever avant de coder : **D2** (algorithme repris à l'identique du planner, distance euclidienne) ; la proposition est une **option désactivée par défaut**, la route actuelle reste identique quand elle est coupée.
+- Limite de fond : l'API de l'add-on ne donne ni relief, ni navmesh, ni pathfinding ; il faut une donnée de franchissabilité venue d'ailleurs (apprise en marchant, extraite hors jeu, ou approchée par les points eux-mêmes). Étapes proposées dans la réponse ; choix de la source à trancher par le joueur.
+
 ## Commits
 | Commit | Contenu |
 |---|---|

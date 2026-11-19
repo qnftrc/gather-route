@@ -22,6 +22,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B11 | Même enrichissement pour les **minerais** de GatherMate, même format, même déclinaison par zone puis par catégorie : une option pour choisir entre herbes et minerais, puis par type d'herbe ou de minerai ; tout le reste inchangé | Demande du joueur |
 
 | B12 | Sonder automatiquement, en plus du manuel, tous les futurs waypoints qui entrent dans les 85 % du rayon de vue de la minimap | Réponse du joueur |
+| B13 | Tenir compte du relief : la route est parfois bloquée par des montagnes, la distance à vol d'oiseau ne suffit pas (capture de Stranglethorn Vale : longs tronçons qui traversent des massifs) | Demande du joueur (cadrage seulement, rien codé) |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.
