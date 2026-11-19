@@ -380,6 +380,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Lecture : un taux de 7 % de points présents est très en dessous de ce que laissent attendre les bases (95 % de concordance entre sources) : la **projection** des points sur la minimap (R21, jamais vérifiée en jeu, ni pour les herbes) est la première suspecte ; viennent ensuite les nœuds absents (déjà récoltés), les points sondés près du bord (85 % du rayon), la rotation de la minimap. Sans la sécurité de D16 (retirée par D20), le mode `remove` retirerait ces 14 points : **repasser en `report`** tant que `/hr verify scan` n'a pas confirmé la projection.
 - Prochaine étape : `/hr verify scan` près de points jaunes de minerai (carte ASCII points jaunes `X` / points projetés `o`), coller la fenêtre ; vérifier aussi `rotateMinimap`.
 
+### 2026-11-19 — Premier `/hr verify scan` sur une route de fer : trop peu de points projetés
+- Rapport en jeu (méthode `plain`) : 92 cases sondées, **5 avec lignes**, 87 vides, 0 inconclusif ; carte ASCII : quatre `X` groupés en 2x2 juste à côté du joueur (`+`) et un `X` plus au nord ; message « only 1 Iron Deposit point(s) inside the minimap, too few to compare ».
+- Lecture : les quatre `X` voisins sont très probablement **un seul nœud** (la zone de réponse d'un point jaune couvre une vingtaine d'unités, donc plusieurs cases) ; il y a donc deux nœuds visibles (un contre le joueur, un au nord). La détection fonctionne : le scan voit bien les points jaunes. Mais la comparaison à la projection est impossible : un seul point de fer de la route tombe dans le disque, alors qu'il en faut au moins 5.
+- Cause du manque de candidats : le fer est épars (quelques points par vue), et le scan ne comparait que les points du **même type** que le point courant, alors que la minimap ne distingue pas les types (le nom est secret).
+- Correction : le scan compare désormais **tous les points restants de la route** (tous types de la catégorie) à moins de 80 % du rayon, au lieu des seuls points du type courant. À refaire en dézoomant la minimap (« − ») et idéalement avec plusieurs minerais cochés, près de points jaunes.
+
 ## Commits
 | Commit | Contenu |
 |---|---|

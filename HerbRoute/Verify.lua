@@ -618,11 +618,11 @@ local function finishScan(r, cells, counts, R)
     end
     say("Scan: %d cells probed, %d with lines, %d empty, %d inconclusive.", counts.cells, #hits, counts.empty, counts.none)
 
-    local herb = r.points[r.index].herb
+    local herb = "route"
     local radius = HR.ViewRadius and HR.ViewRadius()
     local cands = {}
     for j, p in ipairs(r.points) do
-        if p.herb == herb and not r.removed[j] then
+        if not r.removed[j] then
             local g = geometry(r, j)
             if g and radius and g.dist <= 0.8 * radius then cands[#cands + 1] = {x = g.ox, y = g.oy, d = g.dist} end
         end
