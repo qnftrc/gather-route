@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Tester en jeu la vérification du prochain waypoint** (F39, mode `report` par défaut) : installer le zip, lancer une route en mode Suivi, laisser la souris **immobile dans le monde** (hors fenêtre, aucun bouton, hors combat) et surveiller le chat ; `/hr verify` donne l'état et la raison d'attente. Quand les messages « has no node » correspondent à la réalité de la minimap, passer à `/hr verify remove`. Point critique : la projection d'un point sur la minimap (celle des tracés, R10) n'a jamais été vérifiée en jeu ; un premier « blip confirmé » en est la preuve.
+1. **Relancer la vérification avec le zip corrigé** : démarrer une route en mode Suivi, **bouger la souris une fois** après toute utilisation de la caméra, la laisser immobile dans le monde, puis `/hr verify` (état, raison d'attente, causes des sondes inconclusives) et `/hr verify probe` (une sonde détaillée sur le point courant, après 3 s). Coller les sorties. Le résultat dit si le point projeté tombe bien sur le point jaune (R21) ou si la lecture n'est pas rafraîchie (R24).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -140,6 +140,13 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Tests hors jeu sur un moteur de minimap simulé : report et remove, premier point confirmé, point vide retiré avec passage au suivant (waypoint TomTom suivant affiché, base de points inchangée), aucun retrait sans point confirmé, node pris après confirmation, 8 garde-fous, moteur inconclusif, off et commandes. Un artefact de test (pins qui fuyaient entre deux séries) corrigé.
 - **Non testé en jeu** : la projection sur la minimap de la base de points, la fiabilité de la détection sur des points de la base (erreur de coordonnées), l'effet visuel réel d'un déplacement d'une image, la fréquence réelle des passes avec une souris souvent en mouvement.
 
+### 2026-11-19 — Premier essai en jeu de la vérification : 4 sondes inconclusives
+- Capture du joueur : mode `remove`, route Stranglethorn Vale (126 points), pistage isolé (« 4 other(s) switched off »). `/hr verify` : **4 sondes, 0 confirmée, 0 vide, 0 retirée**, raison « probing », affiché deux fois. Le joueur signale que le point sans blip n'est pas retiré.
+- Analyse : le compteur « vide » n'augmente qu'à la décision d'absence (2 sondes vides) ; 4 sondes sans aucun résultat « ligne » ni « vide » signifie que **les 4 ont été inconclusives** (aucune donnée, souris bougée, minimap non déplacée…). Le code **abandonnait le point en silence** après 4 sondes inconclusives (bug d'ergonomie) : le point restait donc gardé, comme prévu pour un résultat inconclusif, mais sans explication.
+- Hypothèses sur la cause : (a) la lecture du survol n'est pas rafraîchie après une utilisation de la souris pour la caméra (README de NodeRadar : « après avoir dirigé avec la souris, le balayage attend que la souris bouge à nouveau »), alors que notre détection de repos ne regardait que la position du curseur ; (b) la minimap ne suit pas le déplacement (autre add-on ou client) ; (c) autre écart avec `blink world`, qui avait fonctionné après un vrai mouvement de souris. Aucune n'est confirmée : le rapport ne donne pas la cause.
+- Corrections : (1) plus d'abandon : réessais espacés (jusqu'à 10 s) et message au 3e échec avec la cause ; (2) **garde « bouger la souris une fois »** après tout appui sur un bouton (le sondage attend un vrai mouvement) ; (3) contrôle que la minimap a **réellement bougé** à la lecture ; (4) seconde lecture à +2 images si la première ne renvoie aucune donnée ; (5) `/hr verify` affiche le nombre de sondes inconclusives et leurs causes ; (6) nouvelle commande **`/hr verify probe`** : une sonde détaillée sur le point courant après 3 s (curseur, centre de la minimap, décalage, lectures à +1 et +2 images avec signature, retour à la position d'origine). État de repos réinitialisé à chaque route.
+- Tests hors jeu ajoutés : abandon supprimé, causes enregistrées, minimap figée (cause « did not move »), reprise après mouvement de souris, `/hr verify probe`.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -181,7 +188,8 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R20 | Un autre add-on ancré à la minimap (ou son habillage) peut perturber le déplacement | À observer en jeu |
 | R21 | La projection d'un point de la base sur la minimap (formule du tracé minimap) n'a jamais été vérifiée en jeu : si elle est fausse, tous les sondages tombent à côté | Garde-fou : aucun retrait avant un premier point confirmé ; à valider en jeu |
 | R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoquerait un retrait à tort | Atténué par 2 sondages, mode `report` par défaut, base intacte ; à mesurer en jeu |
-| R23 | Les passes exigent une souris immobile dans le monde : avec la souris tenue pour la caméra, elles seront souvent en attente | Raison visible par `/hr verify` ; à mesurer |
+| R23 | Les passes exigent une souris immobile dans le monde, et un vrai mouvement après avoir dirigé à la souris : avec la souris tenue pour la caméra, elles seront souvent en attente | Garde « bouger la souris une fois » ajoutée ; raison visible par `/hr verify` ; à mesurer |
+| R24 | Premier essai en jeu : 4 sondes sur 4 inconclusives, cause inconnue (survol non rafraîchi après la caméra, minimap non déplacée, ou autre) | Ouvert, test = `/hr verify` puis `/hr verify probe` |
 
 ## Commits
 | Commit | Contenu |

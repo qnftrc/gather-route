@@ -79,7 +79,7 @@ local function usage()
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr stop | skip | debug")
     HR:Print("/hr tracking [on|off|status|restore] - keep only Find Herbs during a route")
-    HR:Print("/hr verify [off|report|remove|status] - check the next point on the minimap")
+    HR:Print("/hr verify [off|report|remove|status|probe] - check the next point on the minimap")
     HR:Print("/hr probe [minimap|watch|blink world [hidden]|copy] - test minimap reading")
     HR:Print("/hr setmap <region>: <mapID> - force the map ID of a region")
 end
@@ -112,6 +112,7 @@ local function handleSlash(msg)
         end
     elseif cmd == "verify" then
         local arg = rest:lower()
+        if arg == "probe" then return HR:VerifyProbeNow() end
         if arg == "off" or arg == "report" or arg == "remove" then HR.db.verify = arg end
         HR:VerifyStatus()
     elseif cmd == "probe" then

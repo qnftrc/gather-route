@@ -44,7 +44,8 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 | F28 | Tracés | Ignorer les points retirés, couleur des confirmés | Cadré | Rendu carte et minimap |
 | F29 | Faux minimap dans les tests | Étendre `tools/test_addon.py` | Cadré | États, retraits, garde-fous |
 | F34 | Vérification par **présence** (D10) | Noms secrets acceptés ; présence = au moins une ligne d'infobulle | **Validée en principe en jeu** | Confirmer sur des points de la base (voir F22) |
-| F39 | Vérification ciblée du prochain waypoint (D12) | Un sondage = minimap déplacée une image sous un curseur au repos ; absence après 2 sondages vides ; dernier contrôle à 35 yd ; `report` par défaut, `remove` après un premier point confirmé ; base intacte | **Livré**, testé hors jeu sur moteur simulé | En jeu : messages `report` conformes à la minimap ; projection correcte (premier point confirmé) ; gêne visuelle ; fréquence des passes ; puis `/hr verify remove` |
+| F39 | Vérification ciblée du prochain waypoint (D12) | Un sondage = minimap déplacée une image sous un curseur au repos ; absence après 2 sondages vides ; dernier contrôle à 35 yd ; `report` par défaut ; garde « bouger la souris une fois » ; pas d'abandon, réessais espacés | **Livré**, 1er essai en jeu : 4 sondes inconclusives, corrigé | En jeu : `/hr verify` (causes), `/hr verify probe` (projection, déplacement, lectures) ; ensuite messages `report` conformes à la minimap, puis `/hr verify remove` |
+| F45 | `/hr verify probe` | Sonde détaillée unique sur le point courant, après 3 s | Livré, testé hors jeu | À lancer en jeu, souris immobile dans le monde (après l'avoir bougée une fois) |
 | F37 | ~~Cartographie par grille~~ | Abandonné : un sondage par candidat suffit | Abandonné | Aucun |
 
 **Repli si rien ne distingue un point du sol** : abandon de la vérification par la minimap, mémoire de récolte (F32).

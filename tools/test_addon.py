@@ -382,7 +382,7 @@ io.write("TRACKING TESTS OK\n")
 lua.execute(r'''
 -- verification of the next waypoint: probes, guards, report and remove modes
 local cxm, cym, es = 500, 400, 2
-local sx, sy, setCalls = 0, 0, 0
+local sx, sy, setCalls, freeze = 0, 0, 0, false
 local ppx, ppy = 950, 950 -- fake player world position (1 % of the map = 1 yd)
 local nodes, afterFirstLine, linesSeen, tracking = {}, false, 0, true
 local cursor, moving, mouseDown, combat, castName, unitUnder, tooltip, engine = {100, 100}, false, false, false, nil, false, false, "real"
@@ -410,7 +410,7 @@ Minimap = {
   GetNumPoints = function() return 1 end,
   GetPoint = function() return "CENTER", UIParent, "CENTER", sx, sy end,
   ClearAllPoints = function() end,
-  SetPoint = function(_, _, _, _, x, y) sx, sy = x, y; setCalls = setCalls + 1 end,
+  SetPoint = function(_, _, _, _, x, y) setCalls = setCalls + 1; if not freeze then sx, sy = x, y end end,
   GetAlpha = function() return 1 end, SetAlpha = function() end,
 }
 C_Minimap = {
@@ -455,7 +455,7 @@ local peaceCount = #HerbRoute_Data["Elwynn Forest"]["Peacebloom"]
 local function reset()
   go("stop"); nodes = {}; afterFirstLine = false; linesSeen = 0; setCalls = 0
   ppx, ppy = 950, 950; moving = false; mouseDown = false; combat = false; castName = nil
-  unitUnder = false; tooltip = false; tracking = true; engine = "real"; cursor = {100, 100}
+  unitUnder = false; tooltip = false; tracking = true; engine = "real"; cursor = {100, 100}; freeze = false
 end
 
 -- 1. report mode: the first point has a node -> confirmed, nothing removed
@@ -531,7 +531,31 @@ blockedBy(function() tracking = false end, "Find Herbs tracking is not active")
 reset(); HR.db.verify = "remove"; HR.verifyHits = 3
 engine = "none"
 go("peacebloom")
-assert((HR.route.removedCount or 0) == 0 and HR.route.vstate[1].final and HR.route.vstate[1].none >= 4)
+assert((HR.route.removedCount or 0) == 0 and HR.route.vstate[1].none >= 4 and not HR.route.vstate[1].final, "inconclusive must not give up")
+assert(msgs():find("is inconclusive (no hover data", 1, true), msgs())
+assert(HR.route.vstats.causes["no hover data: the hover was not refreshed (after steering, move the mouse once)"] >= 4)
+
+-- 7b. the minimap does not follow the shift (frozen by another addon)
+reset(); HR.db.verify = "remove"; HR.verifyHits = 3; nodes = {{first.x, first.y}}; freeze = true
+go("peacebloom")
+assert((HR.route.removedCount or 0) == 0 and HR.route.vstate[1].none >= 3, msgs())
+assert(msgs():find("did not move", 1, true), msgs())
+freeze = false
+
+-- 7c. after steering with a mouse button the mouse must move once
+reset(); HR.db.verify = "remove"; HR.verifyHits = 3; nodes = {{first.x, first.y}}
+C_Timer.After(0.2, function() mouseDown = true end)
+C_Timer.After(1.2, function() mouseDown = false end)
+go("peacebloom")
+assert(HR.route.vstats.probes == 0 and HR.verifyReason:find("move the mouse once", 1, true), tostring(HR.verifyReason))
+cursor = {130, 100}; RunTimers()
+assert(HR.route.vstate[1].confirmed, "probing must resume after the mouse moved")
+
+-- 7d. /hr verify probe prints the measurements
+reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}
+go("peacebloom"); go("verify probe")
+assert(msgs():find("Verify probe: point 1/", 1, true) and msgs():find("result: line", 1, true) and msgs():find("minimap back home: true", 1, true), msgs())
+assert(msgs():find("+1 frame: moved=true", 1, true), msgs())
 
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
