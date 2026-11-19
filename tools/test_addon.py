@@ -116,7 +116,7 @@ local cxm, cym, es = 500, 400, 2
 local sx, sy, alphaV, soft = 0, 0, 1, false
 local curx, cury, mouseDown, inCombat, t0 = (cxm + 20) * es, (cym + 10) * es, false, false, 0
 local worldAfter, worldCursor, foci = false, {100, 100}, nil
-local bl, mode = {20, 10}, "hover"
+local bl, mode, neighbour = {20, 10}, "hover", false
 UIParent = {}
 WorldFrame = {}
 GetMouseFoci = function() return foci or {WorldFrame} end
@@ -142,7 +142,12 @@ C_Minimap = {GetViewRadius = function() return 70 end, GetNumTrackingTypes = fun
 local function geometry()
   local bx, by = (cxm + sx + bl[1]) * es, (cym + sy + bl[2]) * es
   local cu, cv = GetCursorPosition()
-  return (bx - cu) ^ 2 + (by - cv) ^ 2 <= 100
+  if (bx - cu) ^ 2 + (by - cv) ^ 2 <= 100 then return true end
+  if neighbour then
+    local nx = (cxm + sx + bl[1] - 40) * es
+    return (nx - cu) ^ 2 + (by - cv) ^ 2 <= 100
+  end
+  return false
 end
 C_TooltipInfo = {GetMinimapMouseover = function()
   local hit = {lines = {{leftText = "Wild Steelbloom"}}}
@@ -245,6 +250,10 @@ assert(w:find("Phase A: blip under the cursor, offset from the minimap center (2
 assert(w:find("RESULT: a blip can be detected by moving the minimap under a resting cursor (lines appear after 1 frame)", 1, true), w)
 assert(w:find("  hit (", 1, true) and w:find("  control (0,0): +1 frame absent", 1, true), w)
 assert(bw("hover", "blink world hidden"):find("(hidden)", 1, true))
+neighbour = true
+local wn = bw("hover")
+assert(wn:find("RESULT: a blip can be detected", 1, true) and wn:find("controls also have lines (neighbouring blips)", 1, true), wn)
+neighbour = false
 assert(bw("stale"):find("RESULT: lines are reported even with the minimap in place", 1, true))
 assert(bw("dead"):find("RESULT: the blip did not show up under the cursor", 1, true))
 foci = {{}}
@@ -383,6 +392,7 @@ lua.execute(r'''
 -- verification of the next waypoint: probes, guards, report and remove modes
 local cxm, cym, es = 500, 400, 2
 local sx, sy, setCalls, freeze = 0, 0, 0, false
+local softOn, updated, hitR = false, false, 6
 local ppx, ppy = 950, 950 -- fake player world position (1 % of the map = 1 yd)
 local nodes, afterFirstLine, linesSeen, tracking = {}, false, 0, true
 local cursor, moving, mouseDown, combat, castName, unitUnder, tooltip, engine = {100, 100}, false, false, false, nil, false, false, "real"
@@ -410,7 +420,9 @@ Minimap = {
   GetNumPoints = function() return 1 end,
   GetPoint = function() return "CENTER", UIParent, "CENTER", sx, sy end,
   ClearAllPoints = function() end,
-  SetPoint = function(_, _, _, _, x, y) setCalls = setCalls + 1; if not freeze then sx, sy = x, y end end,
+  SetPoint = function(_, _, _, _, x, y) setCalls = setCalls + 1; updated = false; if not freeze then sx, sy = x, y end end,
+  SetUsingSoftCursor = function(_, b) softOn = b end,
+  UpdateMouseoverAtPoint = function() updated = true end,
   GetAlpha = function() return 1 end, SetAlpha = function() end,
 }
 C_Minimap = {
@@ -435,12 +447,13 @@ playerMap, px, py = 37, 0.5, 0.5
 local function offsetOf(n) return ppx - (1000 - n[1]), (1000 - n[2]) - ppy end
 C_TooltipInfo = {GetMinimapMouseover = function()
   if engine == "none" then return nil end
+  if engine == "soft" and not (softOn and updated) then return nil end
   local cu, cv = GetCursorPosition()
   local dx, dy = cu / es - (cxm + sx), cv / es - (cym + sy)
   if dx * dx + dy * dy > 70 ^ 2 then return nil end
   for _, n in ipairs(nodes) do
     local ox, oy = offsetOf(n)
-    if (dx - ox) ^ 2 + (dy - oy) ^ 2 <= 36 then
+    if (dx - ox) ^ 2 + (dy - oy) ^ 2 <= hitR * hitR then
       linesSeen = linesSeen + 1
       if afterFirstLine then nodes = {} end
       return {type = 21, dataInstanceID = 1, lines = {{type = 0}}}
@@ -456,6 +469,7 @@ local function reset()
   go("stop"); nodes = {}; afterFirstLine = false; linesSeen = 0; setCalls = 0
   ppx, ppy = 950, 950; moving = false; mouseDown = false; combat = false; castName = nil
   unitUnder = false; tooltip = false; tracking = true; engine = "real"; cursor = {100, 100}; freeze = false
+  softOn = false; updated = false; hitR = 6
 end
 
 -- 1. report mode: the first point has a node -> confirmed, nothing removed
@@ -555,7 +569,7 @@ assert(HR.route.vstate[1].confirmed, "probing must resume after the mouse moved"
 reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}
 go("peacebloom"); go("verify probe")
 assert(msgs():find("Verify probe: point 1/", 1, true) and msgs():find("mouse moved during the countdown: NO", 1, true), msgs())
-assert(msgs():find("[plain] line", 1, true) and msgs():find("back home: true", 1, true), msgs())
+assert(msgs():find("[soft cursor + update] line", 1, true) and msgs():find("back home: true", 1, true), msgs())
 assert(msgs():find("+1 moved=true onMinimap=true lines=true", 1, true), msgs())
 
 -- 7e. when plain gives nothing, the next variants are tried and reported
@@ -564,6 +578,35 @@ go("peacebloom"); go("verify probe")
 assert(msgs():find("[plain] none", 1, true) and msgs():find("[update] none", 1, true)
   and msgs():find("[soft cursor + update] none", 1, true) and msgs():find("[wait 6 frames] none", 1, true), msgs())
 assert(sx == 0 and sy == 0, "minimap not restored after the variants")
+
+-- 9. automatic verification uses the soft cursor variant (plain probes get nothing)
+reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}; engine = "soft"
+go("peacebloom")
+assert(HR.route.vstate[1] and HR.route.vstate[1].confirmed, "soft cursor probing must confirm the point: " .. tostring(HR.verifyReason))
+assert(softOn == false, "the soft cursor must be switched off again")
+reset(); HR.db.verify = "report"; nodes = {{first.x, first.y}}; engine = "soft"
+go("peacebloom"); go("verify probe")
+assert(msgs():find("[soft cursor + update] line", 1, true) and not msgs():find("[plain]", 1, true), msgs())
+
+-- 10. scan: does the projection of the route points land on the blips?
+reset(); HR.db.verify = "off"
+go("peacebloom")
+local cand = {}
+for _, p in ipairs(HR.route.points) do
+  local ox, oy = p.x - 50, 50 - p.y
+  if ox * ox + oy * oy <= 56 * 56 then cand[#cand + 1] = p end
+end
+assert(#cand >= 10, "not enough candidates for the scan test: " .. #cand)
+nodes = {}; for _, p in ipairs(cand) do nodes[#nodes + 1] = {p.x, p.y} end
+hitR = 12
+go("verify scan")
+assert(msgs():find("as projected %d+, mirrored in x") or msgs():find("as projected", 1, true), msgs())
+assert(msgs():find("no mirror image fits clearly better", 1, true), msgs())
+assert(HR.db.scan and HR.db.scan.text:find("Map (8 units per character", 1, true) and HR.db.scan.text:find("X", 1, true) and HR.db.scan.text:find("o", 1, true), "map missing")
+assert(sx == 0 and sy == 0, "minimap not restored after the scan")
+nodes = {}
+go("verify scan")
+assert(msgs():find("no blip found", 1, true), msgs())
 
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}

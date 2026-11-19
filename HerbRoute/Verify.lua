@@ -13,6 +13,9 @@ local REST = 0.5    -- seconds the cursor must stay still
 local TICK = 0.25
 local RETRY = 1.5   -- delay before a second probe of the same point
 local MISSES = 2    -- empty probes in a row needed to call a point absent
+-- The soft cursor with UpdateMouseoverAtPoint at the real cursor is the variant
+-- that returned minimap hover data in game (plain probes returned nothing).
+local PROBE_OPTS = {soft = true, update = true}
 
 local MM = HR.MM
 local rest = {}
@@ -237,7 +240,7 @@ local function step(r)
             end
         end
         HR:RouteChanged()
-    end)
+    end, nil, PROBE_OPTS)
 end
 
 function HR:StartVerify()
@@ -271,9 +274,9 @@ end
 
 -- /hr verify probe: the same probe in several variants, with everything measured.
 local VARIANTS = {
-    {name = "plain", opts = {}},
-    {name = "update", opts = {update = true}},
     {name = "soft cursor + update", opts = {soft = true, update = true}},
+    {name = "update", opts = {update = true}},
+    {name = "plain", opts = {}},
     {name = "wait 6 frames", opts = {frames = 6}},
 }
 
@@ -321,5 +324,138 @@ function HR:VerifyProbeNow()
             end, d, v.opts)
         end
         run(1)
+    end)
+end
+
+-- /hr verify scan: probes a grid over the whole minimap to map the blips, then
+-- draws them next to the projected route points of the current herb (ASCII map
+-- in the report window) and compares the projection with its mirror images.
+-- Dense herbs explain almost any placement, so only a clear gain counts.
+local SCAN_STEP = 16
+local SCAN_TOL = 14
+local MAP_CHAR = 8
+
+local function countNext(cands, hits, fx, fy)
+    local n = 0
+    for _, c in ipairs(cands) do
+        local x, y = fx * c.x, fy * c.y
+        for _, h in ipairs(hits) do
+            local dx, dy = x - h.x, y - h.y
+            if dx * dx + dy * dy <= SCAN_TOL * SCAN_TOL then n = n + 1 break end
+        end
+    end
+    return n
+end
+
+local function asciiMap(cells, cands, R)
+    local half = math.floor(R / MAP_CHAR + 0.5)
+    local grid = {}
+    for row = -half, half do
+        grid[row] = {}
+        for col = -half, half do grid[row][col] = " " end
+    end
+    local function put(x, y, ch, strong)
+        local col, row = math.floor(x / MAP_CHAR + 0.5), math.floor(y / MAP_CHAR + 0.5)
+        if grid[row] and grid[row][col] then
+            local old = grid[row][col]
+            if (old == "X" and ch == "o") or (old == "o" and ch == "X") then ch = "#" end
+            if strong or old == " " or old == "." then grid[row][col] = ch end
+        end
+    end
+    for _, c in ipairs(cells) do put(c.x, c.y, c.res == "line" and "X" or ".", c.res == "line") end
+    for _, c in ipairs(cands) do put(c.x, c.y, "o", true) end
+    grid[0][0] = "+"
+    local out = {}
+    for row = half, -half, -1 do out[#out + 1] = table.concat(grid[row], "", -half, half) end
+    return table.concat(out, "\n")
+end
+
+local function finishScan(r, cells, counts, R)
+    local hits = {}
+    for _, c in ipairs(cells) do if c.res == "line" then hits[#hits + 1] = c end end
+    local report = {("HerbRoute verify scan %s"):format(date("%Y-%m-%d %H:%M:%S"))}
+    local function say(fmt, ...)
+        local line = select("#", ...) > 0 and fmt:format(...) or fmt
+        report[#report + 1] = line
+        HR:Print(line)
+    end
+    say("Scan: %d cells probed, %d with lines, %d empty, %d inconclusive.", counts.cells, #hits, counts.empty, counts.none)
+
+    local herb = r.points[r.index].herb
+    local radius = HR.ViewRadius and HR.ViewRadius()
+    local cands = {}
+    for j, p in ipairs(r.points) do
+        if p.herb == herb and not r.removed[j] then
+            local g = geometry(r, j)
+            if g and radius and g.dist <= 0.8 * radius then cands[#cands + 1] = {x = g.ox, y = g.oy, d = g.dist} end
+        end
+    end
+    table.sort(cands, function(a, b) return a.d < b.d end)
+    while #cands > 40 do cands[#cands] = nil end
+
+    if #hits == 0 then
+        say("Scan: no blip found on the minimap.")
+    elseif #cands < 5 then
+        say("Scan: only %d %s point(s) inside the minimap, too few to compare.", #cands, herb)
+    else
+        local id = countNext(cands, hits, 1, 1)
+        local fx, fy, both = countNext(cands, hits, -1, 1), countNext(cands, hits, 1, -1), countNext(cands, hits, -1, -1)
+        say("Scan: %d %s point(s) projected; next to a blip (within %d units): as projected %d, mirrored in x %d, in y %d, both %d.",
+            #cands, herb, SCAN_TOL, id, fx, fy, both)
+        if math.max(fx, fy, both) >= id + math.max(3, 0.2 * #cands) then
+            say("Scan: a mirrored projection fits clearly better: the projection is probably wrong.")
+        else
+            say("Scan: no mirror image fits clearly better than the projection (dense herbs explain most placements; read the map).")
+        end
+    end
+    report[#report + 1] = "Map (8 units per character, north up): X blip, o projected point, # both, . empty cell, + you"
+    report[#report + 1] = asciiMap(cells, cands, R)
+    local text = table.concat(report, "\n")
+    HR.db.scan = {time = date("%Y-%m-%d %H:%M:%S"), text = text}
+    HR.Probe:ShowReport(text)
+end
+
+function HR:VerifyScan()
+    local r = self.route
+    if not r or r.mode ~= "follow" then return self:Print("Start a route in follow mode first.") end
+    self:Print("Verify scan in 3 s: MOVE the mouse a little in the world, keep it still and do not touch it for about 10 s. The minimap will jump around.")
+    C_Timer.After(3, function()
+        if HR.route ~= r or probing then return end
+        local why = blocked(true)
+        if why then return HR:Print("Verify scan: not run: " .. why .. ".") end
+        local R = 0.9 * Minimap:GetWidth() / 2
+        local cells = {}
+        local gx = -R
+        while gx <= R do
+            local gy = -R
+            while gy <= R do
+                if gx * gx + gy * gy <= R * R then cells[#cells + 1] = {x = gx, y = gy} end
+                gy = gy + SCAN_STEP
+            end
+            gx = gx + SCAN_STEP
+        end
+        local counts, idx = {cells = 0, empty = 0, none = 0}, 0
+        local function nextCell()
+            idx = idx + 1
+            local c = cells[idx]
+            if not c then return finishScan(r, cells, counts, R) end
+            if HR.route ~= r then return end
+            local stop = (InCombatLockdown and InCombatLockdown()) and "combat" or (MM.buttonDown() and "a mouse button was pressed")
+            if stop then return HR:Print("Verify scan stopped: " .. stop .. ".") end
+            probe(c.x, c.y, function(result, cause)
+                counts.cells = counts.cells + 1
+                c.res = result
+                if result == "empty" then
+                    counts.empty = counts.empty + 1
+                elseif result == "none" then
+                    counts.none = counts.none + 1
+                    if counts.none >= 8 and counts.none * 3 > counts.cells then
+                        return HR:Print("Verify scan stopped: too many inconclusive probes (" .. tostring(cause) .. ").")
+                    end
+                end
+                nextCell()
+            end, nil, PROBE_OPTS)
+        end
+        nextCell()
     end)
 end

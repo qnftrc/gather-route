@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Lancer `/hr verify probe` en bougeant la souris pendant les 3 s de décompte, puis en la laissant immobile**, et coller la sortie : elle teste quatre variantes (simple, avec `UpdateMouseoverAtPoint` au curseur réel, curseur logiciel, attente de 6 images) et dit si la souris a bougé pendant le décompte. Relancer aussi `/hr probe blink world` juste avant, avec les mêmes habitudes de souris, pour comparer. La variante qui donne des données sera adoptée par la vérification automatique (R24).
+1. **Lancer `/hr verify scan`** (route en mode Suivi dans une zone avec des herbes du type choisi, souris bougée pendant le décompte puis immobile environ 10 s) et coller le contenu de la fenêtre : carte ASCII des points jaunes (`X`) et des points projetés de la route (`o`). Elle montre si les points projetés tombent sur les points jaunes (R21). Ensuite laisser la vérification automatique tourner en mode `report` et comparer ses messages à la minimap.
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -155,6 +155,16 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Écrit : `/hr verify probe` teste maintenant quatre variantes dans l'ordre jusqu'à obtenir des données : simple ; avec `UpdateMouseoverAtPoint` appelé au curseur réel ; curseur logiciel + `UpdateMouseoverAtPoint` ; attente jusqu'à 6 images. Il demande de bouger la souris pendant le décompte et indique si le mouvement a été vu. Lectures détaillées par image (déplacement, curseur sur la minimap, lignes, données, signature).
 - Si une variante marche, la vérification automatique l'adoptera ; sinon la vérification ne pourra tourner qu'après un mouvement de souris (garde déjà en place pour les boutons) ou devra rester manuelle.
 
+### 2026-11-19 — Rapports `/hr verify probe` (variantes) et `blink world` : le curseur logiciel débloque la lecture
+- `/hr verify probe`, souris bougée pendant le décompte (« yes »), point 1/126 (Goldthorn, 51 yd, décalage projeté (16 ; 25) unités, dans le disque) : **simple** : aucune donnée à +1 et +2 images ; **`UpdateMouseoverAtPoint` seul** : aucune donnée ; **curseur logiciel + `UpdateMouseoverAtPoint`** : **données présentes dès +1 image** (`type=21`, `lines=0`, donc « empty »). La minimap a suivi et est revenue dans tous les cas.
+- Conclusion : le **curseur logiciel** (`Minimap:SetUsingSoftCursor(true)`) avec `UpdateMouseoverAtPoint` au curseur réel est ce qui fait renvoyer des données au moteur sur le build 70959, même après un mouvement de souris ; c'est cohérent avec les notes de NodeRadar (« le curseur logiciel fait que le point compte »). Le mouvement de souris n'était donc pas la cause. La vérification automatique adopte cette variante (décision D13).
+- Résultat du sondage du point 1/126 : **vide**. Deux explications possibles : aucun nœud de Goldthorn à cet endroit, ou une projection erronée (R21). Non tranché par un seul point.
+- `blink world` (14:34, version sans curseur logiciel, qui fonctionne comme avant) : point sous le curseur à (38,6 ; 60,6) ; touché `lines=1` ; contrôle à +40 en x **`lines=1` aussi** (un autre point jaune voisin) ; contrôle à -40 en y `lines=0`. L'ancien verdict « non lié au point » était **faux** : un contrôle vide prouve que la lecture dépend de la position. Verdict corrigé : détection positionnelle confirmée, avec mention des contrôles qui ont aussi des lignes (points voisins).
+- Écart non expliqué : `blink world` sans curseur logiciel obtient des données, alors que la sonde automatique simple n'en obtenait pas. Différences connues : `blink world` commence par une étape témoin et lit trois fois. À ne pas élucider si la variante adoptée suffit.
+- Écrit : variante curseur logiciel + `UpdateMouseoverAtPoint` adoptée pour la vérification automatique (curseur logiciel remis à faux après chaque sonde) ; `/hr verify probe` l'essaie en premier ; nouveau **`/hr verify scan`** : balayage de toute la minimap (pas de 16 unités), carte ASCII des points jaunes et des points projetés dans la fenêtre à copier, comparaison de la projection avec ses symétries.
+- Limite du scan : avec des herbes denses (40 candidats dans le disque), presque n'importe quelle position tombe près d'un point jaune ; seule une symétrie nettement meilleure est signalée. La carte ASCII est le vrai juge.
+- Tests hors jeu : adoption de la variante (un moteur qui exige curseur logiciel + mise à jour), verdict avec point voisin, balayage et carte.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -170,6 +180,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. **Présence = au moins une ligne d'infobulle** (une donnée vide n'est pas une présence). Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | **Rétablie et redéfinie** après le rapport `watch` ; à confirmer par `blink world` (R13) |
 | D11 | Pendant une route, seul « Trouver les herbes » reste actif ; la configuration d'origine est sauvegardée et rétablie à l'arrêt, au chargement ou après combat. Option désactivable | 2026-11-19 | Appliquée (non testée en jeu) |
 | D12 | Vérification **ciblée** sur le prochain waypoint (choix du joueur), automatique en mode Suivi, **`report` par défaut**, retrait seulement en mode `remove` et seulement après au moins un point confirmé dans la session ; la minimap n'est pas cachée (la variante cachée n'est pas moins gênante) | 2026-11-19 | Appliquée (non testée en jeu) |
+| D13 | La vérification automatique utilise la variante **curseur logiciel + `UpdateMouseoverAtPoint` au curseur réel** (seule variante qui renvoie des données en jeu), le curseur logiciel étant remis à faux après chaque sonde | 2026-11-19 | Appliquée (confirmée sur un point en jeu) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
@@ -197,7 +208,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R21 | La projection d'un point de la base sur la minimap (formule du tracé minimap) n'a jamais été vérifiée en jeu : si elle est fausse, tous les sondages tombent à côté | Garde-fou : aucun retrait avant un premier point confirmé ; à valider en jeu |
 | R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoquerait un retrait à tort | Atténué par 2 sondages, mode `report` par défaut, base intacte ; à mesurer en jeu |
 | R23 | Les passes exigent une souris immobile dans le monde, et un vrai mouvement après avoir dirigé à la souris : avec la souris tenue pour la caméra, elles seront souvent en attente | Garde « bouger la souris une fois » ajoutée ; raison visible par `/hr verify` ; à mesurer |
-| R24 | La vérification en jeu ne reçoit aucune donnée de survol (minimap déplacée, curseur dessus, `data=false` à +1 et +2 images) alors que `blink world` en recevait | Ouvert, test = `/hr verify probe` (4 variantes, souris bougée pendant le décompte) |
+| R24 | La vérification n'obtenait aucune donnée de survol | **Résolu en principe** : curseur logiciel + `UpdateMouseoverAtPoint` au curseur réel renvoie des données dès +1 image ; à confirmer sur plusieurs points |
 
 ## Commits
 | Commit | Contenu |

@@ -169,15 +169,21 @@ local function runBlinkWorldB(hidden, ox, oy)
         end
         if control and hit and #misses > 0 then
             local function any(st) return st.r1 or st.r3 or st.r6 end
-            local missPresent = false
-            for _, m in ipairs(misses) do if any(m) then missPresent = true end end
+            local missPresent, missEmpty = 0, 0
+            for _, m in ipairs(misses) do
+                if any(m) then missPresent = missPresent + 1 else missEmpty = missEmpty + 1 end
+            end
             local latency = hit.r1 and "1 frame" or (hit.r3 and "3 frames" or "6 frames")
             if any(control) then
                 add("RESULT: lines are reported even with the minimap in place and the cursor in the world: the reading is not tied to a blip position.")
-            elseif any(hit) and not missPresent then
+            elseif any(hit) and missEmpty > 0 then
                 add("RESULT: a blip can be detected by moving the minimap under a resting cursor (lines appear after %s).", latency)
-                add("  Hit has lines, controls have none: positional verification is feasible.")
-            elseif any(hit) and missPresent then
+                if missPresent > 0 then
+                    add("  %d of %d controls also have lines (neighbouring blips); %d have none: the reading is tied to positions.", missPresent, #misses, missEmpty)
+                else
+                    add("  Hit has lines, controls have none: positional verification is feasible.")
+                end
+            elseif any(hit) then
                 add("RESULT: lines are reported wherever the minimap lies under the cursor: not tied to the blip.")
             elseif not any(hit) then
                 add("RESULT: the blip did not show up under the cursor after the minimap was moved: no positional sampling with this method on this build.")
