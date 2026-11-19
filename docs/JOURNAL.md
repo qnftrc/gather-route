@@ -223,7 +223,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 |---|---|---|---|
 | D1 | Add-on séparé, dépendant de TomTom, API publique uniquement | 2026-11-19 | Appliquée |
 | D2 | Algorithme repris à l'identique du planner HTML | 2026-11-19 | Appliquée |
-| D3 | Deux modes : Suivi (un waypoint à la fois) et Tout afficher | 2026-11-19 | Appliquée |
+| D3 | ~~Deux modes : Suivi et Tout afficher~~ **Révisée par D25 : Suivi seul** | 2026-11-19 | Révisée |
 | D4 | Tracés carte et minimap dessinés par l'add-on | 2026-11-19 | Appliquée (non testée en jeu) |
 | D5 | ~~Sondage de la minimap aux seuls emplacements connus, avec croix de 17 positions~~ → **un seul sondage par candidat, par déplacement de la minimap sous le curseur** (`UpdateMouseoverAtPoint` sans effet) | 2026-11-19 | **Révisée** après `blink world` |
 | D6 | Vérification déclenchée à l'entrée du **prochain waypoint** dans le disque de la minimap (85 % du rayon), **1 sondage vide** pour déclarer l'absence (décision du joueur), un dernier contrôle à moins de 35 yd | 2026-11-19 | **Appliquée** (F39, non testée en jeu) |
@@ -241,6 +241,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D20 | **Plus de sécurité sur la projection** : un point sans nœud est retiré (mode `remove`) dès le premier sondage vide, même si aucun nœud n'a encore été vu dans la session ; la sonde de 12 points voisins est supprimée. Révoque D16 | 2026-11-19 | Appliquée sur demande explicite du joueur |
 | D21 | Les points voisins à moins de 1 % de la carte (même région et type) sont **fusionnés au chargement** sans toucher aux fichiers de données (D8 respectée) ; réglable par `/hr merge on|off`, activé par défaut | 2026-11-19 | Appliquée (choix du joueur) |
 | D22 | La route peut être **réordonnée** après des retraits de points (plus proche voisin puis 2-opt sur les points devant le point courant), **à la demande** : option `/hr reroute`, désactivée par défaut ; assouplit D7 | 2026-11-19 | Appliquée (demande du joueur) |
+| D25 | Le mode **Tout afficher** est retiré ; le mode Suivi (un waypoint à la fois) est le seul mode | 2026-11-19 | Appliquée (demande du joueur) |
 | D17 | La base peut être **enrichie par ajout seulement** (fichier séparé généré par `tools/merge_gathermate.py`) : les points d'origine ne sont jamais modifiés ni retirés ; un point de la source à moins de 0,5 % d'un point existant de la même herbe est un doublon et n'est pas ajouté | 2026-11-19 | Appliquée (GatherMate Forever : +1 386 points, région Felwood) |
 | D18 | Les **minerais** sont une seconde catégorie de données (`HerbRoute_OreData`, fichier séparé généré, jamais mélangée aux herbes) ; la catégorie, puis la région, puis le type se choisissent dans cet ordre ; le reste du comportement est inchangé | 2026-11-19 | Appliquée (GatherMate Forever : 8 920 points, 41 régions, 18 minerais) |
 
@@ -425,6 +426,11 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 
 ### 2026-11-19 — Fonctionnalités réparties en deux familles
 - Demande du joueur : distinguer ce qui construit la base de données et ce qui permet de créer la route. Ajouté en tête de `FONCTIONNALITES.md` une section « Répartition par famille » : **A. Construire la base** (F1, F15, F16 pour la part données, F51, F54 et les outils de contrôle) et **B. Créer et suivre la route** (B1 préparer et générer, B2 suivre, B3 afficher, B4 vérifier et ajuster, B5 diagnostiquer). F16 est partagée (données et choix de catégorie), F14 transversale. Les tableaux par statut sont inchangés.
+
+### 2026-11-19 — Corrections de la répartition des fonctionnalités, mode Tout afficher retiré
+- Demandes du joueur : (1) **B3 devient « Interface »** et reçoit F9, F10, F13 (commandes, fenêtre, réglages), avec F16 et les tracés F11 et F12 ; (2) **retirer le mode Tout afficher** (F7) ; (3) F11 : **le correctif fonctionne** (tracé de la carte du monde validé en jeu) ; (4) **séparer F16** : la base de minerais devient la nouvelle fonctionnalité **F59** (famille A), F16 ne garde que le choix herbes ou minerais (famille B3).
+- Mode Tout afficher retiré (D25, révise D3) : code (`showAll`, `pointArrowAll`, branches du mode dans `Runner.lua`, `UI.lua`, `Overlay.lua`, `Core.lua`), cases de choix du mode dans la fenêtre (les cases suivantes sont remontées), réglage `mode` de `HerbRouteDB`, tests associés. La route est toujours en mode Suivi ; la vérification, le réordonnancement et les tracés ne changent pas.
+- Mise à jour : `FONCTIONNALITES.md` (répartition par famille réécrite, F7 déplacée dans « Retiré », F11 validée, F16 et F59), story map, récapitulatif, READMEs, `CLAUDE.md`.
 
 ## Commits
 | Commit | Contenu |

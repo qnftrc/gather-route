@@ -14,7 +14,7 @@ Réponse apportée : un add-on **séparé**, `HerbRoute/`, qui dépend de TomTom
 ## Décisions de conception (validées avec l'utilisateur)
 - Add-on séparé (pas de modification de TomTom), `## Dependencies: TomTom`, même ligne `## Interface:` que TomTom.
 - Algorithme : port 1:1 du JS, sans changement de comportement (distance euclidienne en % sans correction d'aspect).
-- Deux modes : **Suivi** (un waypoint à la fois, callback `distance[rayon]` qui retire le point atteint et active le suivant, pattern du README de TomTom ; `SetCustomWaypoint`, `crazy=true`) et **Tout afficher** (tous les points en pins, `persistent=false`).
+- Un seul mode : **Suivi** (un waypoint à la fois, callback `distance[rayon]` qui retire le point atteint et active le suivant, pattern du README de TomTom ; `SetCustomWaypoint`, `crazy=true`). Le mode « Tout afficher » a été retiré (D25).
 - Région -> mapID : on réutilise `TomTom.NameToMapId` (correspondance normalisée, repli par préfixe pour les noms dupliqués `Nom:Parent`) ; surcharge manuelle `/hr setmap <région>: <mapID>` stockée dans `HerbRouteDB.overrides`. Aucun mapID en dur, car non vérifiable hors jeu (zones custom : Riverglades, Shen'dralas, Zephras Isle).
 - Position de départ : celle du joueur si présent dans la région choisie, sinon centre de carte (50, 50) ; champs X/Y modifiables dans l'UI (drapeau `dirty`).
 - Tracé sur la carte du monde et la minimap dessiné par l'add-on (`Overlay.lua`), car TomTom ne dessine que des pins. Projection minimap calquée sur HereBeDragons-Pins-2.0 (rayon de vue, rotation, disque à 0,9). Overlay carte désactivé en mode manette (`TomTom:IsGamepadUI()`), TomTom documentant un taint.

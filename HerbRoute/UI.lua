@@ -215,27 +215,16 @@ local function build()
         if region and hasData(region, ui.category) then setRegion(region) end
     end)
 
-    ui.follow = check(ui, "Follow: one point at a time, auto-advance", 12, -346, function()
-        HR.db.mode = "follow"
-        ui.follow:SetChecked(true)
-        ui.all:SetChecked(false)
-    end)
-    ui.all = check(ui, "Show all points as pins", 12, -370, function()
-        HR.db.mode = "all"
-        ui.follow:SetChecked(false)
-        ui.all:SetChecked(true)
-    end)
-
-    ui.showMap = check(ui, "Draw route on the world map", 12, -402, function(self)
+    ui.showMap = check(ui, "Draw route on the world map", 12, -346, function(self)
         HR.db.showMap = self:GetChecked() and true or false
         HR:UpdateOverlay()
     end)
-    ui.showMini = check(ui, "Draw route on the minimap", 12, -426, function(self)
+    ui.showMini = check(ui, "Draw route on the minimap", 12, -370, function(self)
         HR.db.showMinimap = self:GetChecked() and true or false
         HR:UpdateOverlay()
     end)
 
-    ui.isolate = check(ui, "Keep only Find Herbs tracking during a route", 12, -450, function(self)
+    ui.isolate = check(ui, "Keep only Find Herbs tracking during a route", 12, -394, function(self)
         HR.db.isolateTracking = self:GetChecked() and true or false
         if not HR.db.isolateTracking then
             HR:RestoreTracking()
@@ -244,7 +233,7 @@ local function build()
         end
     end)
 
-    ui.verify = check(ui, "Verify the next point on the minimap", 12, -474, function(self)
+    ui.verify = check(ui, "Verify the next point on the minimap", 12, -418, function(self)
         if self:GetChecked() then
             HR.db.verify = HR.db.verifyLast or "report"
         else
@@ -253,13 +242,13 @@ local function build()
         end
     end)
 
-    ui.reroute = check(ui, "Reorder the points ahead after removals", 12, -498, function(self)
+    ui.reroute = check(ui, "Reorder the points ahead after removals", 12, -442, function(self)
         HR.db.reroute = self:GetChecked() and true or false
     end)
 
-    ui.radiusText = label(ui, "", "TOPLEFT", 16, -534)
+    ui.radiusText = label(ui, "", "TOPLEFT", 16, -478)
     local slider = CreateFrame("Slider", nil, ui, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -536)
+    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -480)
     slider:SetSize(190, 16)
     slider:SetMinMaxValues(5, 40)
     slider:SetValueStep(1)
@@ -293,8 +282,6 @@ local function build()
     ui.status:SetPoint("BOTTOM", ui, "BOTTOM", 0, 16)
 
     ui:SetScript("OnShow", function()
-        ui.follow:SetChecked(HR.db.mode == "follow")
-        ui.all:SetChecked(HR.db.mode == "all")
         ui.showMap:SetChecked(HR.db.showMap)
         ui.showMini:SetChecked(HR.db.showMinimap)
         ui.isolate:SetChecked(HR.db.isolateTracking)

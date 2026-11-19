@@ -60,21 +60,6 @@ local function showCurrent(r)
     })
 end
 
--- All mode: every point is a pin, TomTom clears each one on arrival.
-local function showAll(r)
-    local radius = HR.db.radius
-    r.uids, r.idxOf, r.done = {}, {}, {}
-    for i = 1, #r.points do
-        local uid = addPoint(r, i, {
-            crazy = i == 1,
-            cleardistance = radius,
-            arrivaldistance = radius,
-        })
-        r.uids[i] = uid
-        r.idxOf[uid] = i
-    end
-end
-
 local function finish(self)
     self:Print("Route finished.")
     self:StopRoute(true)
@@ -92,27 +77,10 @@ function HR:Advance()
     self:RouteChanged()
 end
 
-local function pointArrowAll(r)
-    for i = r.index, #r.points do
-        if not r.done[i] then
-            r.index = i
-            TomTom:SetCrazyArrow(r.uids[i], HR.db.radius, title(r, i))
-            return true
-        end
-    end
-end
-
 function HR:SkipPoint()
     local r = self.route
     if not r then return self:Print("No active route.") end
-    if r.mode == "follow" then
-        self:Advance()
-    else
-        r.done[r.index] = true
-        removeUID(r.uids[r.index])
-        if not pointArrowAll(r) then return finish(self) end
-        self:RouteChanged()
-    end
+    self:Advance()
 end
 
 local REROUTE_DELAY = 1.5
@@ -203,12 +171,7 @@ function HR:DropPoint(i)
     r.rev = (r.rev or 0) + 1
     r.removedCount = (r.removedCount or 0) + 1
     self:ScheduleReroute()
-    if r.mode == "follow" then
-        if i == r.index then self:Advance() end
-    else
-        r.done[i] = true
-        removeUID(r.uids[i])
-    end
+    if i == r.index then self:Advance() end
     self:RouteChanged()
 end
 
@@ -216,35 +179,24 @@ function HR:OnWaypointRemoved(uid)
     local r = self.route
     if not r or self.removing then return end
 
-    if r.mode == "follow" then
-        -- Someone else removed a waypoint (menu, /way reset...).
-        -- Several removals in the same frame mean a bulk reset: stop.
-        -- A single removal of the current point means "skip it".
-        self.extCount = (self.extCount or 0) + 1
-        if uid == r.current then
-            r.current = nil
-            self.extCurrentRemoved = true
-        end
-        if self.extCount == 1 then
-            C_Timer.After(0, function()
-                local bulk, hit = self.extCount > 1, self.extCurrentRemoved
-                self.extCount, self.extCurrentRemoved = 0, false
-                if self.route ~= r or not hit then return end
-                if bulk then
-                    self:StopRoute()
-                else
-                    self:Advance()
-                end
-            end)
-        end
-    else
-        local i = r.idxOf[uid]
-        if not i then return end
-        r.done[i] = true
+    -- Someone else removed a waypoint (menu, /way reset...).
+    -- Several removals in the same frame mean a bulk reset: stop.
+    -- A single removal of the current point means "skip it".
+    self.extCount = (self.extCount or 0) + 1
+    if uid == r.current then
+        r.current = nil
+        self.extCurrentRemoved = true
+    end
+    if self.extCount == 1 then
         C_Timer.After(0, function()
-            if self.route ~= r then return end
-            if not pointArrowAll(r) then return finish(self) end
-            self:RouteChanged()
+            local bulk, hit = self.extCount > 1, self.extCurrentRemoved
+            self.extCount, self.extCurrentRemoved = 0, false
+            if self.route ~= r or not hit then return end
+            if bulk then
+                self:StopRoute()
+            else
+                self:Advance()
+            end
         end)
     end
 end
@@ -257,13 +209,7 @@ function HR:StopRoute(silent, keepTracking)
         return
     end
     self.route = nil
-    if r.mode == "follow" then
-        removeUID(r.current)
-    else
-        for i, uid in ipairs(r.uids) do
-            if not r.done[i] then removeUID(uid) end
-        end
-    end
+    removeUID(r.current)
     if not keepTracking then self:RestoreTracking() end
     if not silent then self:Print("Route stopped.") end
     self:RouteChanged()
@@ -279,12 +225,12 @@ function HR:StartRoute(region, mapID, points, start, length, category)
         start = start,
         length = length,
         index = 1,
-        mode = self.db.mode,
+        mode = "follow",
         removed = {},
     }
     self.route = r
     self:IsolateTracking(r.category)
-    if r.mode == "follow" then showCurrent(r) else showAll(r) end
+    showCurrent(r)
     self:StartVerify()
     self:Print(("%s: %d points, map distance %.1f."):format(region, #points, length))
     self:RouteChanged()

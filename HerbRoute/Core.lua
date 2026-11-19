@@ -6,7 +6,6 @@ local defaults = {
     herbs = {},
     ores = {},
     category = "herbs",
-    mode = "follow",
     radius = 15,
     showMap = true,
     showMinimap = true,

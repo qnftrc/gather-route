@@ -197,7 +197,7 @@ function refreshMap()
     hideFrom(mapLines, used + 1)
 
     local dots = 0
-    for i = r.index, r.mode == "follow" and last or 0 do
+    for i = r.index, last do
         if not (r.removed and r.removed[i]) then
             dots = dots + 1
             local d = getDot(mapDots, mapFrame, dots, GetTime() < boostUntil and 24 or 10)
@@ -260,7 +260,7 @@ local function refreshMinimap()
     local radius = viewRadius()
     local halfW, halfH = Minimap:GetWidth() / 2, Minimap:GetHeight() / 2
     local wx, wy = r.world.x, r.world.y
-    local showDots = r.mode == "follow"
+    local showDots = true
 
     local n = #r.points
     local last = n

@@ -1,6 +1,6 @@
 # Story map de HerbRoute
 
-Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en bas, du plus essentiel au plus accessoire. Références F = [FONCTIONNALITES.md](FONCTIONNALITES.md), D = décisions et B = besoins du [JOURNAL.md](JOURNAL.md) et de [BESOINS.md](BESOINS.md). Légende : ✅ validé en jeu · 🟦 livré, testé hors jeu seulement · 🟧 livré, défaut constaté en jeu, correctif à retester · 💡 idée · ⛔ hors périmètre · ✖ annulé.
+Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en bas, du plus essentiel au plus accessoire. Références F = [FONCTIONNALITES.md](FONCTIONNALITES.md), D = décisions et B = besoins du [JOURNAL.md](JOURNAL.md) et de [BESOINS.md](BESOINS.md). Légende : ✅ validé en jeu · 🟦 livré, testé hors jeu seulement · 💡 idée · ⛔ hors périmètre · ✖ annulé.
 
 ## Colonne vertébrale (activités du joueur)
 | 1. Choisir sa récolte | 2. Générer la route | 3. Suivre la route | 4. Voir la route | 5. Vérifier les points | 6. Ajuster en route | 7. Entretenir les données |
@@ -26,12 +26,12 @@ Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en
 | Tranche | Histoires |
 |---|---|
 | **Essentiel** | 🟦 Mode Suivi : un waypoint à la fois, arrivée automatique (F6) · 🟦 Skip, Stop, retrait externe (F8) |
-| **Confort** | 🟦 Mode Tout afficher (F7) · 🟦 Touches clavier et bouton Skip à l'écran (F53) · 🟦 Distance d'arrivée réglable (F10) |
+| **Confort** | 🟦 Touches clavier et bouton Skip à l'écran (F53) · 🟦 Distance d'arrivée réglable (F10) |
 
 ### 4. Voir la route
 | Tranche | Histoires |
 |---|---|
-| **Essentiel** | 🟧 Tracé sur la carte du monde (F11) : cadre relevé après constat, à retester · 🟦 Tracé sur la minimap, tous les points restants (F12) |
+| **Essentiel** | ✅ Tracé sur la carte du monde (F11) : validé en jeu après correctif · 🟦 Tracé sur la minimap, tous les points restants (F12) |
 | **Confort** | 🟦 Overlay désactivé en mode manette · ✅ Diagnostic `/hr map` du tracé de la carte |
 
 ### 5. Vérifier les points avec la minimap
@@ -50,7 +50,7 @@ Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en
 ### 7. Entretenir les données
 | Tranche | Histoires |
 |---|---|
-| **Essentiel** | 🟦 Base d'origine jamais modifiée, ajouts seulement (D8, D17) · 🟦 Minerais GatherMate, 8 920 points (F16) |
+| **Essentiel** | 🟦 Base d'origine jamais modifiée, ajouts seulement (D8, D17) · 🟦 Minerais GatherMate, 8 920 points (F59) |
 | **Confort** | 🟦 Minerais Wowhead par export du navigateur, 520 points ajoutés (F51) · 🟦 Outils de fusion, de comparaison et de doublons (`tools/`, `docs/COMPARAISON_BASES.md`, `docs/DOUBLONS.md`) |
 | **Plus tard** | ⛔ Recalage de la base d'après les écarts mesurés (F43) |
 
@@ -60,9 +60,8 @@ Archivée : voir [archives/STORY_MAP_DIAGNOSTIC.md](archives/STORY_MAP_DIAGNOSTI
 ## Tranches de livraison
 | Tranche | Contenu |
 |---|---|
-| **Validé en jeu** | Lecture et sondage par la minimap (F34, F36, F38), calibration herbes et minerais (F47), projection des points (F46), `/hr probe` (F20), diagnostic `/hr map` |
-| **Livré, à tester en jeu** | Génération et suivi de route (F1 à F8), fenêtre (F10), touches et bouton Skip (F53), tracé de la minimap (F12), vérification du point courant et en avance (F39, F49), retrait des minerais (F52), isolement du pistage (F21), `/hr reroute` (F55), `/hr merge` (F54), bases de minerais (F16, F51) |
-| **Défaut constaté, correctif à retester** | Tracé de la carte du monde (F11) |
+| **Validé en jeu** | Lecture et sondage par la minimap (F34, F36, F38), calibration herbes et minerais (F47), projection des points (F46), `/hr probe` (F20), diagnostic `/hr map`, tracé de la carte du monde (F11) |
+| **Livré, à tester en jeu** | Génération et suivi de route (F1 à F6, F8), fenêtre (F10), touches et bouton Skip (F53), tracé de la minimap (F12), vérification du point courant et en avance (F39, F49), retrait des minerais (F52), isolement du pistage (F21), `/hr reroute` (F55), `/hr merge` (F54), bases de minerais (F16, F51) |
 | **Idées** | F25, F29, F31, F32, F33, F44 |
 | **Hors périmètre ou annulé** | F40, F41, F42, F43 · relief (B13) · F56, F57, F58 |
 

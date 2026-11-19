@@ -15,7 +15,6 @@ Rappel : **aucune fonctionnalité de l'add-on de route n'a encore été testée 
 | F4 | Route optimisée | Port à l'identique du planner HTML (plus proche voisin puis 2-opt à fenêtre, distance en % sans correction d'aspect) (D2) | 4 cas identiques au JS (dont 702 et 742 points) | Comparer une route réelle avec le planner HTML sur la même zone |
 | F5 | Génération sans gel | Coroutine découpée par `C_Timer`, annulation par jeton | Oui (mock) | Zone à 700 points : pas de saccade ni de message d'erreur |
 | F6 | Mode Suivi | Un seul waypoint à la fois, `SetCustomWaypoint`, rayon d'arrivée 15 yd (réglable), `crazy=true`, pattern du README TomTom (D3) | Avancement, skip, fin de route | La flèche avance bien à l'arrivée, le rayon convient, le ping et les doublons proches se comportent bien |
-| F7 | Mode Tout afficher | Tous les points en pins TomTom, `persistent=false`, nettoyés à l'arrivée | Oui (mock) | Performance avec ~700 pins sur carte et minimap, ordre de la flèche |
 | F8 | Skip, Stop, retrait externe | Retrait du point courant par TomTom = point suivant ; plusieurs retraits dans la même image = arrêt | Oui (mock) | Clic droit sur un pin, `/way reset all` (avec la route seule, vu comme un « skip »), `/hr stop`, `/hr skip` |
 | F9 | Commandes `/hr` | Région optionnelle avant « : », herbes séparées par des virgules, `all` | Oui (mock) | `/hr Fadeleaf`, `/hr Stranglethorn Vale: Goldthorn`, `/hr stop`, noms inconnus |
 | F10 | Fenêtre | Cadres natifs, liste de régions maison, départ pré-rempli (champ modifiable) | Non (rendu non testable) | Ouverture, listes, cases, boutons, curseur de rayon, erreurs Lua (`/console scriptErrors 1`) |
@@ -71,6 +70,6 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 ## 5. Ordre de test conseillé
 1. Installer le dernier zip, `/console scriptErrors 1`, `/reload`.
 2. `/hr debug`, puis une route simple (`/hr` ou `/hr <herbe>`) : F2, F3, F5, F6, F9, F10.
-3. Tracés carte et minimap : F11, F12. Mode Tout afficher : F7. Stop, skip, retrait : F8. Persistance : F13.
+3. Tracés carte et minimap : F11, F12. Stop, skip, retrait : F8. Persistance : F13.
 4. Sondes : `/hr probe watch` (F38), puis `/hr probe minimap` avec tous les pistages désactivés (F20). Coller les rapports.
 5. Selon les résultats : vérification par la minimap (bloc 3) ou mémoire de récolte (F32).

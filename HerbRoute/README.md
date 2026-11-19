@@ -23,9 +23,8 @@ Copier le dossier `HerbRoute` dans `Interface/AddOns/` à côté de `TomTom`, pu
 - `/hr debug` : affiche les régions résolues vers un mapID. Pour une région non résolue :
   `/hr setmap <région>: <mapID>`.
 
-## Modes
-- Suivi : un seul waypoint à la fois, le suivant s'active quand vous arrivez (distance réglable).
-- Tout afficher : tous les points en pins TomTom.
+## Mode
+Suivi : un seul waypoint à la fois, le suivant s'active quand vous arrivez (distance réglable). C'est le seul mode (le mode « Tout afficher » a été retiré).
 
 Le tracé est dessiné sur la carte du monde et sur la minimap (désactivable dans la fenêtre).
 Rien n'est sauvegardé entre deux sessions, hors réglages.

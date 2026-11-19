@@ -95,13 +95,6 @@ r = HR.route; local total = #r.points
 for i = 1, total do Fire(WP()[1]); RunTimers() end
 assert(HR.route == nil and #WP() == 0, "route should have finished")
 
--- all mode
-HR.db.mode = "all"
-SlashCmdList.HERBROUTE("stranglethorn vale: fadeleaf"); RunTimers()
-assert(HR.route and #WP() == #HR.route.points, "all mode pins")
-HR:SkipPoint(); assert(#WP() == #HR.route.points - 1)
-HR:StopRoute(); assert(#WP() == 0)
-
 -- bad input
 SlashCmdList.HERBROUTE("nonsense: fadeleaf"); SlashCmdList.HERBROUTE("peacebloom, nothing"); RunTimers()
 playerMap = 999; SlashCmdList.HERBROUTE("fadeleaf"); HR:StopRoute(true); assert(#WP() == 0, "pins leaked")

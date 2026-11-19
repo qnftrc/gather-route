@@ -10,14 +10,14 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 
 ## Répartition par famille
 
-Deux familles : ce qui **construit la base de données** (points d'herbes et de minerais, avant et au chargement) et ce qui **permet de créer et de suivre la route** (au moment de jouer). Les tableaux détaillés plus bas restent classés par statut ; chaque référence F appartient à une seule famille, sauf F16 (une part de données, une part de route) et F14 (transversale).
+Deux familles : ce qui **construit la base de données** (points d'herbes et de minerais, avant et au chargement) et ce qui **permet de créer et de suivre la route** (au moment de jouer). Les tableaux détaillés plus bas restent classés par statut ; chaque référence F appartient à une seule famille, sauf F14 (transversale).
 
 ### A. Construire la base de données
 | Réf. | Fonctionnalité | Où | État |
 |---|---|---|---|
 | F1 | Base d'herbes embarquée (45 régions, 29 herbes, 13 256 points), jamais modifiée (D8) | `Data/HerbData.lua`, `tools/gen_data.py` | Livré |
 | F15 | Ajouts GatherMate pour les herbes (+1 386 points, région Felwood), ajout seulement (D17) | `Data/HerbDataGatherMate.lua`, `tools/merge_gathermate.py`, `tools/check_data.py` | Livré |
-| F16 (données) | Minerais GatherMate (8 920 points, 41 régions, 18 minerais), catégorie à part (D18) | `Data/OreDataGatherMate.lua`, `tools/merge_gathermate.py --category ores` | Livré |
+| F59 | Base de minerais GatherMate (8 920 points, 41 régions, 18 minerais), catégorie à part (D18) | `Data/OreDataGatherMate.lua`, `tools/merge_gathermate.py --category ores` | Livré |
 | F51 | Minerais Wowhead par export du navigateur (520 points ajoutés) | `Data/OreDataWowhead.lua`, `tools/wowhead_export_ores.js`, `tools/merge_wowhead_ores.py` | Livré |
 | F54 | Fusion des points voisins à 1 unité au chargement (`/hr merge`), fichiers intacts (D21) | `Resolver.lua` (`DataFor`) | Livré |
 | — | Outils de contrôle : comparaison avec GatherMate, rapport des doublons | `tools/compare_sources.py`, `tools/report_duplicates.py`, `docs/COMPARAISON_BASES.md`, `docs/DOUBLONS.md` | Livré |
@@ -28,22 +28,24 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 |---|---|---|
 | F2 | Région vers carte TomTom, surcharge `/hr setmap` | Livré |
 | F3 | Région et position courantes | Livré |
-| F16 (route) | Choix herbes ou minerais, puis région, puis type | Livré |
-| F9, F10, F13 | Commandes `/hr`, fenêtre, réglages mémorisés | Livré |
 | F4 | Route optimisée (plus proche voisin puis 2-opt, identique au planner) | Livré |
 | F5 | Génération sans gel du client | Livré |
 
 **B2. Suivre**
 | Réf. | Fonctionnalité | État |
 |---|---|---|
-| F6, F7 | Mode Suivi, mode Tout afficher | Livré |
+| F6 | Mode Suivi : un waypoint à la fois (seul mode depuis le 2026-11-19, F7 retiré) | Livré |
 | F8 | Skip, Stop, retrait externe | Livré |
 | F53 | Touches clavier et bouton Skip | Livré |
 
-**B3. Afficher**
+**B3. Interface**
 | Réf. | Fonctionnalité | État |
 |---|---|---|
-| F11 | Tracé sur la carte du monde | Livré, défaut constaté, correctif à retester |
+| F9 | Commandes `/hr`, `/herbroute` | Livré |
+| F10 | Fenêtre : région, types, départ, rayon, boutons | Livré |
+| F13 | Réglages mémorisés (`HerbRouteDB`) | Livré |
+| F16 | Choix herbes ou minerais, puis région, puis type (cases dans la fenêtre, `/hr ores …`, pistage de la catégorie) | Livré |
+| F11 | Tracé sur la carte du monde | Livré, **validé en jeu** |
 | F12 | Tracé sur la minimap | Livré |
 
 **B4. Vérifier et ajuster avec la minimap**
@@ -72,17 +74,17 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 | F3 | Détection de la position et de la région courantes | Livré | Oui (faux TomTom) | Non | `Resolver.lua` |
 | F4 | Route optimisée (plus proche voisin puis 2-opt), identique au planner | Livré | Oui (4 cas identiques) | Non | `RouteMath.lua` |
 | F5 | Génération sans gel du client (coroutine) | Livré | Oui | Non | `Runner.lua` |
-| F6 | Mode Suivi (un waypoint à la fois, avancement automatique) | Livré | Oui | Non | `Runner.lua` |
-| F7 | Mode Tout afficher (tous les points en pins) | Livré | Oui | Non | `Runner.lua` |
+| F6 | Mode Suivi (un waypoint à la fois, avancement automatique) ; seul mode depuis le 2026-11-19 | Livré | Oui | Non | `Runner.lua` |
 | F8 | Skip, Stop, retrait externe d'un waypoint | Livré | Oui | Non | `Runner.lua` |
 | F9 | Commandes `/hr`, `/herbroute` (route, stop, skip, debug, setmap) | Livré | Oui | Non | `Core.lua` |
-| F10 | Fenêtre : région, herbes, départ, mode, rayon, boutons | Livré | Non (rendu non testable) | Non | `UI.lua` |
-| F11 | Tracé de la route sur la carte du monde (rendu rendu robuste le 2026-11-19 : création à la demande, indépendant de HereBeDragons, ID de carte tolérant ; **absence du tracé constatée en jeu**, correction à retester ; **`/hr debug` : segments créés mais invisibles**, diagnostic `/hr map` ajouté) | Livré | Non | Non | `Overlay.lua` |
+| F10 | Fenêtre : région, types, départ, rayon, boutons | Livré | Non (rendu non testable) | Non | `UI.lua` |
+| F11 | Tracé de la route sur la carte du monde (rendu robuste le 2026-11-19 : création à la demande, indépendant de HereBeDragons, ID de carte tolérant, cadre en strate `HIGH`) | **Livré et validé en jeu** (le joueur confirme que le correctif fonctionne) | Non | Non | `Overlay.lua` |
 | F12 | Tracé de la route sur la minimap (rayon, rotation, découpe au disque ; tous les points restants de la route depuis le 2026-11-19, plus de limite de 40) | Livré | Non | Non | `Overlay.lua` |
 | F13 | Réglages mémorisés (`HerbRouteDB`) | Livré | Partiel | Non | `Core.lua`, `UI.lua` |
 | F14 | Documentation et zip d'installation | Livré | n/a | n/a | `README.md`, `CLAUDE.md`, `tools/README.md` |
 | F15 | Enrichissement de la base par GatherMate (Forever) : fichier `Data/HerbDataGatherMate.lua` (+1 386 points, région Felwood), base d'origine intacte, outils `tools/merge_gathermate.py` et `tools/check_data.py` | **Livré** (vérifié hors jeu : points d'origine inchangés, ajouts distincts, tests de l'add-on) ; non testé en jeu | Hors jeu : oui | Non | `Data/HerbDataGatherMate.lua`, `tools/` |
-| F16 | **Minerais GatherMate** : fichier `Data/OreDataGatherMate.lua` (8 920 points, 41 régions, 18 minerais), choix de la catégorie herbes / minerais (cases dans la fenêtre, `/hr ores ...`) puis de la région et du type, pistage isolé selon la catégorie (Trouver les minéraux) ; le reste est inchangé | **Livré** (testé hors jeu : données, routes, commandes, pistage simulé, ouverture de la fenêtre sur faux widgets) ; non testé en jeu ; vérification minimap non validée sur minerais | Hors jeu : oui | Non | `Data/OreDataGatherMate.lua`, `Resolver.lua`, `Runner.lua`, `Tracking.lua`, `Core.lua`, `UI.lua`, `tools/merge_gathermate.py` |
+| F16 | **Choix herbes ou minerais**, puis région, puis type : cases dans la fenêtre, `/hr ores …`, pistage de la catégorie (Trouver les minéraux), sélections mémorisées séparément | **Livré** (testé hors jeu ; fenêtre sur faux widgets) ; non testé en jeu | Hors jeu : oui | Non | `Resolver.lua`, `Runner.lua`, `Tracking.lua`, `Core.lua`, `UI.lua` |
+| F59 | **Base de minerais GatherMate** : `Data/OreDataGatherMate.lua` (8 920 points, 41 régions, 18 minerais), `HerbRoute_OreData[région][minerai]`, catégorie à part (D18), outil `tools/merge_gathermate.py --category ores` | **Livré** (vérifié hors jeu) ; non testé en jeu | Hors jeu : oui | Non | `Data/OreDataGatherMate.lua`, `tools/merge_gathermate.py` |
 | F49 | **Vérification en avance** : sonde les points suivants (**toute la route**, voir D19) situés dans 85 % du rayon de vue ; automatique par défaut, `/hr verify ahead [on|off]`, passe manuelle `/hr verify ahead` | **Livré** (testé hors jeu) ; non testé en jeu | Hors jeu : oui | Non | `Verify.lua`, `Core.lua` |
 | F51 | **Minerais Wowhead** : script de console `tools/wowhead_export_ores.js` (lit `g_mapperData` de chaque gisement) et `tools/merge_wowhead_ores.py` (rattachement par `uiMapId`, doublons à 0,5 %, fichier séparé `OreDataWowhead.lua`) | **Livré** : export du joueur importé (10 651 points Wowhead, 520 ajoutés, 12 minerais, indurium sans données de carte), `Data/OreDataWowhead.lua` chargé après `OreDataGatherMate.lua` ; testé hors jeu, non testé en jeu | Hors jeu : oui (outil) | Non | `tools/` |
 | F52 | **Retrait des minerais** : même vérification et même retrait que pour les herbes (pistage « Trouver les minéraux », `/hr verify calibrate ores`, `arming ores`) | **Livré**, testé hors jeu sur une route de minerais ; **calibration sur un point de minerai validée en jeu** (méthode « plain »), retrait en route non testé | Hors jeu : oui | Non | `Verify.lua`, `Core.lua`, `tools/test_addon.py` |
@@ -139,6 +141,7 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 | R-2 | Étalonnage de la zone de réponse et écart à la base | Dépendaient de réponses positionnelles ; la zone (environ 25 unités) est rapportée par NodeRadar |
 | R-3 | `/hr probe zoom` (zoom et points hors disque) | Dépendait d'une configuration qui lit par position |
 | R-4 | `/hr probe blink` (curseur déjà sur la minimap) | Non concluant, remplacé par `blink world` |
+| R-6 | Mode « Tout afficher » (F7) : tous les points en pins TomTom | Retiré à la demande du joueur (2026-11-19) : le mode Suivi est le seul mode |
 | R-5 | `/hr probe world` | Plus de différence avec `/hr probe` (lecture du survol réel) |
 
 Les anciennes versions restent dans l'historique Git (dernier commit avant nettoyage : `30c4969`).
