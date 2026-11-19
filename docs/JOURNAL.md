@@ -325,6 +325,13 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Le joueur annule l'idée de tenir compte de la topologie et demande de revenir à la version précédente. Retirés : la sonde `/hr probe nav` (F50) et le cadrage B13 ; les commits correspondants sont annulés (`git revert`), l'historique les conserve (`f53ad71`, `65b9707`).
 - Conséquence : la route reste calculée à vol d'oiseau, comme le planner HTML (D2 inchangée). Les segments qui traversent des massifs sont une limite connue et acceptée ; ne pas reproposer sans nouvelle demande.
 
+### 2026-11-19 — Minerais Wowhead : méthode d'export et outil d'import (F51, B14)
+- Le joueur a collé `g_mapperData` de la page du fer (objet 1735, 16 275 caractères) : structure `{id de zone Wowhead: [{count, coords [[x,y]…], uiMapId, uiMapName}]}`, coordonnées en pourcentage à une décimale, noms de zones en français. Le fichier envoyé pour la technique d'origine était vide (0 octet) ; le JSON des herbes montre qu'elle reposait sur des exports texte de pages d'objets.
+- Observation clé : `uiMapId` est le même numéro de carte que les zones GatherMate : le rattachement région se fait par le tableau déjà produit (`docs/DONNEES_GATHERMATE.md`), sans noms français ni devinettes.
+- Livré : `tools/wowhead_export_ores.js` (collé dans la console, lit les pages de 13 minerais depuis le navigateur du joueur, télécharge un JSON ; identifiants de mémoire, titres affichés pour vérification) et `tools/merge_wowhead_ores.py` (ajout seulement, doublons à 0,5 %, zones non rattachées listées). Testés sur un jeu d'essai tiré du fer collé : les 9 points testés de Terres ingrates et du Marais des Chagrins étaient **tous déjà** dans les points de GatherMate, ce qui laisse prévoir un gain modeste pour le fer.
+- Pas de donnée fabriquée : rien n'est ajouté à la base tant que l'export n'est pas fourni ; le fichier généré n'est pas dans `HerbRoute.toc`.
+- Suite : le joueur lance le script, envoie `wowhead_ores_mapperdata.json` ; fusion, ajout à la table des matières, tests, zip.
+
 ## Commits
 | Commit | Contenu |
 |---|---|

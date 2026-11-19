@@ -17,6 +17,13 @@ Le premier lit `HerbData.lua` sans le modifier, rattache chaque zone GatherMate 
 
 Pour les minerais : `python3 -I tools/merge_gathermate.py <GatherMate2> <GatherMate2_Data/Forever> --category ores --zone-map docs/DONNEES_GATHERMATE.md --report docs/DONNEES_GATHERMATE_MINERAIS.md` écrit `HerbRoute/Data/OreDataGatherMate.lua` (`HerbRoute_OreData[région][minerai]`). Il n'y a pas de base d'origine à comparer : seules les positions à moins de `--tol` % d'un même minerai sont fusionnées ; le rattachement des zones aux régions vient du rapport des herbes (`--zone-map`).
 
+## Minerais Wowhead : wowhead_export_ores.js et merge_wowhead_ores.py
+`tools/wowhead_export_ores.js` se colle dans la console du navigateur, sur une page `wowhead.com/forever/...` (le site bloque les accès automatiques, la lecture se fait donc chez le joueur). Pour chaque gisement de sa liste (identifiants à vérifier d'après le titre affiché), il lit `g_mapperData` et télécharge `wowhead_ores_mapperdata.json`.
+```bash
+python3 -I tools/merge_wowhead_ores.py wowhead_ores_mapperdata.json --report docs/DONNEES_WOWHEAD_MINERAIS.md
+```
+L'outil rattache chaque `uiMapId` à une région par le tableau de `docs/DONNEES_GATHERMATE.md`, écarte les points à moins de `--tol` % d'un point existant du même minerai et de la même région (`OreDataGatherMate.lua` est seulement lu), et écrit `HerbRoute/Data/OreDataWowhead.lua` (ajout seul). Ajouter ensuite `Data\OreDataWowhead.lua` à la table des matières après `OreDataGatherMate.lua` et à la liste de chargement de `tools/test_addon.py`.
+
 ## test_math.py — fidélité de l'algorithme
 ```bash
 python3 -I tools/test_math.py WoW_Forever_Herb_Planner.html wowhead_forever_herbes_regions_waypoints.json
