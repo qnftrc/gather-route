@@ -294,6 +294,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Corrections : cadre créé à la demande (au premier affichage de la carte, ou au chargement de `Blizzard_WorldMap`), carte indépendante de HereBeDragons (message si la bibliothèque manque : seule la minimap est alors désactivée), carte acceptée si son nom correspond à celui de la région, second rafraîchissement à l'image suivante, diagnostic ajouté à `/hr debug` (« Map overlay: frame created, map ID, route map, canvas, lines »).
 - À faire en jeu : lancer une route, ouvrir la carte, puis `/hr debug` et coller la ligne « Map overlay » si le tracé manque encore (elle indique laquelle des quatre causes joue).
 
+### 2026-11-19 — Rapport `/hr debug` : le tracé est calculé mais invisible sur la carte
+- Capture de la carte « Map & Quest Log » (Stranglethorn Vale, route active) et ligne du diagnostic : `frame created, map ID 1434, route map 1434, canvas 1002x668, 126 line(s), showMap true` (« map shown false » : la carte était fermée au moment de la commande).
+- Conclusion : les causes 1 à 3 du correctif précédent sont **écartées** (cadre créé, IDs identiques, 126 segments dessinés pour 126 points) ; le tracé est donc créé mais **non visible** sur la carte. Causes restantes à départager : cadre masqué ou transparent, ordre d'affichage (strate, niveau) sous un autre élément de la carte, lignes non rendues par ce client.
+- Ajouté : `/hr map` (ouvrir la carte dans les 5 s) affiche pendant 20 s un carré rouge au centre et une diagonale rouge sur le cadre de l'overlay, et rapporte la visibilité du cadre, son alpha effectif, sa strate et son niveau (comparés à ceux du canevas), son échelle et sa taille. Selon ce qui est visible (carré seul, diagonale seule, rien), la prochaine correction est ciblée (niveau de cadre, remplacement des lignes par des textures, changement de parent).
+- Non fait volontairement : modifier au hasard le parent ou l'ancrage avant d'avoir ce résultat.
+
 ## Commits
 | Commit | Contenu |
 |---|---|

@@ -92,6 +92,40 @@ function HR:OverlayStatus()
         #mapLines, tostring(self.db.showMap)))
 end
 
+local testTex, testLine
+
+-- Draws a red square and a red diagonal on the map for 20 s and reports what the
+-- client says about the overlay frame, to tell an invisible frame from invisible lines.
+function HR:OverlayTest()
+    self:Print("Map overlay test: open the world map within 5 s (the route does not need to run).")
+    C_Timer.After(5, function()
+        if not ensureMapFrame() then return HR:Print("Map overlay test: no overlay frame (gamepad mode or no map canvas).") end
+        local canvas = WorldMapFrame:GetCanvas()
+        if not WorldMapFrame:IsShown() then return HR:Print("Map overlay test: the world map was not open.") end
+        local w, h = canvas:GetWidth(), canvas:GetHeight()
+        mapFrame:Show()
+        testTex = testTex or mapFrame:CreateTexture(nil, "OVERLAY")
+        testTex:SetColorTexture(1, 0, 0, 1)
+        testTex:SetSize(40, 40)
+        testTex:ClearAllPoints()
+        testTex:SetPoint("CENTER", canvas, "TOPLEFT", w / 2, -h / 2)
+        testTex:Show()
+        testLine = testLine or mapFrame:CreateLine(nil, "OVERLAY")
+        testLine:SetColorTexture(1, 0, 0, 1)
+        testLine:SetThickness(4)
+        testLine:SetStartPoint("TOPLEFT", canvas, w * 0.2, -h * 0.2)
+        testLine:SetEndPoint("TOPLEFT", canvas, w * 0.8, -h * 0.8)
+        testLine:Show()
+        HR:Print(("Map overlay test: frame visible %s, effective alpha %s, strata %s level %s (canvas %s / %s), scale %s, size %sx%s; square %s, line %s."):format(
+            tostring(mapFrame:IsVisible()), tostring(mapFrame:GetEffectiveAlpha()), tostring(mapFrame:GetFrameStrata()),
+            tostring(mapFrame:GetFrameLevel()), tostring(canvas:GetFrameStrata()), tostring(canvas:GetFrameLevel()),
+            tostring(mapFrame:GetEffectiveScale()), tostring(mapFrame:GetWidth()), tostring(mapFrame:GetHeight()),
+            tostring(testTex:IsVisible()), tostring(testLine:IsVisible())))
+        HR:Print("Map overlay test: do you see a red square at the centre and a red diagonal? (they disappear in 20 s)")
+        C_Timer.After(20, function() testTex:Hide() testLine:Hide() refreshMap() end)
+    end)
+end
+
 function refreshMap()
     local r = HR.route
     if not r or not HR.db.showMap or not WorldMapFrame or not WorldMapFrame:IsShown() then

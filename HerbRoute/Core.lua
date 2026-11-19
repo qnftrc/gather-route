@@ -82,7 +82,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
-    HR:Print("/hr stop | skip | debug")
+    HR:Print("/hr stop | skip | debug | map (test of the world map overlay)")
     HR:Print("/hr tracking [on|off|status|restore] - keep only Find Herbs during a route")
     HR:Print("/hr verify [off|report|remove|status|ahead [on|off]|probe|scan|calibrate|arming] - check the next point on the minimap")
     HR:Print("/hr probe [minimap|watch|blink world [hidden]|copy] - test minimap reading")
@@ -102,6 +102,8 @@ local function handleSlash(msg)
         HR:StopRoute()
     elseif cmd == "skip" then
         HR:SkipPoint()
+    elseif cmd == "map" then
+        HR:OverlayTest()
     elseif cmd == "debug" then
         HR:DebugRegions()
         HR:OverlayStatus()
