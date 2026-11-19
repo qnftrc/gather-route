@@ -121,7 +121,7 @@ end
 
 local function build()
     ui = CreateFrame("Frame", "HerbRouteFrame", UIParent, "BasicFrameTemplateWithInset")
-    ui:SetSize(360, 540)
+    ui:SetSize(360, 570)
     ui:SetPoint("CENTER")
     ui:SetMovable(true)
     ui:EnableMouse(true)
@@ -196,9 +196,18 @@ local function build()
         HR:UpdateOverlay()
     end)
 
-    ui.radiusText = label(ui, "", "TOPLEFT", 16, -456)
+    ui.isolate = check(ui, "Keep only Find Herbs tracking during a route", 12, -450, function(self)
+        HR.db.isolateTracking = self:GetChecked() and true or false
+        if not HR.db.isolateTracking then
+            HR:RestoreTracking()
+        elseif HR.route then
+            HR:IsolateHerbTracking()
+        end
+    end)
+
+    ui.radiusText = label(ui, "", "TOPLEFT", 16, -486)
     local slider = CreateFrame("Slider", nil, ui, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -458)
+    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -488)
     slider:SetSize(190, 16)
     slider:SetMinMaxValues(5, 40)
     slider:SetValueStep(1)
@@ -236,6 +245,7 @@ local function build()
         ui.all:SetChecked(HR.db.mode == "all")
         ui.showMap:SetChecked(HR.db.showMap)
         ui.showMini:SetChecked(HR.db.showMinimap)
+        ui.isolate:SetChecked(HR.db.isolateTracking)
         ui.slider:SetValue(HR.db.radius)
         if not dirty then fillPosition() end
         HR:UpdateUI()

@@ -15,6 +15,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B5 | (information) Comprendre la portée maximale de 15 yd de l'add-on Lueur | Capture des réglages de Lueur |
 | B6 | **Version simplifiée de B4 (prioritaire)** : garder la route d'origine générée, vérifier sur la minimap que chaque point existe, et retirer de la route (avec `TomTom:RemoveWaypoint`) les points sans correspondance, au fil de l'eau, à une cadence fonction du rayon de la minimap. C'est l'add-on qui interroge la minimap et retire les points lui-même | Dernier résumé du joueur |
 | B7 | La vérification peut se faire par **présence** d'un point : le nom lu est secret, mais l'herbe attendue est celle du waypoint, donc le nom n'est pas nécessaire | Second rapport de la sonde |
+| B8 | Pendant une route, ne garder actif que « Trouver les herbes » parmi les pistages ; rétablir la configuration d'origine à l'arrêt de la route | Demande du joueur |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.
@@ -88,6 +89,7 @@ La route d'origine est conservée (`r.original`) ; on ne la recalcule pas, on **
 États *pris* / *vide* stockés dans `HerbRouteDB` avec la date. La récolte (`UNIT_SPELLCAST_SUCCEEDED`) marque le point le plus proche comme pris ; le bouton Skip devient « rien ici ». Les points marqués depuis moins de N minutes sont filtrés avant le calcul. N réglable ; durées de réapparition de Forever inconnues, à mesurer.
 
 ### 4.5 Pistage automatique
+**Livré (F21, D11)** : l'isolement du pistage est implémenté (`Tracking.lua`). Au lancement, la configuration est sauvegardée, seul « Trouver les herbes » reste actif ; l'arrêt, la fin de route, un `/reload` ou une reconnexion rétablissent la configuration. Commande `/hr tracking`, case dans la fenêtre. Voir le journal pour les risques (temps de recharge, pistage à sort unique).
 Activer « Trouver les herbes » au lancement d'une route (`C_Minimap.GetNumTrackingTypes`, `GetTrackingInfo`, `SetTracking`, signatures à confirmer en jeu).
 
 ## 5. Questions ouvertes

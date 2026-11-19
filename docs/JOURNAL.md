@@ -96,6 +96,16 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Demande du joueur : un tableau des choix de conception et des tests à faire par fonctionnalité. Écrit dans [RECAPITULATIF.md](RECAPITULATIF.md) à partir de ce journal, du suivi des fonctionnalités et du besoin (aucune décision nouvelle).
 - Rappel qui en ressort : aucune fonctionnalité de l'add-on de route n'a été testée en jeu (`/hr debug`, route, tracés, interface) ; seules les sondes l'ont été. Un ordre de test est proposé en fin de document.
 
+### 2026-11-19 — Isolement du pistage pendant une route (F21, besoin B8)
+- Demande du joueur : à chaque nouvelle route, désactiver tous les pistages actifs sauf « Trouver les herbes », puis rétablir la configuration d'origine à l'arrêt de la route.
+- Conception : nouveau module `Tracking.lua`. Au lancement, la liste des pistages actifs est sauvegardée (`HerbRouteDB.trackingSnapshot`, par identifiant de sort quand il existe, sinon par nom), les autres sont coupés, « Trouver les herbes » est activé seulement s'il ne l'est pas déjà (il n'est jamais touché sinon, pour éviter de relancer le sort). Restauration : coupure d'abord de ce qui ne faisait pas partie de la configuration d'origine, puis activation de ce qui en faisait partie.
+- Restauration déclenchée par : bouton Stop, `/hr stop`, fin de route, réinitialisation groupée, démarrage d'une nouvelle route **sans** restauration intermédiaire (la configuration sauvegardée reste celle d'origine), et au chargement du jeu (2 s après l'entrée dans le monde) si un instantané existe encore, ce qui couvre un `/reload` ou un plantage en cours de route.
+- Combat : si le lancement ou l'arrêt tombe en combat, l'action est mise en attente et exécutée à la sortie de combat (`PLAYER_REGEN_ENABLED`).
+- Réglage `isolateTracking` (activé par défaut), commande `/hr tracking [on|off|status|restore]` et case dans la fenêtre ; le désactiver rétablit immédiatement la configuration, l'activer pendant une route l'isole immédiatement. Le nom « Trouver les herbes » est lu par l'identifiant de sort 2383 (nom localisé), avec repli sur le nom anglais : réduit R6 pour cette fonction.
+- Si « Trouver les herbes » n'est pas disponible (pas de herboristerie) : message, aucun pistage modifié.
+- Testé hors jeu sur une API de pistage simulée (dont le format ancien de `GetTrackingInfo`, l'échange entre pistages à sort, le combat, la reprise au chargement, les commandes).
+- Risques : activer ou rétablir un pistage à sort peut lancer un temps de recharge sur la barre d'actions (observé par NodeRadar) ; un seul pistage à sort est actif à la fois, donc rétablir « Trouver les minerais » remplace « Trouver les herbes » ; un pistage modifié à la main pendant la route sera écrasé à la restauration. Signature de `SetTracking` non confirmée sur ce client.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -109,6 +119,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D8 | **Base intacte** : `HerbRoute_Data` n'est jamais modifiée ; seuls les waypoints TomTom du trajet en cours sont retirés | 2026-11-19 | Contrainte |
 | D9 | Pas de recalage de la base à partir des écarts mesurés | 2026-11-19 | Contrainte |
 | D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | **Remise en cause** : la présence est probablement générique (sol vide présent), voir R13 |
+| D11 | Pendant une route, seul « Trouver les herbes » reste actif ; la configuration d'origine est sauvegardée et rétablie à l'arrêt, au chargement ou après combat. Option désactivable | 2026-11-19 | Appliquée (non testée en jeu) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
@@ -127,6 +138,8 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R12 | `UpdateMouseoverAtPoint` n'a pas d'effet positionnel (confirmé par la documentation de NodeRadar : sans effet dès le build 70862). Seule piste connue : déplacer la minimap sous un curseur au repos dans le monde | Ouvert, test = `/hr probe blink world` |
 | R13 | La présence de données est-elle liée à un point jaune ? | **Réponse partielle : données présentes sur sol vide** (présence très probablement générique). Reste à voir si `type`/`dataInstanceID` distinguent point et sol |
 | R14 | Le build 70959 (postérieur à 70938, dernier build documenté par NodeRadar) peut restreindre davantage | Ouvert |
+| R15 | Activer ou rétablir un pistage à sort peut lancer un temps de recharge sur la barre d'actions (NodeRadar) | À observer en jeu |
+| R16 | Signatures de `C_Minimap.GetTrackingInfo` et `SetTracking` supposées (formats table et ancien) | À confirmer par le test en jeu de F21 |
 
 ## Commits
 | Commit | Contenu |

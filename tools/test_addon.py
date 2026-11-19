@@ -57,7 +57,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Core","Resolver","RouteMath","Runner","Overlay","Probe","UI"}) do
+for _, f in ipairs({"Data/HerbData","Core","Tracking","Resolver","RouteMath","Runner","Overlay","Probe","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -257,4 +257,116 @@ curx = savedCur
 bl = nil
 assert(bw("hover"):find("ABORTED: phase A found no data under the cursor", 1, true))
 io.write("PROBE TESTS OK\n")
+''')
+
+lua.execute(r'''
+-- tracking isolation: only Find Herbs stays on during a route, then restored
+local types, act, calls, legacy, combat = {}, {}, {}, false, false
+local function setTypes(withHerbs)
+  types = {}
+  if withHerbs then types[#types + 1] = {"Find Herbs", 2383} end
+  for _, n in ipairs({"Find Minerals", "Flight Master", "Innkeeper", "Account Completed Quests", "Track Quest POIs"}) do
+    types[#types + 1] = {n, n == "Find Minerals" and 2580 or nil}
+  end
+end
+local function setActive(names) act = {} for _, n in ipairs(names) do act[n] = true end end
+local function activeList()
+  local out = {}
+  for _, t in ipairs(types) do if act[t[1]] then out[#out + 1] = t[1] end end
+  table.sort(out)
+  return table.concat(out, ",")
+end
+local function names(list) table.sort(list) return table.concat(list, ",") end
+C_Minimap = {
+  GetNumTrackingTypes = function() return #types end,
+  GetTrackingInfo = function(i)
+    local t = types[i]
+    if legacy then return t[1], "tex", act[t[1]] or false, "spell", false end
+    return {name = t[1], active = act[t[1]] or false, spellID = t[2]}
+  end,
+  SetTracking = function(i, b)
+    local t = types[i]
+    calls[#calls + 1] = i .. (b and "+" or "-")
+    if b and t[2] then for _, o in ipairs(types) do if o[2] and o ~= t then act[o[1]] = nil end end end
+    act[t[1]] = b or nil
+  end,
+}
+C_Spell = {GetSpellName = function(id) return id == 2383 and "Find Herbs" or nil end}
+InCombatLockdown = function() return combat end
+HR.db.isolateTracking = true
+HR.db.trackingSnapshot = nil
+playerMap, px, py = 37, 0.5, 0.5
+local start5 = {"Find Herbs", "Flight Master", "Innkeeper", "Account Completed Quests", "Track Quest POIs"}
+
+local function go(cmd) printed = {}; SlashCmdList.HERBROUTE(cmd); RunTimers() end
+
+-- 1. normal start and stop; Find Herbs, already on, is never touched
+setTypes(true); setActive(start5); calls = {}
+local want = activeList()
+go("peacebloom")
+assert(HR.route, "route not started")
+assert(activeList() == "Find Herbs", activeList())
+assert(#HR.db.trackingSnapshot == 5)
+for _, c in ipairs(calls) do assert(c ~= "1+" and c ~= "1-", "Find Herbs was touched: " .. c) end
+go("stop")
+assert(activeList() == want and HR.db.trackingSnapshot == nil, activeList())
+
+-- 2. a second route while one runs keeps the original snapshot
+go("peacebloom"); go("peacebloom")
+assert(#HR.db.trackingSnapshot == 5 and activeList() == "Find Herbs")
+go("stop")
+assert(activeList() == want)
+
+-- 3. Find Herbs off, Find Minerals on: swapped, then swapped back
+setActive({"Find Minerals", "Flight Master", "Innkeeper"}); want = activeList()
+go("peacebloom")
+assert(activeList() == "Find Herbs", activeList())
+go("stop")
+assert(activeList() == want, activeList())
+
+-- 4. legacy GetTrackingInfo format (several return values, no spell ID)
+legacy = true; setActive(start5); want = activeList()
+go("peacebloom"); assert(activeList() == "Find Herbs", activeList())
+go("stop"); assert(activeList() == want)
+legacy = false
+
+-- 5. no Find Herbs tracking: nothing changes
+setTypes(false); setActive({"Flight Master", "Innkeeper"}); want = activeList()
+go("peacebloom")
+assert(activeList() == want and HR.db.trackingSnapshot == nil)
+assert(table.concat(printed, "\n"):find("Find Herbs tracking is not available", 1, true))
+go("stop")
+setTypes(true)
+
+-- 6. option off: nothing changes
+HR.db.isolateTracking = false; setActive(start5); want = activeList()
+go("peacebloom"); assert(activeList() == want); go("stop")
+HR.db.isolateTracking = true
+
+-- 7. combat: isolation and restoration wait for the end of combat
+setActive(start5); want = activeList()
+combat = true
+go("peacebloom")
+assert(activeList() == want and HR.pendingTracking == "isolate")
+combat = false; HR:OnTrackingEvent("PLAYER_REGEN_ENABLED")
+assert(activeList() == "Find Herbs", activeList())
+combat = true; go("stop")
+assert(activeList() == "Find Herbs" and HR.pendingTracking == "restore")
+combat = false; HR:OnTrackingEvent("PLAYER_REGEN_ENABLED")
+assert(activeList() == want and HR.db.trackingSnapshot == nil)
+
+-- 8. recovery at login (the route is gone after a reload, the snapshot stays)
+setActive({"Find Herbs"})
+HR.db.trackingSnapshot = {{name = "Find Herbs", spellID = 2383}, {name = "Flight Master"}, {name = "Innkeeper"}}
+HR:OnTrackingEvent("PLAYER_ENTERING_WORLD"); RunTimers()
+assert(activeList() == "Find Herbs,Flight Master,Innkeeper" and HR.db.trackingSnapshot == nil, activeList())
+
+-- 9. commands
+setActive(start5); go("peacebloom"); go("tracking off")
+assert(HR.db.isolateTracking == false and activeList() == names({table.unpack(start5)}) , activeList())
+go("tracking on"); assert(HR.db.isolateTracking == true and activeList() == "Find Herbs", activeList())
+go("stop"); assert(activeList() == names({table.unpack(start5)}), activeList())
+HR.db.trackingSnapshot = {{name = "Find Herbs", spellID = 2383}}
+setActive({"Find Herbs", "Innkeeper"}); go("tracking restore"); assert(activeList() == "Find Herbs")
+io.write("TRACKING TESTS OK\n")
 ''')

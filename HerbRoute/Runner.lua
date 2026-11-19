@@ -151,9 +151,10 @@ function HR:OnWaypointRemoved(uid)
     end
 end
 
-function HR:StopRoute(silent)
+function HR:StopRoute(silent, keepTracking)
     local r = self.route
     if not r then
+        if not keepTracking then self:RestoreTracking() end
         if not silent then self:Print("No active route.") end
         return
     end
@@ -165,12 +166,13 @@ function HR:StopRoute(silent)
             if not r.done[i] then removeUID(uid) end
         end
     end
+    if not keepTracking then self:RestoreTracking() end
     if not silent then self:Print("Route stopped.") end
     self:RouteChanged()
 end
 
 function HR:StartRoute(region, mapID, points, start, length)
-    self:StopRoute(true)
+    self:StopRoute(true, true)
     local r = {
         region = region,
         mapID = mapID,
@@ -181,6 +183,7 @@ function HR:StartRoute(region, mapID, points, start, length)
         mode = self.db.mode,
     }
     self.route = r
+    self:IsolateHerbTracking()
     if r.mode == "follow" then showCurrent(r) else showAll(r) end
     self:Print(("%s: %d points, map distance %.1f."):format(region, #points, length))
     self:RouteChanged()

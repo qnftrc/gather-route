@@ -8,6 +8,7 @@ local defaults = {
     radius = 15,
     showMap = true,
     showMinimap = true,
+    isolateTracking = true,
     overrides = {},
 }
 
@@ -76,6 +77,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr stop | skip | debug")
+    HR:Print("/hr tracking [on|off|status|restore] - keep only Find Herbs during a route")
     HR:Print("/hr probe [minimap|watch|blink world [hidden]|copy] - test minimap reading")
     HR:Print("/hr setmap <region>: <mapID> - force the map ID of a region")
 end
@@ -95,6 +97,17 @@ local function handleSlash(msg)
         HR:SkipPoint()
     elseif cmd == "debug" then
         HR:DebugRegions()
+    elseif cmd == "tracking" then
+        local arg = rest:lower()
+        if arg == "on" or arg == "off" then
+            HR.db.isolateTracking = arg == "on"
+            if arg == "off" then HR:RestoreTracking() elseif HR.route then HR:IsolateHerbTracking() end
+            HR:TrackingStatus()
+        elseif arg == "restore" then
+            HR:RestoreTracking()
+        else
+            HR:TrackingStatus()
+        end
     elseif cmd == "probe" then
         HR.Probe:Run(rest)
     elseif cmd == "setmap" then
