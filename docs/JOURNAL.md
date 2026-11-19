@@ -359,6 +359,10 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Demande du joueur : un bouton d'interface skip associable à une touche. Livré : `Bindings.xml` (hors table des matières, chargé automatiquement) avec trois actions dans Options > Raccourcis clavier > AddOns > HerbRoute : « Skip the current point » (`HerbRoute:SkipPoint()`), « Stop the route », « Open or close the window » ; et un bouton **Skip** à l'écran, optionnel (`/hr button`, Maj + glisser pour le déplacer, position et état mémorisés dans `HerbRouteDB.skipButton`). La fonction de skip est celle de `/hr skip` (aucun changement de comportement).
 - Risque : le format de `Bindings.xml` (attributs `header`, `category`) n'a pas été éprouvé sur ce client ; si les actions n'apparaissent pas dans la liste des raccourcis, le bouton et `/hr skip` (utilisable en macro) restent disponibles.
 
+### 2026-11-19 — Tableau des doublons par région et type
+- Question : combien d'herbes ou de minerais en doublon à une unité de coordonnée près ? Réponse chiffrée (points en trop = au-delà d'un par groupe de voisins) : herbes 2 047 à 0,1, 3 689 à 0,5, **4 334 à 1,0 (29,6 %)** ; minerais 0 à 0,1 et 0,5 (dédupliqués à la fusion), **756 à 1,0 (8,0 %)**. La base d'herbes d'origine (Wowhead) porte l'essentiel de ces doublons (conservés volontairement, D8).
+- Demande suivante : tableau récapitulatif avec zone et type. Livré : `tools/report_duplicates.py` (lecture seule) et [DOUBLONS.md](DOUBLONS.md) : totaux, par type, par région, et détail région × type triés. Aucune modification de la base ; une option de fusion des voisins à la génération de la route a été proposée, non décidée.
+
 ## Commits
 | Commit | Contenu |
 |---|---|
