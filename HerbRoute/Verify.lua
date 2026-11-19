@@ -148,6 +148,16 @@ local function probe(ox, oy, done, detail, opts)
         detail.sx, detail.sy, detail.hx, detail.hy, detail.cx, detail.cy = sx, sy, hx, hy, cx, cy
         detail.reads = {}
     end
+    -- TomTom's minimap pin of the current waypoint is a mouse-enabled button
+    -- sitting on the very spot probed: it would take the mouse focus from the
+    -- minimap, so it is hidden while the minimap is moved.
+    local hiddenUID
+    local route = HR.route
+    if route and route.mode == "follow" and route.current and TomTom and TomTom.HideWaypoint then
+        hiddenUID = route.current
+        pcall(TomTom.HideWaypoint, TomTom, hiddenUID, true, false)
+    end
+    local iconCause
     local finished, soft = false, false
     local function finish(result, cause)
         if finished then return end
@@ -155,6 +165,7 @@ local function probe(ox, oy, done, detail, opts)
         pcall(MM.placeMinimap, pts, 0, 0)
         if opts.alpha then pcall(Minimap.SetAlpha, Minimap, alpha0) end
         if soft then pcall(Minimap.SetUsingSoftCursor, Minimap, false) end
+        if hiddenUID and TomTom.ShowWaypoint then pcall(TomTom.ShowWaypoint, TomTom, hiddenUID) end
         MM.waitFrames(2, function()
             if detail then
                 local ax, ay = Minimap:GetCenter()
@@ -177,9 +188,15 @@ local function probe(ox, oy, done, detail, opts)
         local ncx, ncy = Minimap:GetCenter()
         local applied = ncx ~= nil and math.abs(ncx - (cx + hx)) < 2 and math.abs(ncy - (cy + hy)) < 2
         local has, sig, anyData = MM.reading()
+        local focus = MM.mouseFocus()
+        local focusName = focus and ((focus.GetName and focus:GetName()) or tostring(focus)) or "none"
+        if not anyData and focus and focus ~= Minimap and focus ~= WorldFrame then
+            iconCause = ("a minimap icon is under the cursor (%s)"):format(focusName)
+        end
         if detail then
             detail.reads[#detail.reads + 1] = {
                 frame = n, has = has, sig = sig, anyData = anyData, applied = applied, inside = MM.cursorInside(),
+                focus = focusName,
             }
         end
         if not applied then return finish("none", "the minimap did not move (another addon or the client re-anchored it)") end
@@ -188,7 +205,7 @@ local function probe(ox, oy, done, detail, opts)
         if n < maxFrames then
             return C_Timer.After(0, function() read(n + 1) end)
         end
-        finish("none", "no hover data: the client did not refresh the minimap hover")
+        finish("none", iconCause or "no hover data: the client did not refresh the minimap hover")
     end
 
     local function start()
@@ -459,8 +476,8 @@ function HR:VerifyProbeNow()
             HR:Print(("  cursor (%.0f, %.0f) px, minimap center (%.1f, %.1f), shift (%.1f, %.1f)"):format(
                 d.sx or 0, d.sy or 0, d.cx or 0, d.cy or 0, d.hx or 0, d.hy or 0))
             for _, rd in ipairs(d.reads or {}) do
-                HR:Print(("  +%d: moved=%s onMinimap=%s lines=%s data=%s %s"):format(
-                    rd.frame, tostring(rd.applied), tostring(rd.inside), tostring(rd.has), tostring(rd.anyData), tostring(rd.sig)))
+                HR:Print(("  +%d: moved=%s onMinimap=%s focus=%s lines=%s data=%s %s"):format(
+                    rd.frame, tostring(rd.applied), tostring(rd.inside), tostring(rd.focus), tostring(rd.has), tostring(rd.anyData), tostring(rd.sig)))
             end
             HR:Print(("  result: %s%s; minimap back home: %s"):format(result, cause and (" (" .. cause .. ")") or "", tostring(d.homeOk)))
         end, d, recipeOpts() or {})

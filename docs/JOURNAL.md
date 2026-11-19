@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Lancer `/hr verify arming`** : la souris sur un point jaune (3 s), puis la déplacer dans le monde dans les 4 s suivantes et la laisser **immobile environ une minute** ; la minimap clignote brièvement à 6, 10, 15, 20, 30, 45 et 60 s. Coller les lignes du chat. Elles disent si la méthode simple cesse de voir le point au bout d'un certain temps après un survol réel de la minimap (R26). Ensuite, selon le résultat, chercher comment « réarmer » la lecture sans que le joueur survole un point.
+1. **Retester la vérification automatique avec le zip corrigé** (la calibration « plain » reste valide) : route en mode Suivi, souris **immobile dans le monde**, mode `report`. Surveiller le chat (« has no node » ou point confirmé) et `/hr verify`. Puis `/hr verify probe` : la ligne `focus=` dit quel cadre est sous le curseur pendant la sonde (R26). `/hr verify arming` ne sert plus que si les sondes échouent encore.
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -189,6 +189,15 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Écrit : **`/hr verify arming`** : survol d'un point jaune puis, la souris immobile dans le monde, sonde du point connu et d'un témoin à 6, 10, 15, 20, 30, 45 et 60 s ; affiche « dot line / none » à chaque instant. Refactorisation : capture de la phase A partagée avec la calibration. Test hors jeu sur un moteur qui n'« arme » le survol que 12 s après un survol réel.
 - Si H2 est vraie, la vérification automatique ne peut pas tourner seule : il faudrait soit réarmer la lecture par un autre moyen, soit demander au joueur de survoler périodiquement un point jaune. À décider selon le résultat.
 
+### 2026-11-19 — Le pin TomTom du waypoint masque la lecture (question du joueur)
+- Capture et question du joueur : le point « Goldthorn 1/126 » de TomTom (infobulle « 55 yards away », « From: HerbRoute ») ne gêne-t-il pas ce qu'on vérifie ?
+- **Oui.** Code de TomTom (`modules/minimap_pins.lua`) : le pin de la minimap est un `Button` de 30 × 30 pixels, avec `OnEnter` (infobulle), `OnClick` (menu clic droit), ancré par HereBeDragons-Pins sur la minimap. La vérification amène **exactement l'emplacement du waypoint courant** sous le curseur : le curseur se trouve alors sur ce bouton, qui prend le focus de la souris à la place de la minimap, d'où l'infobulle TomTom de la capture et **aucune lecture du survol des points jaunes**.
+- Cela explique tous les échecs : chaque sonde ratée visait le waypoint courant (donc son pin), alors que `blink world` et la calibration sondaient des points jaunes ou des positions témoins **sans pin**. Cette hypothèse (**H3**) remplace l'hypothèse d'« armement » (H2) comme principale. Elle ne dit pas que le retrait est « bloqué » par TomTom : la sonde renvoie simplement « aucune donnée », donc inconclusif, donc jamais de retrait.
+- Correction (D15) : pendant une sonde, le pin minimap du waypoint courant est **masqué** (`TomTom:HideWaypoint(uid, true, false)`, effet immédiat : TomTom libère le pin à la réception du message de visibilité) puis réaffiché (`ShowWaypoint`) après le retour de la minimap. Seul le pin de la minimap est masqué ; la carte du monde et la flèche ne changent pas.
+- Diagnostic : à chaque lecture, le cadre sous le curseur est relevé ; sans données et avec un cadre qui n'est ni la minimap ni le monde, la cause devient « a minimap icon is under the cursor (nom du cadre) » (par exemple un pin d'un autre add-on). `/hr verify probe` affiche `focus=` à chaque lecture.
+- Limite : les pins mouse-enabled d'autres add-ons (quêtes, ressources) au même endroit masqueraient encore la lecture ; ils sont nommés dans la cause, non masqués.
+- Tests hors jeu : un moteur où le pin visible capte la souris (la sonde confirme grâce au masquage, le pin est réaffiché), un moteur où un cadre étranger est sous le curseur (cause nommée).
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -206,6 +215,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D12 | Vérification **ciblée** sur le prochain waypoint (choix du joueur), automatique en mode Suivi, **`report` par défaut**, retrait seulement en mode `remove` et seulement après au moins un point confirmé dans la session ; la minimap n'est pas cachée (la variante cachée n'est pas moins gênante) | 2026-11-19 | Appliquée (non testée en jeu) |
 | D13 | ~~Adopter la variante curseur logiciel + `UpdateMouseoverAtPoint`~~ | 2026-11-19 | **Révoquée** : elle renvoie des données sans lire la position (scan : 92 cases vides) |
 | D14 | La méthode de sondage est **calibrée en jeu** sur un point jaune connu (`/hr verify calibrate`), mémorisée avec le numéro de build ; sans calibration valide la vérification ne sonde pas | 2026-11-19 | Appliquée (non testée en jeu) |
+| D15 | Le pin TomTom de la minimap du waypoint courant est **masqué pendant chaque sonde** (`HideWaypoint` puis `ShowWaypoint`), car c'est un bouton qui capte la souris | 2026-11-19 | Appliquée (non testée en jeu) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
@@ -235,7 +245,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R23 | Les passes exigent une souris immobile dans le monde, et un vrai mouvement après avoir dirigé à la souris : avec la souris tenue pour la caméra, elles seront souvent en attente | Garde « bouger la souris une fois » ajoutée ; raison visible par `/hr verify` ; à mesurer |
 | R24 | La vérification n'obtenait aucune donnée de survol, puis une variante renvoyait des lectures sans valeur | **Rouvert** : seule `blink world` a détecté un point connu ; la méthode est maintenant choisie par calibration sur un point connu |
 | R25 | Aucune des sept méthodes ne détecte un point connu en jeu | **Écarté** : six méthodes sur sept détectent le point (calibration du build 70959) |
-| R26 | Les sondes ne reçoivent des données que peu après un survol réel de la minimap (hypothèse H2) : la vérification automatique, qui sonde sans survol préalable, n'obtient rien | Ouvert, test = `/hr verify arming` |
+| R26 | Les sondes sur le waypoint courant ne recevaient aucune donnée | Hypothèse principale **H3** : le pin TomTom du waypoint capte la souris ; masqué pendant les sondes (D15), à confirmer en jeu. H2 (armement par survol réel) reste en réserve (`/hr verify arming`) |
 
 ## Commits
 | Commit | Contenu |

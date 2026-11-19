@@ -392,7 +392,7 @@ lua.execute(r'''
 -- verification of the next waypoint: probes, guards, report and remove modes
 local cxm, cym, es = 500, 400, 2
 local sx, sy, setCalls, freeze = 0, 0, 0, false
-local softOn, updated, hitR = false, false, 6
+local softOn, updated, hitR, pinHidden = false, false, 6, false
 local ppx, ppy = 950, 950 -- fake player world position (1 % of the map = 1 yd)
 local nodes, afterFirstLine, linesSeen, tracking = {}, false, 0, true
 local cursor, moving, mouseDown, combat, castName, unitUnder, tooltip, engine = {100, 100}, false, false, false, nil, false, false, "real"
@@ -414,8 +414,15 @@ UnitIsDeadOrGhost = function() return false end
 UnitOnTaxi = function() return false end
 GameTooltip = {IsShown = function() return tooltip end}
 hooksecurefunc = function() end
+TomTom.HideWaypoint = function() pinHidden = true end
+TomTom.ShowWaypoint = function() pinHidden = false end
 UIParent = {}; WorldFrame = {}
-GetMouseFoci = function() return {WorldFrame} end
+local foci = nil
+local foreign = {GetName = function() return "QuestieIcon7" end}
+GetMouseFoci = function()
+  if engine == "foreign" and (sx ~= 0 or sy ~= 0) then return {foreign} end
+  return foci or {WorldFrame}
+end
 GetCVar = function() return "0" end
 Minimap = {
   GetCenter = function() return cxm + sx, cym + sy end, GetWidth = function() return 140 end,
@@ -455,6 +462,8 @@ C_TooltipInfo = {GetMinimapMouseover = function()
   if shifted and engine == "soft" and not (softOn and updated) then return nil end
   if shifted and engine == "needalpha" and not alphaCalled then return nil end
   if shifted and engine == "deadshift" then return nil end
+  if shifted and engine == "pin" and not pinHidden then return nil end
+  if shifted and engine == "foreign" then return nil end
   if engine == "armed" then
     if not shifted then
       local cu0, cv0 = GetCursorPosition()
@@ -488,7 +497,7 @@ local function reset()
   go("stop"); nodes = {}; afterFirstLine = false; linesSeen = 0; setCalls = 0
   ppx, ppy = 950, 950; moving = false; mouseDown = false; combat = false; castName = nil
   unitUnder = false; tooltip = false; tracking = true; engine = "real"; cursor = {100, 100}; freeze = false
-  softOn = false; updated = false; hitR = 6; alphaCalled = false; calibT0 = nil
+  softOn = false; updated = false; hitR = 6; alphaCalled = false; calibT0 = nil; pinHidden = false; foci = nil
   HR.db.recipe, HR.db.recipeBuild = "plain", "70999"
 end
 
@@ -601,7 +610,7 @@ reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}
 go("peacebloom"); go("verify probe")
 assert(msgs():find("Verify probe: point 1/", 1, true) and msgs():find("mouse moved during the countdown: NO", 1, true), msgs())
 assert(msgs():find("result: line", 1, true) and msgs():find("minimap back home: true", 1, true), msgs())
-assert(msgs():find("+1: moved=true onMinimap=true lines=true", 1, true), msgs())
+assert(msgs():find("+1: moved=true onMinimap=true focus=", 1, true) and msgs():find("lines=true", 1, true), msgs())
 
 -- 9. calibration finds the method that detects the dot the player points at
 local function calibrate(eng)
@@ -623,6 +632,18 @@ assert(HR.db.recipe == "soft cursor + update", m)
 assert(m:find("[plain] on the dot: none", 1, true) and m:find("[update] on the dot: none", 1, true), m)
 m = calibrate("deadshift")
 assert(HR.db.recipe == nil and m:find("Calibration failed", 1, true), m)
+
+-- the TomTom pin of the current waypoint is hidden while probing, then shown again
+reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}; engine = "pin"
+go("peacebloom")
+assert(HR.route.vstate[1] and HR.route.vstate[1].confirmed, "the pin must not hide the node from the probe: " .. tostring(HR.verifyReason))
+assert(pinHidden == false, "the pin must be shown again after the probe")
+
+-- another addon's icon under the cursor is named in the cause
+reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}; engine = "foreign"
+go("peacebloom")
+assert(msgs():find("a minimap icon is under the cursor (QuestieIcon7)", 1, true), msgs())
+foci = nil
 
 -- the arming test shows when the probes stop seeing the dot
 reset(); HR.db.verify = "off"; nodes = {{70, 40}}; engine = "armed"; armedAt = nil; calibT0 = Now()

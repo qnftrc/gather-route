@@ -99,6 +99,15 @@ local function mouseOverWorld()
 end
 
 
+-- The frame under the cursor (first of the mouse foci), if any.
+local function mouseFocus()
+    if GetMouseFoci then
+        local foci = GetMouseFoci()
+        return foci and foci[1]
+    end
+    if GetMouseFocus then return GetMouseFocus() end
+end
+
 MM.isSecret = isSecret
 MM.lineCount = lineCount
 MM.signature = signature
@@ -111,3 +120,4 @@ MM.waitFrames = waitFrames
 MM.savePoints = savePoints
 MM.placeMinimap = placeMinimap
 MM.mouseOverWorld = mouseOverWorld
+MM.mouseFocus = mouseFocus
