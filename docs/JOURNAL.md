@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Lancer `/hr probe blink world`** en jeu (phase A : souris sur un point jaune ; phase B : souris dans le monde, immobile, hors de toute fenêtre), puis `/hr probe blink world hidden` si l'effet visible gêne, et renvoyer les rapports. Faire aussi `/hr probe minimap` avec la souris sur un sol **vide** de la minimap pour savoir si la présence dépend d'un point jaune (R13).
+1. **Préciser où était la souris pendant `/hr probe minimap`** (sur un point jaune, ou sur un sol vide) et **installer le dernier zip** (sondes allégées). Refaire `/hr probe minimap` avec la souris sur un sol **vide** de la minimap et collez-moi la ligne « Baseline read » : c'est le test qui sépare « présence générique » de « présence liée aux points » (R13).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -74,6 +74,15 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - `Probe.lua` passe d'environ 850 à environ 390 lignes ; les tests hors jeu sont réécrits pour le jeu de sondes réduit. Anciennes versions dans l'historique Git (avant nettoyage : `30c4969`).
 - Les prochaines actions ne changent pas : lancer `/hr probe blink world` et `/hr probe minimap` sur sol vide.
 
+### 2026-11-19 — Rapports `blink world` (13:05) et `probe minimap` (13:06)
+- `blink world` (version du zip précédant le nettoyage) : phase A, point sous le curseur à (-12,7 ; -57,4) unités du centre. Phase B, curseur dans le monde : **contrôle** (minimap en place) absent à +1, +3 et +6 images ; **touché** (point amené sous le curseur) présent ; **trois contrôles** décalés de 40 unités **présents aussi** ; retour (minimap remise en place) absent partout. Verdict de la sonde : la lecture est présente où que la minimap se trouve sous le curseur, non liée au point.
+- Ce qui est acquis : le moteur **rafraîchit** le survol quand la minimap passe sous un curseur immobile ou s'en va (présent sous le curseur, absent au retour) : le mécanisme de NodeRadar fonctionne sur le build 70959 pour la **présence**.
+- Ce qui ne l'est pas : la présence est-elle liée à un point jaune ? Trois décalages de 40 unités tous présents. Deux explications : (a) la présence est générique dès que le curseur est sur la minimap ; (b) la zone de réponse d'un point est grande (environ 25 unités selon NodeRadar) et la minimap est dense en points (zoom 1, rayon 200 yd, pistage d'herbes, plus quêtes, maîtres de vol et aubergistes actifs), donc les trois positions tombaient chacune sur un autre point. Non départagé.
+- `probe minimap` (13:06, **ancienne version** : les balayages y figuraient encore, le zip allégé n'était donc pas installé) : curseur dans le disque, `MouseIsOver(Minimap)` faux, lecture de base **présente**. Forme des données : `dataInstanceID:number, lines:table, type:number | lines[1]: leftColor:secret, leftText:secret, type:number`. Les balayages ont de nouveau donné 100 % de réponses (écho). On ne sait pas où était la souris (point jaune ou sol vide) : à préciser.
+- Champs **lisibles** : `type`, `dataInstanceID` et `lines[1].type` sont des nombres ; seuls le texte et la couleur sont secrets. Leur valeur n'a pas été relevée : peuvent-ils distinguer les types de points ou identifier un objet ? À journaliser.
+- Piste : cartographier la présence par `blink` sur une grille (pas voisin de la zone de réponse), en relevant aussi `type` et `dataInstanceID`, pour mesurer la fraction de positions « présentes » (générique ou liée aux points) et la résolution réelle. Pas encore écrit.
+- Précaution de lecture : avec une zone d'environ 25 unités, la résolution dépend du zoom (environ 50 yd au zoom 1, environ 17 yd au zoom le plus fort, d'après le rayon de vue et la largeur de la minimap, estimation). La présence ne prouve donc qu'un point dans une zone, pas à l'emplacement exact du candidat ; elle ne permettrait de retirer que des candidats sans aucun point alentour.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -103,7 +112,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R10 | Tracé minimap (rotation, zoom) jamais vu en jeu | Non testé |
 | R11 | Noms d'infobulle secrets : pas de contrôle du type d'herbe, faux positifs possibles entre nœuds voisins | Accepté (D10) |
 | R12 | `UpdateMouseoverAtPoint` n'a pas d'effet positionnel (confirmé par la documentation de NodeRadar : sans effet dès le build 70862). Seule piste connue : déplacer la minimap sous un curseur au repos dans le monde | Ouvert, test = `/hr probe blink world` |
-| R13 | La présence de données est-elle liée à un point jaune sous le curseur, ou à la seule présence du curseur sur la minimap ? Jamais testé sur un sol vide | Ouvert, test = `/hr probe minimap` sur sol vide |
+| R13 | La présence de données est-elle liée à un point jaune sous le curseur, ou générique dès que le curseur est sur la minimap ? | Ouvert : blink world a montré 4 positions sur 4 présentes (touché et contrôles), minimap sol vide jamais testée avec certitude |
 | R14 | Le build 70959 (postérieur à 70938, dernier build documenté par NodeRadar) peut restreindre davantage | Ouvert |
 
 ## Commits

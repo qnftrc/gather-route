@@ -41,7 +41,8 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F29 | Faux minimap dans les tests pour valider états, retraits et garde-fous | Cadré | F23 | `tools/test_addon.py` |
 | F34 | Vérification par **présence** d'un point (noms secrets acceptés, faux positifs possibles entre nœuds voisins) | Cadré (D10) | F35 | `Verify.lua` |
 | F35 | ~~Déplacement de la minimap sous un curseur déjà sur la minimap (`/hr probe blink`)~~ | **Retiré** : non concluant en jeu, remplacé par F36 | n/a | n/a |
-| F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) : phase A sur un point jaune, phase B souris au repos dans le monde, minimap amenée sous le curseur (touché et contrôles), lecture à 1, 3 et 6 images | **Livré** (testé hors jeu sur moteur simulé, **à lancer en jeu**) | Test en jeu | `Probe.lua` |
+| F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) | **Livré**, lancé en jeu : le moteur rafraîchit bien le survol (présent sous le curseur, absent au retour) mais 4 positions sur 4 sont présentes : non départagé entre présence générique et zone de réponse large | Test en jeu | `Probe.lua` |
+| F37 | Cartographie de la présence par `blink` sur une grille (pas voisin de la zone de réponse), relevé de `type` et `dataInstanceID`, pour séparer présence générique et présence liée aux points et mesurer la résolution | Cadré, **prochaine étape** après la réponse sur le sol vide | Test en jeu | `Probe.lua` |
 
 ## Idées et options
 | Réf. | Fonctionnalité | Statut | Remarque |
