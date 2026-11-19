@@ -707,6 +707,50 @@ nodes = {}
 go("verify scan")
 assert(msgs():find("no blip found", 1, true), msgs())
 
+-- 11. ahead: points inside the minimap beyond the current one are probed too
+reset(); HR.db.verify = "off"; HR.db.verifyAhead = nil
+go("peacebloom")
+local ptsA = HR.route.points
+local target, bestD
+for j = 3, 50 do
+  local dc = (ptsA[j].x - 50) ^ 2 + (ptsA[j].y - 50) ^ 2
+  if dc < 40 * 40 then
+    local nearest = math.huge
+    for k, q in ipairs(ptsA) do
+      if k ~= j then nearest = math.min(nearest, (q.x - ptsA[j].x) ^ 2 + (q.y - ptsA[j].y) ^ 2) end
+    end
+    if nearest > 9 and (not bestD or nearest > bestD) then target, bestD = j, nearest end
+  end
+end
+assert(target, "no isolated point for the ahead test")
+reset(); HR.db.verify = "remove"; HR.db.verifyAhead = true; HR.verifyHits = 3; hitR = 1.5
+nodes = {}
+for j, q in ipairs(ptsA) do if j ~= target then nodes[#nodes + 1] = {q.x, q.y} end end
+go("peacebloom")
+r = HR.route
+assert(r.vstate[target] and r.vstate[target].final, "target not probed ahead: " .. msgs() .. " reason=" .. tostring(HR.verifyReason) .. " ahead=" .. tostring(r.vstats.ahead) .. " idx=" .. r.index .. " target=" .. target .. " probes=" .. r.vstats.probes)
+assert(r.removed[target], "the empty point ahead must be removed: " .. msgs())
+assert(r.vstats.ahead and r.vstats.ahead >= 2, "ahead probes: " .. tostring(r.vstats.ahead))
+local others = 0
+for j in pairs(r.removed) do if j ~= target then others = others + 1 end end
+assert(others == 0, others .. " point(s) with a node were removed")
+assert(#HerbRoute_Data["Elwynn Forest"]["Peacebloom"] == peaceCount)
+assert(sx == 0 and sy == 0)
+-- off: nothing is probed ahead, except on demand
+reset(); HR.db.verify = "remove"; HR.db.verifyAhead = false; HR.verifyHits = 3; hitR = 1.5
+nodes = {}
+for j, q in ipairs(ptsA) do if j ~= target then nodes[#nodes + 1] = {q.x, q.y} end end
+go("peacebloom"); r = HR.route
+assert((r.vstats.ahead or 0) == 0 and not r.removed[target], "ahead must be off")
+go("verify ahead")
+assert(msgs():find("Verify ahead: probing", 1, true) or r.aheadOnce == nil, msgs())
+RunTimers()
+assert(r.removed[target] and msgs() ~= nil, "manual pass must remove the empty point")
+go("verify ahead on"); assert(HR.db.verifyAhead == true)
+go("verify ahead off"); assert(HR.db.verifyAhead == false)
+HR.db.verifyAhead = nil
+go("stop")
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)

@@ -392,6 +392,64 @@ local function step(r)
     end, nil, recipeOpts())
 end
 
+local AHEAD_SCAN = 60  -- route points looked at beyond the current one
+
+-- Probes the next undecided point, beyond the current one, that is inside the
+-- minimap. Returns true while such a point remains (probed now or waiting).
+local function aheadStep(r)
+    if HR.verifyHits == 0 then return false end
+    local cur = r.vstate[r.index]
+    if cur and cur.checking and not cur.final then return false end
+    for j = r.index + 1, math.min(#r.points, r.index + AHEAD_SCAN) do
+        local st = r.vstate[j]
+        if not st then
+            st = {misses = 0, none = 0, nextAt = 0}
+            r.vstate[j] = st
+        end
+        if not r.removed[j] and not st.final and not st.confirmed then
+            local g = geometry(r, j)
+            if g and g.inside then
+                if GetTime() < st.nextAt then return true end
+                local why = blocked()
+                if why then
+                    HR.verifyReason = "waiting: " .. why
+                    return true
+                end
+                HR.verifyReason = "probing ahead"
+                probe(g.ox, g.oy, function(result, cause)
+                    if HR.route ~= r or r.removed[j] then return end
+                    r.vstats.probes = r.vstats.probes + 1
+                    r.vstats.ahead = (r.vstats.ahead or 0) + 1
+                    if result == "line" then
+                        HR.verifyHits = HR.verifyHits + 1
+                        st.confirmed = true
+                        r.vstats.confirmed = r.vstats.confirmed + 1
+                    elseif result == "empty" then
+                        st.final = true
+                        r.vstats.empty = r.vstats.empty + 1
+                        local label = ("point %d/%d (%s)"):format(j, #r.points, r.points[j].herb)
+                        if HR.db.verify == "remove" then
+                            HR:Print(("Verify: %s has no node: removed."):format(label))
+                            HR:DropPoint(j)
+                        else
+                            HR:Print(("Verify: %s has no node (report mode, kept; /hr verify remove to remove)."):format(label))
+                        end
+                    else
+                        st.none = st.none + 1
+                        r.vstats.none = r.vstats.none + 1
+                        r.vstats.causes[cause] = (r.vstats.causes[cause] or 0) + 1
+                        HR.lastCause = cause
+                        st.nextAt = GetTime() + math.min(10, 1 + st.none * 1.5)
+                    end
+                    HR:RouteChanged()
+                end, nil, recipeOpts())
+                return true
+            end
+        end
+    end
+    return false
+end
+
 function HR:StartVerify()
     local r = self.route
     if not r then return end
@@ -401,16 +459,37 @@ function HR:StartVerify()
     local function tick()
         if HR.route ~= r then return end
         updateRest()
-        if r.mode == "follow" and HR.db.verify ~= "off" and not probing then step(r) end
+        if r.mode == "follow" and HR.db.verify ~= "off" and not probing then
+            step(r)
+            if not probing and (HR.db.verifyAhead or r.aheadOnce) then
+                if not aheadStep(r) and r.aheadOnce then
+                    r.aheadOnce = nil
+                    HR:Print(("Verify ahead: done (%d point(s) probed ahead, %d removed so far)."):format(r.vstats.ahead or 0, r.removedCount or 0))
+                end
+            end
+        end
         C_Timer.After(TICK, tick)
     end
     tick()
 end
 
+function HR:VerifyAhead(arg)
+    if arg == "on" or arg == "off" then
+        self.db.verifyAhead = arg == "on"
+        return self:Print("Verify ahead (automatic): " .. arg)
+    end
+    local r = self.route
+    if not r or r.mode ~= "follow" or not r.vstate then return self:Print("Verify ahead: needs a route in follow mode.") end
+    if self.db.verify == "off" then return self:Print("Verify is off: /hr verify report first.") end
+    if self.verifyHits == 0 then return self:Print("Verify ahead: no blip has been confirmed yet; the current point is checked first.") end
+    r.aheadOnce = true
+    self:Print("Verify ahead: probing the points inside the minimap (automatic: " .. (self.db.verifyAhead and "on" or "off") .. ", /hr verify ahead on|off).")
+end
+
 function HR:VerifyStatus()
     local r = self.route
-    local line = ("Verify: %s (%d blip(s) confirmed this session), method: %s"):format(
-        self.db.verify, self.verifyHits, recipeOpts() and self.db.recipe or "not calibrated (/hr verify calibrate)")
+    local line = ("Verify: %s%s (%d blip(s) confirmed this session), method: %s"):format(
+        self.db.verify, self.db.verifyAhead and " + ahead" or "", self.verifyHits, recipeOpts() and self.db.recipe or "not calibrated (/hr verify calibrate)")
     if r and r.vstats then
         line = line .. (", this route: %d probe(s), %d confirmed, %d empty, %d inconclusive, %d removed"):format(
             r.vstats.probes, r.vstats.confirmed, r.vstats.empty, r.vstats.none, r.removedCount or 0)

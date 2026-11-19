@@ -21,6 +21,8 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 
 | B11 | Même enrichissement pour les **minerais** de GatherMate, même format, même déclinaison par zone puis par catégorie : une option pour choisir entre herbes et minerais, puis par type d'herbe ou de minerai ; tout le reste inchangé | Demande du joueur |
 
+| B12 | Sonder automatiquement, en plus du manuel, tous les futurs waypoints qui entrent dans les 85 % du rayon de vue de la minimap | Réponse du joueur |
+
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.
 - Il existe une lecture indirecte, décrite dans l'[issue #2](https://github.com/Spotnick2/NodeRadar/issues/2) et la [PR #9](https://github.com/Spotnick2/NodeRadar/pull/9) de NodeRadar : `Minimap:UpdateMouseoverAtPoint(x, y)` déplace le survol de la minimap vers un point, puis `C_TooltipInfo.GetMinimapMouseover()` renvoie l'infobulle (le nom de l'herbe). `Minimap:SetUsingSoftCursor(true)` a été ce qui a fait fonctionner la lecture avec le curseur dans le monde. Un balayage complet est mesuré à environ 2 ms. L'API n'y est pas documentée (signatures et valeurs de retour non données).

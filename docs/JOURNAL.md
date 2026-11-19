@@ -237,6 +237,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D14 | La méthode de sondage est **calibrée en jeu** sur un point jaune connu (`/hr verify calibrate`), mémorisée avec le numéro de build ; sans calibration valide la vérification ne sonde pas | 2026-11-19 | Appliquée (non testée en jeu) |
 | D15 | Le pin TomTom de la minimap du waypoint courant est **masqué pendant chaque sonde** (`HideWaypoint` puis `ShowWaypoint`), car c'est un bouton qui capte la souris | 2026-11-19 | Appliquée (non testée en jeu) |
 | D16 | Avant tout retrait dans une session, l'add-on **sonde jusqu'à 12 points voisins** pour trouver un nœud et confirmer la projection ; sans aucun nœud trouvé, rien n'est retiré et la vérification n'est pas retentée pour cette route | 2026-11-19 | Appliquée (non testée en jeu) |
+| D19 | La vérification sonde aussi **en avance** les points à portée de minimap (automatique par défaut, coupable par `/hr verify ahead off`) ; mêmes règles que pour le point courant | 2026-11-19 | Appliquée (non testée en jeu) |
 | D17 | La base peut être **enrichie par ajout seulement** (fichier séparé généré par `tools/merge_gathermate.py`) : les points d'origine ne sont jamais modifiés ni retirés ; un point de la source à moins de 0,5 % d'un point existant de la même herbe est un doublon et n'est pas ajouté | 2026-11-19 | Appliquée (GatherMate Forever : +1 386 points, région Felwood) |
 | D18 | Les **minerais** sont une seconde catégorie de données (`HerbRoute_OreData`, fichier séparé généré, jamais mélangée aux herbes) ; la catégorie, puis la région, puis le type se choisissent dans cet ordre ; le reste du comportement est inchangé | 2026-11-19 | Appliquée (GatherMate Forever : 8 920 points, 41 régions, 18 minerais) |
 
@@ -280,6 +281,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Correction au passage : la ligne « Total » du rapport des herbes avait les colonnes « Fusionnés » et « Ajoutés » inversées (1 386 et 458) ; elle est corrigée et le rapport régénéré.
 - Tests hors jeu : `tools/test_addon.py` couvre les données (41 régions, 8 920 points), les routes par minerai, `/hr ores ... all`, les erreurs, le pistage par catégorie, l'ouverture de la fenêtre sur la catégorie « ores » (faux widgets : rendu non testé).
 - Limites : (1) le sort 2580 est celui du client d'origine, non vérifié sur Forever (repli sur le nom « Find Minerals ») ; (2) la calibration de la vérification minimap a été faite sur un point d'herbe, rien ne garantit la même réponse pour un minerai.
+
+### 2026-11-19 — Vérification en avance des points à portée de minimap (F49, besoin B12)
+- Question restée ouverte : le balayage des points futurs dans 85 % du rayon de vue doit-il être manuel seulement ? **Réponse du joueur : automatique aussi.**
+- Livré : à chaque tick, quand le point courant n'a rien à sonder, l'add-on sonde le **prochain point non décidé** situé dans le disque (85 %), parmi les 60 suivants de la route. Même méthode, mêmes garde-fous, même règle qu'ailleurs : une ligne = nœud confirmé (le dernier contrôle à 35 yd reste fait quand il devient courant), un sondage vide = absent (retiré en mode `remove`, signalé en `report`). Rien n'est sondé en avance tant qu'aucun nœud n'a été confirmé dans la session (D16) ; la base n'est jamais touchée (D8).
+- Réglage : `/hr verify ahead on|off` (automatique, **activé par défaut**, `HerbRouteDB.verifyAhead`) ; `/hr verify ahead` seul lance une passe à la demande même si l'automatique est coupé.
+- Limites : un sondage = un déplacement de la minimap (R18) : la passe en avance en ajoute jusqu'à 60 par route ; dans une zone dense, un nœud voisin peut répondre à la place du point sondé (faux « présent »). Testé hors jeu seulement.
 
 ## Commits
 | Commit | Contenu |

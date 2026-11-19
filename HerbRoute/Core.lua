@@ -12,6 +12,7 @@ local defaults = {
     showMinimap = true,
     isolateTracking = true,
     verify = "report",
+    verifyAhead = true,
     overrides = {},
 }
 
@@ -83,7 +84,7 @@ local function usage()
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
     HR:Print("/hr stop | skip | debug")
     HR:Print("/hr tracking [on|off|status|restore] - keep only Find Herbs during a route")
-    HR:Print("/hr verify [off|report|remove|status|probe|scan|calibrate|arming] - check the next point on the minimap")
+    HR:Print("/hr verify [off|report|remove|status|ahead [on|off]|probe|scan|calibrate|arming] - check the next point on the minimap")
     HR:Print("/hr probe [minimap|watch|blink world [hidden]|copy] - test minimap reading")
     HR:Print("/hr setmap <region>: <mapID> - force the map ID of a region")
 end
@@ -120,6 +121,7 @@ local function handleSlash(msg)
         if arg == "scan" then return HR:VerifyScan() end
         if arg == "calibrate" then return HR:VerifyCalibrate() end
         if arg == "arming" then return HR:VerifyArming() end
+        if arg == "ahead" or arg:match("^ahead%s+%a+$") then return HR:VerifyAhead(arg:match("^ahead%s+(%a+)$")) end
         if arg == "off" or arg == "report" or arg == "remove" then HR.db.verify = arg end
         HR:VerifyStatus()
     elseif cmd == "probe" then
