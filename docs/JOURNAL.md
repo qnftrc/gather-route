@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Installer le dernier zip** (sondes allégées, `watch`, valeurs des champs numériques), puis lancer `/hr probe watch` (seul « Trouver les herbes » actif, souris déplacée lentement sur sol vide, points d'herbe, puis hors de la minimap) et `/hr probe minimap` avec **tous les pistages désactivés**. Coller les deux rapports. Ils décident entre vérification par la minimap et mémoire de récolte seule (R13).
+1. **Installer le dernier zip** (présence redéfinie : au moins une ligne d'infobulle), puis : (a) `/hr probe watch` en notant où se trouvent les points d'herbe sur la minimap, pour confirmer que `lines=1` correspond à un point et `lines=0` (état « empty ») au sol ; (b) **relancer `/hr probe blink world`**, dont le verdict d'avant comptait n'importe quelle donnée. Coller les rapports. Ils décident de la vérification par la minimap (R13, F34).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -106,6 +106,14 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Testé hors jeu sur une API de pistage simulée (dont le format ancien de `GetTrackingInfo`, l'échange entre pistages à sort, le combat, la reprise au chargement, les commandes).
 - Risques : activer ou rétablir un pistage à sort peut lancer un temps de recharge sur la barre d'actions (observé par NodeRadar) ; un seul pistage à sort est actif à la fois, donc rétablir « Trouver les minerais » remplace « Trouver les herbes » ; un pistage modifié à la main pendant la route sera écrasé à la restauration. Signature de `SetTracking` non confirmée sur ce client.
 
+### 2026-11-19 — Rapport `watch` (13:43) : la présence se lit dans les lignes d'infobulle
+- Rapport : seul « Trouver les herbes » actif, zoom 0, rayon 233,3 yd, 76 échantillons, 10 changements. Toujours `type=21` ; `dataInstanceID` croît de 111965 à 113393 (compteur, pas une identité) ; `line1type` alterne entre `0` et `?` ; `none` au milieu de la minimap à t=9,6 s et hors de la minimap.
+- Constat : `line1type=0` apparaît à trois positions voisines, (-19,-35), (-23,-42) et (-9,-38), c'est-à-dire dans un carré d'une vingtaine d'unités, ce qui correspond à la zone de réponse d'environ 25 unités d'un seul point jaune ; `?` partout ailleurs (-36,15), (-3,-48), (1,-37), (1,33), (-35,-43).
+- Hypothèse (forte, à confirmer) : `?` = données **sans ligne** (survol vide, la minimap renvoie une table même sur un sol vide), `0` = **au moins une ligne** (un point sous le curseur). C'est exactement ce que dit NodeRadar : « une lecture vide reste simple (nil ou aucune ligne), on sait donc s'il y a quelque chose sous le point ».
+- Correction de ma définition : jusqu'ici la sonde appelait « présent » toute donnée non nulle, ce qui est vrai partout dans la minimap : c'est ce qui donnait 4 sur 4 dans `blink world` et « données sur sol vide » (le sol annoncé vide l'était peut-être seulement à l'œil, ou la forme `lines[1]` vue alors indique un point dans la zone). La présence utile est **au moins une ligne**.
+- Conséquence : la vérification par présence (D10) est **rétablie avec cette définition** ; R13 devient « résolu en principe ». Le verdict du premier `blink world` n'est pas exploitable (il comptait n'importe quelle donnée) : à refaire.
+- Écrit : `lineCount`, présence = au moins une ligne dans toute la sonde ; `watch` journalise `lines=N` et distingue « none » (aucune donnée) de « empty » (données sans ligne) ; la lecture de base annonce « data with N line(s) » ou « data without lines » ; `blink world` utilise la nouvelle présence. Fonction `baseline` devenue inutile retirée. Tests hors jeu adaptés (le moteur simulé renvoie maintenant des données vides sur un sol vide, comme le vrai).
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -118,7 +126,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D7 | La route d'origine est conservée ; on retire des points au lieu de la recalculer | 2026-11-19 | Cadrée |
 | D8 | **Base intacte** : `HerbRoute_Data` n'est jamais modifiée ; seuls les waypoints TomTom du trajet en cours sont retirés | 2026-11-19 | Contrainte |
 | D9 | Pas de recalage de la base à partir des écarts mesurés | 2026-11-19 | Contrainte |
-| D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | **Remise en cause** : la présence est probablement générique (sol vide présent), voir R13 |
+| D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. **Présence = au moins une ligne d'infobulle** (une donnée vide n'est pas une présence). Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | **Rétablie et redéfinie** après le rapport `watch` ; à confirmer par `blink world` (R13) |
 | D11 | Pendant une route, seul « Trouver les herbes » reste actif ; la configuration d'origine est sauvegardée et rétablie à l'arrêt, au chargement ou après combat. Option désactivable | 2026-11-19 | Appliquée (non testée en jeu) |
 
 ## Risques et questions ouvertes
@@ -136,7 +144,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R10 | Tracé minimap (rotation, zoom) jamais vu en jeu | Non testé |
 | R11 | Noms d'infobulle secrets : pas de contrôle du type d'herbe, faux positifs possibles entre nœuds voisins | Accepté (D10) |
 | R12 | `UpdateMouseoverAtPoint` n'a pas d'effet positionnel (confirmé par la documentation de NodeRadar : sans effet dès le build 70862). Seule piste connue : déplacer la minimap sous un curseur au repos dans le monde | Ouvert, test = `/hr probe blink world` |
-| R13 | La présence de données est-elle liée à un point jaune ? | **Réponse partielle : données présentes sur sol vide** (présence très probablement générique). Reste à voir si `type`/`dataInstanceID` distinguent point et sol |
+| R13 | La présence est-elle liée à un point jaune ? | **Résolu en principe** : la donnée existe partout dans la minimap, mais seules les positions sur un point ont des lignes (`watch`) ; à confirmer en jeu avec les positions des points |
 | R14 | Le build 70959 (postérieur à 70938, dernier build documenté par NodeRadar) peut restreindre davantage | Ouvert |
 | R15 | Activer ou rétablir un pistage à sort peut lancer un temps de recharge sur la barre d'actions (NodeRadar) | À observer en jeu |
 | R16 | Signatures de `C_Minimap.GetTrackingInfo` et `SetTracking` supposées (formats table et ancien) | À confirmer par le test en jeu de F21 |

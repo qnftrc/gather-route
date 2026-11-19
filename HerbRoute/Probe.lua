@@ -70,11 +70,13 @@ local function describe(data)
     return out
 end
 
--- Read without moving the mouseover: what the real mouse hover gives.
-local function baseline()
-    local ok, data = pcall(C_TooltipInfo.GetMinimapMouseover)
-    if not ok then return false, "error: " .. tostring(data) end
-    return data ~= nil, describe(data)
+-- Number of tooltip lines. An empty hover returns data without lines, so "a
+-- blip is under the hover" means at least one line, not merely non-nil data.
+local function lineCount(data)
+    if type(data) ~= "table" or isSecret(data) then return 0 end
+    local ls = data.lines
+    if type(ls) ~= "table" or isSecret(ls) then return 0 end
+    return #ls
 end
 
 -- The readable numbers of the tooltip data (the text and color are secret).
@@ -85,14 +87,20 @@ local function signature(data)
         if type(v) == "number" and not isSecret(v) then return tostring(v) end
         return "?"
     end
-    return ("type=%s id=%s line1type=%s"):format(n(data.type), n(data.dataInstanceID),
+    return ("type=%s id=%s lines=%d line1type=%s"):format(n(data.type), n(data.dataInstanceID), lineCount(data),
         type(line) == "table" and n(line.type) or "?")
 end
 
-local function reading()
+local function rawRead()
     local ok, data = pcall(C_TooltipInfo.GetMinimapMouseover)
-    if not ok or data == nil then return false end
-    return true, signature(data)
+    if not ok then return nil end
+    return data
+end
+
+-- Returns: something under the hover (lines), the signature, any data at all.
+local function reading()
+    local data = rawRead()
+    return lineCount(data) > 0, signature(data), data ~= nil
 end
 
 local function present()
@@ -200,14 +208,21 @@ local function runMain(expected)
         return finish()
     end
 
-    local found, shape = baseline()
-    add("Baseline read (no probe call): %s", found and "data present" or "no data")
-    add("  structure: %s", shape)
-    if shape:find("secret", 1, true) then
-        add("NOTE: text fields are secret values; only the presence of data is readable.")
+    local data = rawRead()
+    local n = lineCount(data)
+    add("Baseline read (no probe call): %s",
+        data == nil and "no data" or (n > 0 and ("data with %d line(s)"):format(n) or "data without lines"))
+    add("  structure: %s", describe(data))
+    if describe(data):find("secret", 1, true) then
+        add("NOTE: text fields are secret values; only the presence of tooltip lines is readable.")
     end
-    add("RESULT: %s (cursor %s the minimap disc).", found and "data under the real mouse hover" or "no data under the cursor",
-        inside and "inside" or "outside")
+    if n > 0 then
+        add("RESULT: something is under the real mouse hover (cursor %s the minimap disc).", inside and "inside" or "outside")
+    elseif data ~= nil then
+        add("RESULT: empty hover data, nothing under the cursor (cursor %s the minimap disc).", inside and "inside" or "outside")
+    else
+        add("RESULT: no data under the cursor (cursor %s the minimap disc).", inside and "inside" or "outside")
+    end
     finish()
 end
 
@@ -246,12 +261,12 @@ local function runBlinkWorldB(hidden, ox, oy)
             for _, m in ipairs(misses) do if any(m) then missPresent = true end end
             local latency = hit.r1 and "1 frame" or (hit.r3 and "3 frames" or "6 frames")
             if any(control) then
-                add("RESULT: data is present even with the minimap in place and the cursor in the world: the reading is not tied to a blip position.")
+                add("RESULT: lines are reported even with the minimap in place and the cursor in the world: the reading is not tied to a blip position.")
             elseif any(hit) and not missPresent then
-                add("RESULT: presence of a blip can be sampled by moving the minimap under a resting cursor (answer after %s).", latency)
-                add("  Hit present, controls absent: positional verification is feasible.")
+                add("RESULT: a blip can be detected by moving the minimap under a resting cursor (lines appear after %s).", latency)
+                add("  Hit has lines, controls have none: positional verification is feasible.")
             elseif any(hit) and missPresent then
-                add("RESULT: the reading is present wherever the minimap lies under the cursor: not tied to the blip.")
+                add("RESULT: lines are reported wherever the minimap lies under the cursor: not tied to the blip.")
             elseif not any(hit) then
                 add("RESULT: the blip did not show up under the cursor after the minimap was moved: no positional sampling with this method on this build.")
             else
@@ -375,9 +390,9 @@ local function runWatch()
             return finish()
         end
         samples = samples + 1
-        local has, sig = reading()
-        local state = has and sig or "none"
-        local key = has and (sig:gsub(" id=%S+", "")) or "none"
+        local has, sig, anyData = reading()
+        local state = has and sig or (anyData and ("empty: " .. sig) or "none")
+        local key = anyData and (sig:gsub(" id=%S+", "")) or "none"
         local inside = cursorInside()
         key = key .. "|" .. tostring(inside)
         if key ~= last then

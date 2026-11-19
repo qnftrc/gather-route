@@ -25,8 +25,8 @@ Rappel : **aucune fonctionnalité de l'add-on de route n'a encore été testée 
 | Réf. | Fonctionnalité | Choix de conception | État | Tests à faire en jeu |
 |---|---|---|---|---|
 | F20 | `/hr probe`, `/hr probe minimap` : environnement, pistages, fonctions, lecture du survol réel avec **valeurs des champs numériques** | Aucun effet durable, `pcall` partout, rapport dans le chat, `HerbRouteDB` et une fenêtre à copier ; jeu de sondes réduit le 2026-11-19 | Livré, 2 rapports en jeu | `/hr probe minimap` avec **tous les pistages désactivés** (présence générique de façon certaine ?), puis sur point jaune et sur sol vide pour comparer `type` et `line1type` |
-| F36 | `/hr probe blink world [hidden]` | Méthode de NodeRadar : curseur au repos dans le monde, minimap déplacée dessous, contrôles décalés de 40 unités, garde-fous (combat, bouton, souris bougée), restauration systématique | Livré, 1 rapport : le survol est rafraîchi, mais 4 positions sur 4 présentes | À refaire seulement si F38 montre que la lecture varie avec les points |
-| F38 | `/hr probe watch` | 15 s, journalise les changements de présence et de signature (`type`, `line1type`) avec la position du curseur, ignore `dataInstanceID` pour détecter un changement | Livré, jamais lancé en jeu | Seul « Trouver les herbes » actif, souris déplacée lentement : sol vide, points d'herbe, puis hors minimap ; coller le rapport |
+| F36 | `/hr probe blink world [hidden]` | Méthode de NodeRadar ; verdict sur la présence = au moins une ligne | Livré ; premier rapport non exploitable (ancienne définition) | **À refaire** : point amené sous le curseur = lignes, contrôles = aucune ligne |
+| F38 | `/hr probe watch` | 15 s, journalise les changements de présence (lignes) et de signature, distingue « none » et « empty », ignore `dataInstanceID` | Livré, 1 rapport : lignes sur un carré d'environ 20 unités | Refaire en notant la position des points d'herbe pour confirmer `lines` = point |
 | F35 | Ancien `blink` (curseur déjà sur la minimap) | Retiré : non concluant | Retiré | Aucun |
 
 ## 3. Vérification des points par la minimap (cadrée, **conditionnelle**)
@@ -43,8 +43,8 @@ Tout ce bloc dépend du résultat de F38 et du contrôle « tous pistages désac
 | F27 | Interface | Case « Vérifier avec la minimap », compteurs conservés, confirmés, retirés | Cadré | Rendu et mise à jour |
 | F28 | Tracés | Ignorer les points retirés, couleur des confirmés | Cadré | Rendu carte et minimap |
 | F29 | Faux minimap dans les tests | Étendre `tools/test_addon.py` | Cadré | États, retraits, garde-fous |
-| F34 | Vérification par **présence** (D10) | Noms secrets acceptés, l'herbe attendue étant celle du waypoint | **À risque** : présence probablement générique | Dépend de F38 : `type`/`line1type` distinguent-ils point et sol ? |
-| F37 | Cartographie de la présence par `blink` sur une grille | Pas voisin de la zone de réponse, relevé de `type` et `dataInstanceID` | Conditionnel à F38 | Fraction de positions présentes, résolution |
+| F34 | Vérification par **présence** (D10) | Noms secrets acceptés ; **présence = au moins une ligne d'infobulle** | **Rétabli** : `watch` montre des lignes seulement sur un point | À confirmer par `blink world` refait avec cette définition |
+| F37 | Cartographie de la présence par `blink` sur une grille | Pas voisin de la zone de réponse, relevé de `type`, `lines` | Redevient pertinent si F36 confirme | Fraction de positions avec lignes, résolution |
 
 **Repli si rien ne distingue un point du sol** : abandon de la vérification par la minimap, mémoire de récolte (F32).
 

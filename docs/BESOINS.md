@@ -44,6 +44,11 @@ Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/ma
 - Conséquence : la vérification par **présence** (B7, D10, F34) est remise en cause. Elle ne redevient possible que si un champ numérique lisible (`type`, `dataInstanceID`, `lines[1].type`) distingue un point du sol. Test : `/hr probe watch`, puis `/hr probe minimap` avec tous les pistages désactivés.
 - Repli si rien ne distingue : abandon de la vérification par la minimap, mémoire de récolte (4.4) seule. La base reste intacte dans tous les cas.
 
+### 3 quinquies Rapport `watch` : la présence se lit dans les lignes
+- Sur le build 70959, la minimap renvoie des données pour **tout** curseur placé dessus ; seules les positions sur un point jaune renvoient **au moins une ligne** d'infobulle (`line1type=0`), les autres des données sans ligne (`?`). Hors de la minimap : aucune donnée. `type` reste 21, `dataInstanceID` est un compteur.
+- La vérification par **présence** (B7, D10, F34) est rétablie avec cette définition : présence = au moins une ligne. À confirmer par un nouveau `blink world`.
+- Résolution : la zone de réponse d'un point est d'une vingtaine d'unités (carré d'environ 20 à 25 unités) ; au zoom 0 (rayon 233 yd) cela représente de l'ordre de 50 yd, au zoom le plus fort de l'ordre de 17 yd (estimation). La vérification ne peut retirer que des candidats sans aucun point à proximité.
+
 ## 4. Conception envisagée
 
 ### 4.1 Sondes de validation (`/hr probe`) — première étape (écrites, jouées en partie)

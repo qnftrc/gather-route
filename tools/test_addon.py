@@ -147,7 +147,10 @@ C_TooltipInfo = {GetMinimapMouseover = function()
   if mode == "none" then return nil end
   if mode == "stale" then return hit end
   if mode == "dead" then return Now() < t0 + 4 and hit or nil end
-  return geometry() and hit or nil
+  local cu, cv = GetCursorPosition()
+  local dx, dy = cu / es - (cxm + sx), cv / es - (cym + sy)
+  if dx * dx + dy * dy > 70 ^ 2 then return nil end
+  return geometry() and hit or {type = 21, dataInstanceID = 1, lines = {}}
 end}
 LibStub = function() return nil end
 playerMap, px, py = 37, 0.5, 0.5
@@ -161,9 +164,9 @@ end
 -- plain probe: baseline read of the real hover
 local t = run("probe")
 assert(t:find("Client 12.1.5 build 70999", 1, true) and t:find("Tracking active: Find Herbs", 1, true), t)
-assert(t:find("Baseline read (no probe call): data present", 1, true), t)
+assert(t:find("Baseline read (no probe call): data with 1 line(s)", 1, true), t)
 assert(t:find("structure: lines:table | lines[1]: leftText:string", 1, true), t)
-assert(t:find("RESULT: data under the real mouse hover (cursor inside the minimap disc)", 1, true), t)
+assert(t:find("RESULT: something is under the real mouse hover (cursor inside the minimap disc)", 1, true), t)
 
 local savedCur = curx
 curx = 5000
@@ -173,7 +176,7 @@ curx = savedCur
 
 issecretvalue = function() return true end
 t = run("probe")
-assert(t:find("structure: <secret value>", 1, true) and t:find("NOTE: text fields are secret values", 1, true), t)
+assert(t:find("structure: <secret value>", 1, true) and t:find("NOTE: text fields are secret values", 1, true) and t:find("empty hover data", 1, true), t)
 issecretvalue = nil
 
 local saved = C_TooltipInfo.GetMinimapMouseover
@@ -181,7 +184,7 @@ C_TooltipInfo.GetMinimapMouseover = nil
 assert(run("probe"):find("function missing", 1, true))
 C_TooltipInfo.GetMinimapMouseover = saved
 
-assert(run("probe minimap"):find("RESULT: data under the real mouse hover", 1, true))
+assert(run("probe minimap"):find("RESULT: something is under the real mouse hover", 1, true))
 curx = 5000
 assert(run("probe minimap"):find("RESULT: no data under the cursor", 1, true))
 assert(table.concat(printed, "\n"):find("The cursor is not inside the minimap", 1, true))
@@ -202,16 +205,19 @@ C_TooltipInfo.GetMinimapMouseover = function()
   if stage == 1 then return {type = 21, dataInstanceID = 5, lines = {{type = 0}}} end
   if stage == 2 then return {type = 21, dataInstanceID = 6, lines = {{type = 0}}} end
   if stage == 3 then return {type = 9, dataInstanceID = 7, lines = {{type = 1}}} end
+  if stage == 4 then return {type = 21, dataInstanceID = 8, lines = {}} end
   return nil
 end
 C_Timer.After(3 + 1, function() stage = 1 end)
 C_Timer.After(3 + 5, function() stage = 2 end)
 C_Timer.After(3 + 8, function() stage = 3 end)
+C_Timer.After(3 + 10, function() stage = 4 end)
 C_Timer.After(3 + 12, function() stage = 0 end)
 local wtxt = run("probe watch")
-assert(wtxt:find("probe watch", 1, true) and wtxt:find("type=21 id=5 line1type=0", 1, true), wtxt)
-assert(wtxt:find("type=9 id=7 line1type=1", 1, true) and wtxt:find(": none", 1, true), wtxt)
+assert(wtxt:find("probe watch", 1, true) and wtxt:find("type=21 id=5 lines=1 line1type=0", 1, true), wtxt)
+assert(wtxt:find("type=9 id=7 lines=1 line1type=1", 1, true) and wtxt:find(": none", 1, true), wtxt)
 assert(not wtxt:find("id=6", 1, true), "an id-only change must not create an event")
+assert(wtxt:find("empty: type=21 id=8 lines=0 line1type=?", 1, true), wtxt)
 assert(wtxt:find("samples,", 1, true), wtxt)
 C_TooltipInfo.GetMinimapMouseover = savedTip
 stage = 0
@@ -234,10 +240,10 @@ local function bw(m, arg)
 end
 local w = bw("hover")
 assert(w:find("Phase A: blip under the cursor, offset from the minimap center (20.0, 10.0)", 1, true), w)
-assert(w:find("RESULT: presence of a blip can be sampled by moving the minimap under a resting cursor (answer after 1 frame)", 1, true), w)
+assert(w:find("RESULT: a blip can be detected by moving the minimap under a resting cursor (lines appear after 1 frame)", 1, true), w)
 assert(w:find("  hit (", 1, true) and w:find("  control (0,0): +1 frame absent", 1, true), w)
 assert(bw("hover", "blink world hidden"):find("(hidden)", 1, true))
-assert(bw("stale"):find("RESULT: data is present even with the minimap in place", 1, true))
+assert(bw("stale"):find("RESULT: lines are reported even with the minimap in place", 1, true))
 assert(bw("dead"):find("RESULT: the blip did not show up under the cursor", 1, true))
 foci = {{}}
 assert(bw("hover"):find("ABORTED: the mouse is over a UI element", 1, true))
