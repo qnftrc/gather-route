@@ -76,7 +76,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr stop | skip | debug")
-    HR:Print("/hr probe [world|minimap|zoom|blink|blink world|copy] - test minimap reading")
+    HR:Print("/hr probe [minimap|blink world [hidden]|copy] - test minimap reading")
     HR:Print("/hr setmap <region>: <mapID> - force the map ID of a region")
 end
 

@@ -18,7 +18,7 @@ Exécute le JS du planner (`ref_route.js`, via Node) et `HerbRoute/RouteMath.lua
 ```bash
 python3 -I tools/test_addon.py
 ```
-Charge tous les fichiers Lua dans un faux environnement WoW/TomTom : résolution des régions, génération, avancement, skip, suppression externe, fin de route, mode pins, entrées invalides, et `/hr probe` sur un faux minimap (lecture seulement avec curseur logiciel, étalonnage, écart à la base, valeurs secrètes, zoom, écho du survol réel, `blink` avec un moteur simulé : lecture qui suit la minimap, lecture figée, rafraîchissement par `UpdateMouseoverAtPoint`, abandons en combat, bouton enfoncé, curseur hors minimap, restauration de la minimap), puis `blink world` (touché et contrôles, abandons). Aucune erreur Lua ne doit apparaître. Ne teste pas le rendu réel (UI, lignes carte/minimap).
+Charge tous les fichiers Lua dans un faux environnement WoW/TomTom : résolution des régions, génération, avancement, skip, suppression externe, fin de route, mode pins, entrées invalides, puis `/hr probe` sur un faux minimap : lecture de base du survol réel, valeurs secrètes, fonction absente, commandes retirées (affichage de l'aide), et `blink world` (cas touché et contrôles, lecture figée, lecture disparue, abandons en combat, bouton enfoncé, souris sur une fenêtre, curseur hors du monde, restauration de la minimap). Aucune erreur Lua ne doit apparaître. Ne teste pas le rendu réel (UI, lignes carte/minimap) ni le comportement du vrai moteur.
 
 ## Prérequis
 `pip install lupa` (Lua embarqué, version 5.5 ; WoW exécute du Lua 5.1), Python 3 et Node.js.

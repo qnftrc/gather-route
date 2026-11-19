@@ -108,14 +108,14 @@ print("OK")
 ''')
 
 lua.execute(r'''
--- /hr probe against a fake minimap: blips answer only with the soft cursor,
--- in the "cursor" convention (screen pixels = units * effective scale).
+-- /hr probe against a fake minimap. The blip is under the mouse when the
+-- minimap lies so that its offset (20,10) from the center matches the cursor.
 local cxm, cym, es = 500, 400, 2
-local soft, last, zoom = false, nil, 3
-local sx, sy, alphaV, fresh, cached, bl = 0, 0, 1, false, false, nil
-local curx, cury, mouseDown, inCombat = (cxm + 20) * es, (cym + 10) * es, false, false
+local sx, sy, alphaV, soft = 0, 0, 1, false
+local curx, cury, mouseDown, inCombat, t0 = (cxm + 20) * es, (cym + 10) * es, false, false, 0
+local worldAfter, worldCursor, foci = false, {100, 100}, nil
+local bl, mode = {20, 10}, "hover"
 UIParent = {}
-local worldAfter, worldCursor, foci, t0 = false, {100, 100}, nil, 0
 WorldFrame = {}
 GetMouseFoci = function() return foci or {WorldFrame} end
 GetCursorPosition = function()
@@ -124,167 +124,108 @@ GetCursorPosition = function()
 end
 IsMouseButtonDown = function() return mouseDown end
 InCombatLockdown = function() return inCombat end
-local blips, mode = {}, "ok"
 Minimap = {
   GetCenter = function() return cxm + sx, cym + sy end, GetWidth = function() return 140 end,
   GetHeight = function() return 140 end, GetEffectiveScale = function() return es end,
-  GetZoom = function() return zoom end, SetZoom = function(_, z) zoom = z end,
-  GetZoomLevels = function() return 3 end, IsVisible = function() return true end,
-  UpdateMouseoverAtPoint = function(_, x, y) last = {x, y}; fresh = true end,
-  SetUsingSoftCursor = function(_, b) soft = b end,
+  GetZoom = function() return 1 end, IsVisible = function() return true end,
   GetNumPoints = function() return 1 end,
   GetPoint = function() return "CENTER", UIParent, "CENTER", sx, sy end,
   ClearAllPoints = function() end,
   SetPoint = function(_, _, _, _, x, y) sx, sy = x, y end,
   GetAlpha = function() return alphaV end, SetAlpha = function(_, a) alphaV = a end,
+  UpdateMouseoverAtPoint = function() end,
 }
-local function blinkPresent()
-  if not bl then return false end
+C_Minimap = {GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 2 end,
+  GetTrackingInfo = function(i) if i == 1 then return {name = "Find Herbs", active = true} end return {name = "Find Minerals", active = false} end}
+local function geometry()
   local bx, by = (cxm + sx + bl[1]) * es, (cym + sy + bl[2]) * es
   local cu, cv = GetCursorPosition()
   return (bx - cu) ^ 2 + (by - cv) ^ 2 <= 100
 end
-C_Minimap = {GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 2 end,
-  GetTrackingInfo = function(i) if i == 1 then return {name = "Find Herbs", active = true} end return {name = "Find Minerals", active = false} end}
 C_TooltipInfo = {GetMinimapMouseover = function()
   local hit = {lines = {{leftText = "Wild Steelbloom"}}}
-  if mode == "blink" then return blinkPresent() and hit or nil end
-  if mode == "blink_stale" then return hit end
-  if mode == "blink_dead" then return Now() < t0 + 4 and hit or nil end
-  if mode == "blink_update" then
-    if fresh then cached = blinkPresent(); fresh = false end
-    return cached and hit or nil
-  end
-  if mode == "echo" then return {lines = {{leftText = "Wild Steelbloom"}}} end
-  if mode == "none" or not soft or not last then return nil end
-  for _, b in ipairs(blips) do
-    if (last[1] - b[1]) ^ 2 + (last[2] - b[2]) ^ 2 <= 100 then return {lines = {{leftText = b[3]}}} end
-  end
+  if mode == "none" then return nil end
+  if mode == "stale" then return hit end
+  if mode == "dead" then return Now() < t0 + 4 and hit or nil end
+  return geometry() and hit or nil
 end}
-local hbd = {}
-function hbd:GetPlayerWorldPosition() return 950, 950, "inst" end
-function hbd:GetWorldCoordinatesFromZone(x, y) return 1000 - x * 100, 1000 - y * 100, "inst" end
-LibStub = function() return hbd end
+LibStub = function() return nil end
 playerMap, px, py = 37, 0.5, 0.5
 
--- a Peacebloom point near the middle of the map (1% = 1 yd in this fake world), and the blip on it
-local best, bd
-for _, p in ipairs(HerbRoute_Data["Elwynn Forest"]["Peacebloom"]) do
-  local d = (p[1] - 50) ^ 2 + (p[2] - 50) ^ 2
-  if not bd or d < bd then best, bd = p, d end
-end
-local dx, dy = 950 - (1000 - best[1]), (1000 - best[2]) - 950
-assert(dx * dx + dy * dy < 55 * 55, "test point too far from the center")
-blips[1] = {(cxm + dx) * es, (cym + dy) * es, "Peacebloom"}
-
 local function run(cmd)
-  printed = {}; HR.db.probe = nil
+  printed = {}; HR.db.probe = nil; t0 = Now()
   SlashCmdList.HERBROUTE(cmd); RunTimers()
   return HR.db.probe and HR.db.probe.text or table.concat(printed, "\n")
 end
 
+-- plain probe: baseline read of the real hover
 local t = run("probe")
-assert(t:find("RESULT: answers that depend on the probed point with cursor/soft", 1, true), t)
-assert(t:find("Baseline read (no probe call): no data", 1, true) and t:find("structure: nil", 1, true), t)
-assert(not t:match("RESULT:[^\n]*ui/"), "ui convention should not read")
-assert(t:find("Answer area around 'Peacebloom'", 1, true), t)
-local err = t:match("%(1 herb blips%): min ([%d.]+)")
-assert(err and tonumber(err) < 4, "database error too large: " .. tostring(err))
-assert(soft == false, "soft cursor not restored")
-io.write("probe ok: ", t:match("Distance blip[^\n]*"), "\n")
+assert(t:find("Client 12.1.5 build 70999", 1, true) and t:find("Tracking active: Find Herbs", 1, true), t)
+assert(t:find("Baseline read (no probe call): data present", 1, true), t)
+assert(t:find("structure: lines:table | lines[1]: leftText:string", 1, true), t)
+assert(t:find("RESULT: data under the real mouse hover (cursor inside the minimap disc)", 1, true), t)
 
-mode = "none"
-assert(run("probe"):find("RESULT: no answer in any configuration", 1, true))
-mode = "echo"
-local e = run("probe")
-assert(e:find("every probe answered", 1, true) and e:find("it is the real mouse hover", 1, true), e)
-assert(e:find("Baseline read (no probe call): data present", 1, true), e)
-assert(e:find("structure: lines:table | lines[1]: leftText:string", 1, true), e)
-assert(not e:find("Blips found", 1, true), "echo must not be treated as blips")
-issecretvalue = function() return true end
-local es2 = run("probe")
-assert(es2:find("it is the real mouse hover", 1, true) and es2:find("WARNING: tooltip text is a secret value", 1, true), es2)
-issecretvalue = nil
-mode = "ok"
-
-issecretvalue = function() return true end
-assert(run("probe"):find("WARNING: tooltip text is a secret value", 1, true))
-issecretvalue = nil
-
-local ok = run("probe world")
-assert(ok:find("RESULT: answers that depend", 1, true), ok)
-
-local z = run("probe zoom")
-assert(z:find("Zoom restored to 3", 1, true) and zoom == 3 and soft == false, z)
-assert(z:find("beyond the disc edge", 1, true))
-
-SlashCmdList.HERBROUTE("probe copy")
-
-local saved = Minimap.UpdateMouseoverAtPoint
-Minimap.UpdateMouseoverAtPoint = nil
-assert(run("probe"):find("cannot be read", 1, true))
-Minimap.UpdateMouseoverAtPoint = saved
-
-HR.Probe.best = nil
-assert(run("probe zoom"):find("Run /hr probe first", 1, true))
--- blink
-bl = {20, 10}
-local function blink(m, arg)
-  mode = m; fresh = true; sx, sy, alphaV = 0, 0, 1
-  local r = run("probe " .. (arg or "blink"))
-  assert(sx == 0 and sy == 0 and alphaV == 1, "minimap not restored")
-  return r
-end
-local b = blink("blink")
-assert(b:find("RESULT: the reading follows the moved minimap with plain (1 frame), update (1 frame)", 1, true), b)
-assert(b:find("Control (no shift): data present", 1, true) and b:find("plain shift (40,0)", 1, true), b)
-local bh = blink("blink", "blink hidden")
-assert(bh:find("(hidden)", 1, true) and bh:find("RESULT: the reading follows", 1, true), bh)
-local bs = blink("blink_stale")
-assert(bs:find("RESULT: the reading did not change when the minimap moved", 1, true), bs)
-cached = true
-local bu = blink("blink_update")
-assert(bu:find("RESULT: the reading follows the moved minimap with update (1 frame)", 1, true) and not bu:find("with plain", 1, true), bu)
-inCombat = true
-assert(blink("blink"):find("ABORTED: in combat", 1, true))
-inCombat = false; mouseDown = true
-assert(blink("blink"):find("ABORTED: a mouse button is held", 1, true))
-mouseDown = false
 local savedCur = curx
 curx = 5000
-assert(blink("blink"):find("ABORTED: the cursor is not inside the minimap", 1, true))
+t = run("probe")
+assert(t:find("RESULT: no data under the cursor (cursor outside", 1, true), t)
 curx = savedCur
-bl = nil
-assert(blink("blink"):find("ABORTED: no data under the cursor", 1, true))
-bl = {20, 10}
 
--- blink world: phase A on the blip (t=3), phase B with the mouse in the world (t=8)
+issecretvalue = function() return true end
+t = run("probe")
+assert(t:find("structure: <secret value>", 1, true) and t:find("NOTE: text fields are secret values", 1, true), t)
+issecretvalue = nil
+
+local saved = C_TooltipInfo.GetMinimapMouseover
+C_TooltipInfo.GetMinimapMouseover = nil
+assert(run("probe"):find("function missing", 1, true))
+C_TooltipInfo.GetMinimapMouseover = saved
+
+assert(run("probe minimap"):find("RESULT: data under the real mouse hover", 1, true))
+curx = 5000
+assert(run("probe minimap"):find("RESULT: no data under the cursor", 1, true))
+assert(table.concat(printed, "\n"):find("The cursor is not inside the minimap", 1, true))
+curx = savedCur
+
+-- removed commands now print the usage
+for _, old in ipairs({"probe zoom", "probe blink", "probe world"}) do
+  local u = run(old)
+  assert(u:find("/hr probe copy", 1, true) and not u:find("RESULT", 1, true), old .. ": " .. u)
+end
+assert(run("probe copy"):find("No saved probe report", 1, true))
+run("probe"); SlashCmdList.HERBROUTE("probe copy")
+
+-- blink world: phase A on the blip (t0+3), phase B with the mouse in the world (t0+8)
 worldAfter = true
 local function bw(m, arg)
-  mode = m; fresh = true; sx, sy, alphaV = 0, 0, 1; t0 = Now()
+  mode = m; sx, sy, alphaV = 0, 0, 1
   local r = run("probe " .. (arg or "blink world"))
   assert(sx == 0 and sy == 0 and alphaV == 1, "minimap not restored")
   return r
 end
-local w = bw("blink")
+local w = bw("hover")
 assert(w:find("Phase A: blip under the cursor, offset from the minimap center (20.0, 10.0)", 1, true), w)
 assert(w:find("RESULT: presence of a blip can be sampled by moving the minimap under a resting cursor (answer after 1 frame)", 1, true), w)
 assert(w:find("  hit (", 1, true) and w:find("  control (0,0): +1 frame absent", 1, true), w)
-assert(bw("blink", "blink world hidden"):find("(hidden)", 1, true))
-assert(bw("blink_stale"):find("RESULT: data is present even with the minimap in place", 1, true))
-assert(bw("blink_dead"):find("RESULT: the blip did not show up under the cursor", 1, true))
+assert(bw("hover", "blink world hidden"):find("(hidden)", 1, true))
+assert(bw("stale"):find("RESULT: data is present even with the minimap in place", 1, true))
+assert(bw("dead"):find("RESULT: the blip did not show up under the cursor", 1, true))
 foci = {{}}
-assert(bw("blink"):find("ABORTED: the mouse is over a UI element", 1, true))
+assert(bw("hover"):find("ABORTED: the mouse is over a UI element", 1, true))
 foci = nil
 worldCursor = {500 * 2, 400 * 2}
-assert(bw("blink"):find("ABORTED: the cursor must rest in the world, outside the minimap", 1, true))
+assert(bw("hover"):find("ABORTED: the cursor must rest in the world, outside the minimap", 1, true))
 worldCursor = {100, 100}
 inCombat = true
-assert(bw("blink"):find("ABORTED: in combat", 1, true))
-inCombat = false
+assert(bw("hover"):find("ABORTED: in combat", 1, true))
+inCombat = false; mouseDown = true
+assert(bw("hover"):find("ABORTED: a mouse button is held", 1, true))
+mouseDown = false
 worldAfter = false
 curx = 5000
-assert(bw("blink"):find("ABORTED: phase A needs the cursor on a herb blip", 1, true))
-curx = (cxm + 20) * es
+assert(bw("hover"):find("ABORTED: phase A needs the cursor on a herb blip", 1, true))
+curx = savedCur
+bl = nil
+assert(bw("hover"):find("ABORTED: phase A found no data under the cursor", 1, true))
 io.write("PROBE TESTS OK\n")
 ''')

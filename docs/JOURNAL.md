@@ -67,6 +67,13 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Idée notée, non retenue pour l'instant : identifier un point d'herbe par différence en coupant puis rétablissant le pistage (round 3 de NodeRadar), mais le rétablissement lance un sort de pistage avec temps de recharge sur la barre d'actions.
 - Écrit : `/hr probe blink world` (F36), qui reproduit la méthode : phase A, la souris sur un point jaune (décalage mémorisé) ; phase B, la souris au repos dans le monde, la minimap est déplacée pour amener le point sous le curseur (cas « touché ») ou à côté (contrôles), lecture à 1, 3 et 6 images, remise en place. Verdict : sondage de présence faisable, ou non. Tests hors jeu sur moteur simulé (cinq comportements, cinq abandons).
 
+### 2026-11-19 — Nettoyage des sondes devenues inutiles
+- Demande du joueur : retirer les sondes qui ne servent plus.
+- Retiré : balayages de la minimap (conventions de coordonnées, curseur logiciel, +1 image), étalonnage et écart à la base, `/hr probe zoom`, `/hr probe blink` (curseur déjà sur la minimap), `/hr probe world`. Raison : le sondage par position n'a pas d'effet (écho du survol réel), et ces sondes dépendaient d'une lecture positionnelle.
+- Conservé : `/hr probe` et `/hr probe minimap` (environnement, fonctions, lecture du survol réel), `/hr probe blink world [hidden]`, `/hr probe copy`. Les anciens noms de sous-commandes affichent l'aide.
+- `Probe.lua` passe d'environ 850 à environ 390 lignes ; les tests hors jeu sont réécrits pour le jeu de sondes réduit. Anciennes versions dans l'historique Git (avant nettoyage : `30c4969`).
+- Les prochaines actions ne changent pas : lancer `/hr probe blink world` et `/hr probe minimap` sur sol vide.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -112,3 +119,6 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | `d3f85b0` | Règle de travail : consulter et mettre à jour les documents |
 | `9519f0b` | `/hr probe` (sonde v1) |
 | `62ba128` | Premier rapport de la sonde, correction du contexte client |
+| `2d56bce` | Sonde v2a : écho du survol réel, présence sans texte |
+| `bd2b558` | `/hr probe blink` |
+| `30c4969` | `/hr probe blink world`, résultat de `blink`, constats NodeRadar |

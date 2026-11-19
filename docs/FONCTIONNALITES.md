@@ -29,7 +29,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 ## Cadré (vérification des points sur la minimap)
 | Réf. | Fonctionnalité | Statut | Dépend de | Fichiers prévus |
 |---|---|---|---|---|
-| F20 | `/hr probe` : diagnostic de la lecture de la minimap. v1 livrée, puis **v2a livrée** : détection de l'écho du survol réel, lecture de base, structure des données, présence comptée sans texte, lecture à +1 image, position du curseur par géométrie. Rapport dans le chat, `HerbRouteDB` et une fenêtre à copier | **Livré** (testé hors jeu sur faux minimap ; 2 rapports en jeu : présence lisible sous le vrai curseur, nom secret, sondage par position non démontré) | Test en jeu | `Probe.lua` |
+| F20 | `/hr probe` et `/hr probe minimap` : environnement, pistages actifs, fonctions présentes, lecture du survol réel (présence, forme des données, valeurs secrètes), rapport dans le chat, `HerbRouteDB` et une fenêtre à copier. Réduite le 2026-11-19 (voir « Retiré ») | **Livré** (testé hors jeu sur faux minimap ; 2 rapports en jeu : présence lisible sous le vrai curseur, nom secret, sondage par position sans effet) | Test en jeu (contrôle sol vide à faire) | `Probe.lua` |
 | F21 | Activation automatique du pistage « Trouver les herbes » | Cadré | F20 | `Probe.lua` ou `Verify.lua` |
 | F22 | Sondage aux points connus avec croix de 17 positions, arrêt à la première réponse, dédoublonnage | Cadré | F20 | `Probe.lua` |
 | F23 | Déclenchement à l'entrée d'un point dans le disque (seuil 85 % du rayon), 2 à 3 interrogations par point | Cadré | F22 | `Verify.lua` |
@@ -40,7 +40,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F28 | Tracés : ignorer les points retirés, couleur des points confirmés | Cadré | F24 | `Overlay.lua` |
 | F29 | Faux minimap dans les tests pour valider états, retraits et garde-fous | Cadré | F23 | `tools/test_addon.py` |
 | F34 | Vérification par **présence** d'un point (noms secrets acceptés, faux positifs possibles entre nœuds voisins) | Cadré (D10) | F35 | `Verify.lua` |
-| F35 | Déplacement de la minimap sous un curseur **déjà sur la minimap** (`/hr probe blink`, `blink hidden`), garde-fous, restauration | **Livré** et lancé en jeu : lecture présente et inchangée, **non concluant** (méthode différente de celle de NodeRadar) | Test en jeu | `Probe.lua` |
+| F35 | ~~Déplacement de la minimap sous un curseur déjà sur la minimap (`/hr probe blink`)~~ | **Retiré** : non concluant en jeu, remplacé par F36 | n/a | n/a |
 | F36 | Sondage positionnel par la méthode de NodeRadar (`/hr probe blink world`, `blink world hidden`) : phase A sur un point jaune, phase B souris au repos dans le monde, minimap amenée sous le curseur (touché et contrôles), lecture à 1, 3 et 6 images | **Livré** (testé hors jeu sur moteur simulé, **à lancer en jeu**) | Test en jeu | `Probe.lua` |
 
 ## Idées et options
@@ -58,3 +58,15 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F41 | Interface en français et client non anglais | Hypothèse actuelle : client en anglais |
 | F42 | Aperçu du tracé dans la fenêtre de l'add-on | Le tracé est sur la carte et la minimap |
 | F43 | Recalage de la base à partir des écarts mesurés | Interdit par la contrainte D8 |
+
+
+## Retiré (nettoyage du 2026-11-19)
+| Réf. | Sonde retirée | Raison |
+|---|---|---|
+| R-1 | Balayages de la minimap (conventions curseur et unités d'interface, curseur logiciel, lecture à +1 image) | `UpdateMouseoverAtPoint` sans effet positionnel : 100 % de réponses partout, écho du survol réel |
+| R-2 | Étalonnage de la zone de réponse et écart à la base | Dépendaient de réponses positionnelles ; la zone (environ 25 unités) est rapportée par NodeRadar |
+| R-3 | `/hr probe zoom` (zoom et points hors disque) | Dépendait d'une configuration qui lit par position |
+| R-4 | `/hr probe blink` (curseur déjà sur la minimap) | Non concluant, remplacé par `blink world` |
+| R-5 | `/hr probe world` | Plus de différence avec `/hr probe` (lecture du survol réel) |
+
+Les anciennes versions restent dans l'historique Git (dernier commit avant nettoyage : `30c4969`).

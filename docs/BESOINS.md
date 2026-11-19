@@ -40,8 +40,12 @@ Sources : [docs/FOREVER-PROBE.md](https://github.com/Spotnick2/NodeRadar/blob/ma
 
 ## 4. Conception envisagée
 
-### 4.1 Sonde de validation (`/hr probe`) — première étape (écrite, à lancer en jeu)
-Teste en jeu : existence de `UpdateMouseoverAtPoint` et `GetMinimapMouseover`, nom d'herbe renvoyé quand un point jaune est sous le point interrogé (curseur dans le monde et sur la minimap), durée d'une passe, effet du zoom, points hors disque. Selon le résultat, on retient la lecture de la minimap (4.2), ou la mémoire de récolte seule (4.4).
+### 4.1 Sondes de validation (`/hr probe`) — première étape (écrites, jouées en partie)
+Jeu de sondes **réduit** le 2026-11-19, après les deux premiers rapports en jeu :
+- `/hr probe` et `/hr probe minimap` : client, minimap, pistages actifs, fonctions présentes, lecture du survol réel (présence et forme des données). Sert aussi au contrôle « sol vide » (R13).
+- `/hr probe blink world [hidden]` : méthode de NodeRadar (curseur au repos dans le monde, minimap déplacée dessous). Seule piste de sondage positionnel restante.
+- Retirées car sans objet : balayages de la minimap dans plusieurs conventions de coordonnées, avec curseur logiciel et à +1 image (le sondage par position n'a pas d'effet, écho du survol réel confirmé) ; étalonnage de la zone de réponse et écart à la base (dépendaient de réponses positionnelles) ; test du zoom et des points hors disque (dépendait d'une configuration qui lit) ; `blink` avec le curseur déjà sur la minimap (non concluant, remplacé par `blink world`).
+Selon les résultats, on retient la vérification par présence (4.2, 4.3 bis) ou la mémoire de récolte seule (4.4).
 
 ### 4.2 Interroger la minimap aux candidats connus
 - Candidats = points de notre base dans le disque de la minimap, pour les herbes sélectionnées. La position sur la minimap vient de la projection de `Overlay.lua` (rayon de vue, rotation, facteur 0,9).
