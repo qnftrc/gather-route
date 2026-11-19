@@ -28,8 +28,6 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B16 | Un bouton « skip » dans l'interface, associable à une touche | Demande du joueur |
 | B17 | Fusionner les doublons des bases à une unité de coordonnée près, sans toucher aux fichiers de données | Demande du joueur |
 | B18 | Ajuster la route en temps réel d'après la minimap : réordonner les points restants après des retraits, sous forme d'une fonction activable et désactivable à volonté | Demande du joueur |
-| B19 | Garder la mémoire des herbes déjà croisées ou récoltées pour qu'un nouveau calcul de route ne les remette pas, et intégrer à la route les nouveaux nœuds d'herbes distingués sur la minimap | Demande du joueur après un parcours |
-| B20 | Ne mémoriser que les points réellement récoltés, validés par le message de butin du chat, et non ceux qui quittent la route autrement | Demande du joueur (capture du chat) |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.

@@ -18,5 +18,4 @@ Runner.lua
 Overlay.lua
 Probe.lua
 Verify.lua
-Harvest.lua
 UI.lua

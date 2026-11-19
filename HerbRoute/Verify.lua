@@ -607,95 +607,7 @@ local function asciiMap(cells, cands, R)
     return table.concat(out, "\n")
 end
 
--- Discovery: blips seen on the minimap that no known point explains become new points.
-local KNOWN = 14 -- units: a blip this close to a known point is that point
-
-local function offsetOfPct(r, x, y)
-    local hbd = hbdLib()
-    if not hbd then return end
-    local px, py, instance = hbd:GetPlayerWorldPosition()
-    local radius = HR.ViewRadius and HR.ViewRadius()
-    if not px or not radius then return end
-    local wx, wy, inst = hbd:GetWorldCoordinatesFromZone(x / 100, y / 100, r.mapID)
-    if not wx or inst ~= instance then return end
-    local dx, dy = px - wx, py - wy
-    local rx, ry = dx, dy
-    if GetCVar("rotateMinimap") == "1" then
-        local facing = GetPlayerFacing and GetPlayerFacing()
-        if not facing then return end
-        local s, c = math.sin(facing), math.cos(facing)
-        rx, ry = dx * c - dy * s, dx * s + dy * c
-    end
-    return rx / radius * Minimap:GetWidth() / 2, -ry / radius * Minimap:GetHeight() / 2
-end
-
-local function pctOfOffset(r, ox, oy)
-    local hbd = hbdLib()
-    if not hbd or not hbd.GetZoneCoordinatesFromWorld then return end
-    local px, py = hbd:GetPlayerWorldPosition()
-    local radius = HR.ViewRadius and HR.ViewRadius()
-    if not px or not radius then return end
-    local rx, ry = ox / (Minimap:GetWidth() / 2) * radius, -oy / (Minimap:GetHeight() / 2) * radius
-    local dx, dy = rx, ry
-    if GetCVar("rotateMinimap") == "1" then
-        local facing = GetPlayerFacing and GetPlayerFacing()
-        if not facing then return end
-        local s, c = math.sin(facing), math.cos(facing)
-        dx, dy = rx * c + ry * s, -rx * s + ry * c
-    end
-    local x, y = hbd:GetZoneCoordinatesFromWorld(px - dx, py - dy, r.mapID)
-    if not x then return end
-    return x * 100, y * 100
-end
-
-function HR:AddDiscovered(r, hits)
-    local seeds = {}
-    for _, h in ipairs(hits) do
-        local home
-        for _, s in ipairs(seeds) do
-            local dx, dy = h.x - s.x, h.y - s.y
-            if dx * dx + dy * dy <= 20 * 20 then home = s break end
-        end
-        if home then
-            home.n, home.sx, home.sy = home.n + 1, home.sx + h.x, home.sy + h.y
-        else
-            seeds[#seeds + 1] = {x = h.x, y = h.y, n = 1, sx = h.x, sy = h.y}
-        end
-    end
-    local known = {}
-    local function note(x, y)
-        local ox, oy = offsetOfPct(r, x, y)
-        if ox and ox * ox + oy * oy <= (Minimap:GetWidth() / 2 * 1.05) ^ 2 then known[#known + 1] = {ox, oy} end
-    end
-    for _, items in pairs((HR.categories[r.category].data[r.region]) or {}) do
-        for _, p in ipairs(items) do note(p[1], p[2]) end
-    end
-    for _, p in ipairs(r.points) do note(p.x, p.y) end
-    for _, v in ipairs((self.db.visited and self.db.visited[r.region]) or {}) do note(v.x, v.y) end
-    local disc = self.db.discovered and self.db.discovered[r.category] and self.db.discovered[r.category][r.region]
-    for _, d in ipairs(disc or {}) do note(d.x, d.y) end
-
-    local added = 0
-    for _, s in ipairs(seeds) do
-        local cx, cy = s.sx / s.n, s.sy / s.n
-        local explained = false
-        for _, k in ipairs(known) do
-            local dx, dy = cx - k[1], cy - k[2]
-            if dx * dx + dy * dy <= KNOWN * KNOWN then explained = true break end
-        end
-        if not explained then
-            local x, y = pctOfOffset(r, cx, cy)
-            if x and x > 0 and x < 100 and y > 0 and y < 100 then
-                x, y = math.floor(x * 10 + 0.5) / 10, math.floor(y * 10 + 0.5) / 10
-                self:AddNode(r, x, y, HR.SEEN_ITEM)
-                added = added + 1
-            end
-        end
-    end
-    return added, #seeds
-end
-
-local function finishScan(r, cells, counts, R, discover)
+local function finishScan(r, cells, counts, R)
     local hits = {}
     for _, c in ipairs(cells) do if c.res == "line" then hits[#hits + 1] = c end end
     local report = {("HerbRoute verify scan %s, method %s"):format(date("%Y-%m-%d %H:%M:%S"), tostring(HR.db.recipe))}
@@ -777,10 +689,6 @@ local function finishScan(r, cells, counts, R, discover)
             say("Scan: no mirror image fits clearly better than the projection (dense herbs explain most placements; read the map).")
         end
     end
-    if discover then
-        local added, seen = HR:AddDiscovered(r, hits)
-        say("Discover: %d blip(s) seen, %d new node(s) added to the route (kept apart from the data files).", seen, added)
-    end
     report[#report + 1] = "Map (8 units per character, north up): X blip, o projected point, # both, . empty cell, + you"
     report[#report + 1] = asciiMap(cells, cands, R)
     local text = table.concat(report, "\n")
@@ -788,7 +696,7 @@ local function finishScan(r, cells, counts, R, discover)
     HR.Probe:ShowReport(text)
 end
 
-function HR:VerifyScan(discover)
+function HR:VerifyScan()
     local r = self.route
     if not r or r.mode ~= "follow" then return self:Print("Start a route in follow mode first.") end
     self:Print("Verify scan in 3 s: MOVE the mouse a little in the world, keep it still and do not touch it for about 10 s. The minimap will jump around.")
@@ -812,7 +720,7 @@ function HR:VerifyScan(discover)
         local function nextCell()
             idx = idx + 1
             local c = cells[idx]
-            if not c then return finishScan(r, cells, counts, R, discover) end
+            if not c then return finishScan(r, cells, counts, R) end
             if HR.route ~= r then return end
             local stop = (InCombatLockdown and InCombatLockdown()) and "combat" or (MM.buttonDown() and "a mouse button was pressed")
             if stop then return HR:Print("Verify scan stopped: " .. stop .. ".") end

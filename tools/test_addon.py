@@ -21,7 +21,7 @@ function RunTimers()
   return n
 end
 wipe = function(t) for k in pairs(t) do t[k]=nil end end
-tinsert = table.insert; UISpecialFrames = {}; hooksecurefunc = function() end; time = os.time
+tinsert = table.insert; UISpecialFrames = {}; hooksecurefunc = function() end
 SlashCmdList = {}
 printed = {}
 print = function(...) printed[#printed+1] = table.concat({...}, " ") end
@@ -60,7 +60,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Harvest","UI"}) do
+for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -445,7 +445,6 @@ C_Minimap = {
 local hbd = {}
 function hbd:GetPlayerWorldPosition() return ppx, ppy, "inst" end
 function hbd:GetWorldCoordinatesFromZone(x, y) return 1000 - x * 100, 1000 - y * 100, "inst" end
-function hbd:GetZoneCoordinatesFromWorld(wx, wy) return (1000 - wx) / 100, (1000 - wy) / 100 end
 LibStub = function() return hbd end
 local canvas = {GetFrameLevel = function() return 1 end, GetWidth = function() return 100 end, GetHeight = function() return 100 end}
 WorldMapFrame = {GetCanvas = function() return canvas end, IsShown = function() return false end,
@@ -743,39 +742,6 @@ go("verify ahead off"); assert(HR.db.verifyAhead == false)
 HR.db.verifyAhead = nil
 go("stop")
 
--- 13. discover: a blip that no known point explains becomes a new node of the route
-reset(); HR.db.verify = "off"; HR.db.verifyAhead = nil; HR.db.discovered = {}; HR.db.visited = {}
-go("peacebloom")
-local dr = HR.route
-local ux, uy
-for gx = 20, 80, 2 do
-  for gy = 20, 80, 2 do
-    local free = (gx - 50) ^ 2 + (gy - 50) ^ 2 <= 30 ^ 2 and (gx - 50) ^ 2 + (gy - 50) ^ 2 >= 12 ^ 2
-    if free then
-      for _, items in pairs(HerbRoute_Data["Elwynn Forest"]) do
-        for _, p in ipairs(items) do
-          if (p[1] - gx) ^ 2 + (p[2] - gy) ^ 2 < 18 ^ 2 then free = false break end
-        end
-        if not free then break end
-      end
-    end
-    if free and not ux then ux, uy = gx, gy end
-  end
-end
-assert(ux, "no free spot for the discovery test")
-nodes = {{ux, uy}}; hitR = 12
-local nBeforeD = #dr.points
-go("discover")
-assert(msgs():find("1 new node(s) added", 1, true), msgs())
-local drow = HR.db.discovered.herbs["Elwynn Forest"]
-assert(drow and #drow == 1 and math.abs(drow[1].x - ux) <= 8 and math.abs(drow[1].y - uy) <= 8, "discovered position: " .. tostring(drow and drow[1] and (drow[1].x .. "," .. drow[1].y)) .. " expected " .. ux .. "," .. uy)
-assert(#dr.points == nBeforeD + 1, "the route must gain the node")
-go("discover")
-assert(msgs():find("0 new node(s)", 1, true) and #HR.db.discovered.herbs["Elwynn Forest"] == 1, msgs())
-assert(sx == 0 and sy == 0, "minimap not restored")
-go("stop")
-HR.db.discovered = {}; HR.dataRev = (HR.dataRev or 0) + 1
-
 -- 12. ores: same verification and removal, driven by Find Minerals
 reset(); HR.db.verify = "report"; HR.db.verifyAhead = nil; HR.verifyHits = 0
 go("ores copper vein")
@@ -891,84 +857,6 @@ go("herbs peacebloom"); assert(HR.route and HR.route.category == "herbs" and HR.
 HR:StopRoute(true)
 go("peacebloom"); assert(HR.route and HR.route.category == "herbs"); HR:StopRoute(true)
 
--- visited memory: only a validated harvest (gathering cast + loot message) is remembered
-HR.db.skipVisited = true; HR.db.visitedMinutes = 60; HR.db.visited = {}; HR.db.discovered = {}
-printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
-local vr = HR.route
-local nBefore = #vr.points
-HR:SkipPoint(); HR:SkipPoint(); HR:DropPoint(10)
-assert(#(HR.db.visited["Elwynn Forest"] or {}) == 0, "skip, arrival and removal must not be remembered")
--- loot without a gathering cast is ignored; wrong item is ignored; then a real harvest
-local target = vr.points[vr.index + 3]
-playerMap = 37; px, py = target.x / 100, target.y / 100
-HR:OnHarvestEvent("CHAT_MSG_LOOT", "You receive loot: [Peacebloom].")
-assert(#(HR.db.visited["Elwynn Forest"] or {}) == 0, "a loot message without a gathering cast is ignored")
-HR:OnHarvestEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 2366)
-HR:OnHarvestEvent("CHAT_MSG_LOOT", "Miaou receives loot: [Peacebloom].")
-assert(#(HR.db.visited["Elwynn Forest"] or {}) == 0, "another player's loot is ignored")
-printed = {}
-local idxT
-for i, p in ipairs(vr.points) do if p == target then idxT = i end end
-HR:OnHarvestEvent("CHAT_MSG_LOOT", "You receive loot: [Peacebloom]x3")
-assert(msgs():find("Harvest: Peacebloom", 1, true) and msgs():find("removed from the route", 1, true), msgs())
-assert(vr.removed[idxT], "the harvested route point must leave the route")
-local rec = HR.db.visited["Elwynn Forest"]
-assert(#rec >= 1 and math.abs(rec[#rec].x - target.x) < 1e-9, "the node position is remembered")
-px, py = 0.5, 0.5
-HR:StopRoute(true)
-printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
-local skippedN = tonumber(msgs():match("(%d+) point%(s%) skipped"))
-assert(skippedN and skippedN >= 1 and #HR.route.points == nBefore - skippedN, #HR.route.points .. " " .. msgs())
-HR:StopRoute(true)
-HR.db.visited["Elwynn Forest"][1].t = os.time() - 61 * 60
-printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
-assert(#HR.route.points == nBefore and not msgs():find("skipped", 1, true), "an entry older than the limit must expire")
-HR:StopRoute(true)
-SlashCmdList.HERBROUTE("visited off"); assert(HR.db.skipVisited == false)
-printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
-assert(#HR.route.points == nBefore, "off: nothing is skipped")
--- a harvest with no known point nearby is stored as a new node (and remembered)
-HR.db.skipVisited = true
-px, py = 0.97, 0.03
-HR:OnHarvestEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 2366)
-printed = {}; HR:OnHarvestEvent("CHAT_MSG_LOOT", "You receive loot: [Peacebloom]")
-assert(msgs():find("stored as a new node", 1, true), msgs())
-local drow0 = HR.db.discovered.herbs["Elwynn Forest"]
-assert(drow0 and #drow0 == 1 and drow0[1].item == "Peacebloom" and drow0[1].x == 97 and drow0[1].y == 3)
-HR.db.discovered = {}; HR.dataRev = (HR.dataRev or 0) + 1; HR.db.visited = {}
-px, py = 0.5, 0.5
-assert(HR.ParseSelfLoot("You receive loot: |cff1eff00|Hitem:3820::::::::|h[Stranglekelp]|h|r.") == "Stranglekelp")
-assert(HR.ParseSelfLoot("You receive loot: [Peacebloom]x2") == "Peacebloom" and HR.ParseSelfLoot("Bob receives loot: [Peacebloom].") == nil)
--- ore loot ("Copper Ore") is matched with the vein ("Copper Vein") of the data
-local cu = HerbRoute_OreData["Elwynn Forest"]["Copper Vein"][1]
-HR.db.visited = {}
-px, py = cu[1] / 100, cu[2] / 100
-HR:OnHarvestEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 2575)
-printed = {}; HR:OnHarvestEvent("CHAT_MSG_LOOT", "You receive loot: [Copper Ore]")
-assert(msgs():find("Harvest: Copper Ore", 1, true) and #HR.db.visited["Elwynn Forest"] == 1, msgs())
-HR.db.visited = {}; HR.db.discovered = {}
-px, py = 0.5, 0.5
--- /hr add: a node at the player's position is added to the running route and kept apart from the data
-HR.db.skipVisited = true
-local nAdd = #HR.route.points
-printed = {}; SlashCmdList.HERBROUTE("add peacebloom")
-assert(#HR.route.points == nAdd + 1 and msgs():find("Added a node", 1, true), msgs())
-local entry = HR.db.discovered.herbs["Elwynn Forest"][1]
-assert(entry.item == "Peacebloom" and entry.x == 50 and entry.y == 50)
-local inserted = false
-for _, p in ipairs(HR.route.points) do if p.new and p.x == 50 and p.y == 50 then inserted = true end end
-assert(inserted, "the new point must be in the route")
-printed = {}; SlashCmdList.HERBROUTE("add peacebloom"); assert(msgs():find("already added", 1, true) and #HR.route.points == nAdd + 1, msgs())
-HR:StopRoute(true)
-local count = 0
-for _, items in pairs(HerbRoute_Data) do for _, pts in pairs(items) do count = count + #pts end end
-assert(count == 14642, "the data files must not change")
-local withNode = 0
-for _, pt in ipairs(HR:DataFor("herbs")["Elwynn Forest"]["Peacebloom"]) do if pt[1] == 50 and pt[2] == 50 then withNode = withNode + 1 end end
-assert(withNode == 1, "a later route must include the added node")
-HR.db.discovered = {}; HR.dataRev = (HR.dataRev or 0) + 1
-HR.db.visited = {}; HR.db.skipVisited = nil; HR.db.visitedMinutes = nil
-
 -- reroute: reorder the points ahead after removals, only when switched on
 HR.db.reroute = false
 printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
@@ -1043,7 +931,7 @@ assert(list() == "Find Herbs,Flight Master", list())
 -- the window opens on the saved category without error
 HR.db.category = "ores"
 local ns2 = {}
-for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Harvest","UI"}) do
+for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns2)
 end

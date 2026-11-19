@@ -15,17 +15,12 @@ local defaults = {
     verifyAhead = true,
     mergeDuplicates = true,
     reroute = false,
-    skipVisited = true,
-    visitedMinutes = 60,
-    visited = {},
-    discovered = {},
     skipButton = {shown = false},
     overrides = {},
 }
 
 BINDING_HEADER_HERBROUTE = "HerbRoute"
 BINDING_NAME_HERBROUTE_SKIP = "Skip the current point"
-BINDING_NAME_HERBROUTE_DISCOVER = "Scan the minimap for new nodes"
 BINDING_NAME_HERBROUTE_STOP = "Stop the route"
 BINDING_NAME_HERBROUTE_WINDOW = "Open or close the window"
 
@@ -95,9 +90,6 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
-    HR:Print("/hr discover - scan the minimap and add the nodes it shows that the route does not know")
-    HR:Print("/hr add [herb] - add the node at your position to the route (kept apart from the data files)")
-    HR:Print("/hr visited [clear|on|off|expire <minutes>] - points already visited are left out of new routes")
     HR:Print("/hr reroute [on|off|now] - reorder the points ahead after points are removed (off by default)")
     HR:Print("/hr merge [on|off] - merge points closer than 1% of the map (the data files stay untouched)")
     HR:Print("/hr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > HerbRoute)")
@@ -121,20 +113,6 @@ local function handleSlash(msg)
         HR:StopRoute()
     elseif cmd == "skip" then
         HR:SkipPoint()
-    elseif cmd == "discover" then
-        HR:VerifyScan(true)
-    elseif cmd == "add" then
-        HR:AddHere(rest)
-    elseif cmd == "visited" then
-        local arg, n = rest:lower():match("^(%a*)%s*(%d*)$")
-        if arg == "clear" then HR.db.visited = {} end
-        if arg == "on" or arg == "off" then HR.db.skipVisited = arg == "on" end
-        if arg == "expire" and n ~= "" then HR.db.visitedMinutes = tonumber(n) end
-        local count = 0
-        for _, list in pairs(HR.db.visited or {}) do count = count + #list end
-        local mins = HR.db.visitedMinutes == nil and 60 or HR.db.visitedMinutes
-        HR:Print(("Visited points: %d remembered, skipped by new routes: %s, forgotten after %s. /hr visited [clear|on|off|expire <minutes>] (0 = never)"):format(
-            count, HR.db.skipVisited == true and "on" or "off", mins == 0 and "never" or (mins .. " min")))
     elseif cmd == "reroute" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then HR.db.reroute = arg == "on" end
