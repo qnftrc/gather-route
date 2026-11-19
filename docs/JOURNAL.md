@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Retester la vérification automatique avec le zip corrigé** (la calibration « plain » reste valide) : route en mode Suivi, souris **immobile dans le monde**, mode `report`. Surveiller le chat (« has no node » ou point confirmé) et `/hr verify`. Puis `/hr verify probe` : la ligne `focus=` dit quel cadre est sous le curseur pendant la sonde (R26). `/hr verify arming` ne sert plus que si les sondes échouent encore.
+1. **Retester avec le zip qui vérifie la projection** : route en mode Suivi, souris immobile dans le monde, mode `report`. Au premier point vide, l'add-on sonde jusqu'à 12 points voisins pour trouver un nœud ; un message « projection confirmed » ou « none of the … nearest points has a node » apparaît. Dans le second cas, lancer `/hr verify scan` (carte ASCII points jaunes / points projetés) et coller la fenêtre. Quand « projection confirmed » apparaît, passer à `/hr verify remove`.
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -198,6 +198,14 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Limite : les pins mouse-enabled d'autres add-ons (quêtes, ressources) au même endroit masqueraient encore la lecture ; ils sont nommés dans la cause, non masqués.
 - Tests hors jeu : un moteur où le pin visible capte la souris (la sonde confirme grâce au masquage, le pin est réaffiché), un moteur où un cadre étranger est sous le curseur (cause nommée).
 
+### 2026-11-19 — Le pin masqué débloque la lecture ; la garde « premier point confirmé » devient une vérification de la projection
+- Rapport en jeu avec le correctif du pin (D15) : `/hr verify` : méthode « plain », **1 sonde, 0 confirmée, 1 vide, 0 inconclusive** ; message « point 1/126 (Goldthorn) shows nothing, but no blip has been confirmed yet: kept ». `/hr verify probe` : point 1/126, 56 yd, décalage projeté (-13 ; 30) unités, dans le disque ; **`focus=Minimap`**, `data=true`, `lines=0`, résultat « empty », minimap revenue.
+- Conclusion : **H3 confirmée** : sans le pin, le moteur renvoie bien des données pour la minimap au waypoint (cadre sous le curseur : la minimap). La lecture fonctionne enfin sur un point de la base : ici **aucun nœud** à cet emplacement, ou une projection fausse. R26 est résolu en principe.
+- Impasse constatée : la garde « aucun retrait avant un premier point confirmé » ne se débloque que si le point courant a un nœud. Si les premiers points de la route sont vides (cas courant : la base contient tous les emplacements possibles, peu sont occupés), aucun retrait n'aurait lieu.
+- Correction (D16) : au premier point vide d'une session, l'add-on sonde jusqu'à **12 points voisins** de la même herbe (dans le disque, à plus de 14 unités du point testé pour ne pas répéter la même zone), l'un après l'autre. Dès qu'un point a une ligne, la projection est **confirmée** (`HR.verifyHits` augmente) et le point courant est jugé selon la règle normale (retrait en mode `remove`). Si aucun des voisins n'a de nœud : message « none of the N nearest points has a node either… nothing removed » et la vérification n'est pas retentée pour cette route (aucun retrait sans preuve).
+- Si aucun voisin n'a de nœud, deux explications : plus de nœud actif dans cette zone, ou projection fausse. `/hr verify scan` départage par la carte ASCII.
+- Tests hors jeu : vérification qui échoue (aucun nœud proche, rien de retiré), vérification qui réussit (un nœud voisin, projection confirmée, puis point courant retiré et route qui avance).
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -216,6 +224,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D13 | ~~Adopter la variante curseur logiciel + `UpdateMouseoverAtPoint`~~ | 2026-11-19 | **Révoquée** : elle renvoie des données sans lire la position (scan : 92 cases vides) |
 | D14 | La méthode de sondage est **calibrée en jeu** sur un point jaune connu (`/hr verify calibrate`), mémorisée avec le numéro de build ; sans calibration valide la vérification ne sonde pas | 2026-11-19 | Appliquée (non testée en jeu) |
 | D15 | Le pin TomTom de la minimap du waypoint courant est **masqué pendant chaque sonde** (`HideWaypoint` puis `ShowWaypoint`), car c'est un bouton qui capte la souris | 2026-11-19 | Appliquée (non testée en jeu) |
+| D16 | Avant tout retrait dans une session, l'add-on **sonde jusqu'à 12 points voisins** pour trouver un nœud et confirmer la projection ; sans aucun nœud trouvé, rien n'est retiré et la vérification n'est pas retentée pour cette route | 2026-11-19 | Appliquée (non testée en jeu) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
@@ -240,12 +249,12 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R18 | Effet visible du déplacement de la minimap | **Confirmé gênant par le joueur** ; la variante cachée donne la même lecture (non jugée) ; à réduire (lecture à +1 image, vérification ciblée, déclenchement manuel) |
 | R19 | Résolution dépendante du zoom : zone d'environ 20 unités, soit de l'ordre de 50 yd au zoom 0 et 17 yd au zoom le plus fort (estimation) | À mesurer à plusieurs zooms |
 | R20 | Un autre add-on ancré à la minimap (ou son habillage) peut perturber le déplacement | À observer en jeu |
-| R21 | La projection d'un point de la base sur la minimap (formule du tracé minimap) n'a jamais été vérifiée en jeu : si elle est fausse, tous les sondages tombent à côté | Garde-fou : aucun retrait avant un premier point confirmé ; à valider en jeu |
+| R21 | La projection d'un point de la base sur la minimap (formule du tracé minimap) n'a jamais été vérifiée en jeu : si elle est fausse, tous les sondages tombent à côté | **Vérification automatique** au premier point vide (D16) : aucun retrait avant qu'un point voisin ait montré un nœud ; `/hr verify scan` en renfort |
 | R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoque un retrait à tort, **dès le premier sondage vide** | Atténué par le mode `report` par défaut, l'absence de retrait avant un premier point confirmé, la base intacte ; à mesurer en jeu |
 | R23 | Les passes exigent une souris immobile dans le monde, et un vrai mouvement après avoir dirigé à la souris : avec la souris tenue pour la caméra, elles seront souvent en attente | Garde « bouger la souris une fois » ajoutée ; raison visible par `/hr verify` ; à mesurer |
 | R24 | La vérification n'obtenait aucune donnée de survol, puis une variante renvoyait des lectures sans valeur | **Rouvert** : seule `blink world` a détecté un point connu ; la méthode est maintenant choisie par calibration sur un point connu |
 | R25 | Aucune des sept méthodes ne détecte un point connu en jeu | **Écarté** : six méthodes sur sept détectent le point (calibration du build 70959) |
-| R26 | Les sondes sur le waypoint courant ne recevaient aucune donnée | Hypothèse principale **H3** : le pin TomTom du waypoint capte la souris ; masqué pendant les sondes (D15), à confirmer en jeu. H2 (armement par survol réel) reste en réserve (`/hr verify arming`) |
+| R26 | Les sondes sur le waypoint courant ne recevaient aucune donnée | **Résolu en principe** : le pin TomTom masqué (D15), `focus=Minimap`, données renvoyées en jeu |
 
 ## Commits
 | Commit | Contenu |

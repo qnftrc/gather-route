@@ -537,12 +537,24 @@ assert(msgs():find("has no node: removed", 1, true))
 assert(sx == 0 and sy == 0)
 assert(HR.UpdateUI == nil or pcall(HR.UpdateUI, HR))
 
--- 3. nothing confirmed yet this session: an empty point is kept
+-- 3. nothing confirmed yet: no node nearby either -> kept, projection check failed
 reset(); HR.db.verify = "remove"; HR.verifyHits = 0
 go("peacebloom")
 r = HR.route
-assert((r.removedCount or 0) == 0 and r.vstate[1].final, msgs())
-assert(msgs():find("no blip has been confirmed yet: kept", 1, true))
+assert((r.removedCount or 0) == 0 and r.vstate[1].final and r.checkFailed, msgs())
+assert(msgs():find("probing", 1, true) and msgs():find("none of the", 1, true) and msgs():find("nothing removed", 1, true), msgs())
+
+-- 3b. nothing confirmed yet, but a nearby point has a node: the projection is
+-- confirmed, then the empty point is removed
+reset(); HR.db.verify = "remove"; HR.verifyHits = 0
+do
+  local others = othersNodes()
+  nodes = {others[4]}
+end
+go("peacebloom")
+r = HR.route
+assert(HR.verifyHits >= 1 and msgs():find("projection confirmed", 1, true), msgs())
+assert(r.removed[1] and r.index > 1, msgs())
 
 -- 4. report mode keeps an empty point
 reset(); HR.db.verify = "report"; HR.verifyHits = 2

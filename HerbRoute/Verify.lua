@@ -230,19 +230,104 @@ local function probe(ox, oy, done, detail, opts)
     end
 end
 
+local CHECK_MAX = 12  -- nearby points probed to confirm the projection
+local CHECK_APART = 14  -- units: points closer than this to the checked one share its answer
+
+-- Other points of the same herb inside the minimap, nearest first, apart from
+-- the point being decided.
+local function nearbyCandidates(r, i)
+    local gi = geometry(r, i)
+    local herb = r.points[i].herb
+    local list = {}
+    for j, p in ipairs(r.points) do
+        if j ~= i and not r.removed[j] and p.herb == herb then
+            local g = geometry(r, j)
+            if g and g.inside then
+                local dx, dy = g.ox - (gi and gi.ox or 0), g.oy - (gi and gi.oy or 0)
+                if not gi or dx * dx + dy * dy > CHECK_APART * CHECK_APART then
+                    list[#list + 1] = {j = j, dist = g.dist}
+                end
+            end
+        end
+    end
+    table.sort(list, function(a, b) return a.dist < b.dist end)
+    while #list > CHECK_MAX do list[#list] = nil end
+    return list
+end
+
 local function decideAbsent(r, i, st)
     local p = r.points[i]
     local label = ("point %d/%d (%s)"):format(i, #r.points, p.herb)
+    if HR.verifyHits == 0 then
+        -- Nothing was ever seen: before removing anything, look for a node among
+        -- the nearby points, which proves that the projection and the reading work.
+        if not r.checkFailed then
+            local list = nearbyCandidates(r, i)
+            if #list > 0 then
+                st.checking = {list = list, k = 1, none = 0, nextAt = 0}
+                HR:Print(("Verify: %s shows nothing; probing %d nearby point(s) to confirm the projection before removing anything."):format(label, #list))
+                return
+            end
+        end
+        st.final = true
+        r.vstats.empty = r.vstats.empty + 1
+        HR:Print(("Verify: %s shows nothing, but no blip has been confirmed yet: kept."):format(label))
+        return
+    end
     st.final = true
     r.vstats.empty = r.vstats.empty + 1
-    if HR.verifyHits == 0 then
-        HR:Print(("Verify: %s shows nothing, but no blip has been confirmed yet: kept."):format(label))
-    elseif HR.db.verify == "remove" then
+    if HR.db.verify == "remove" then
         HR:Print(("Verify: %s has no node: removed."):format(label))
         HR:DropPoint(i)
     else
         HR:Print(("Verify: %s has no node (report mode, kept; /hr verify remove to remove)."):format(label))
     end
+end
+
+-- Probes the nearby points one by one until one shows a node.
+local function checkStep(r, i, st)
+    local ck = st.checking
+    if GetTime() < ck.nextAt then return end
+    local item = ck.list[ck.k]
+    if not item then
+        st.checking, st.final = nil, true
+        r.checkFailed = true
+        r.vstats.empty = r.vstats.empty + 1
+        HR:Print(("Verify: none of the %d nearest points has a node either, so the projection or the node availability cannot be confirmed: nothing removed."):format(#ck.list))
+        return
+    end
+    local g = geometry(r, item.j)
+    if not g or not g.inside then
+        ck.k = ck.k + 1
+        return
+    end
+    local why = blocked()
+    if why then
+        HR.verifyReason = "waiting: " .. why
+        return
+    end
+    HR.verifyReason = "checking the projection"
+    probe(g.ox, g.oy, function(result, cause)
+        if HR.route ~= r or r.index ~= i or st.checking ~= ck then return end
+        r.vstats.probes = r.vstats.probes + 1
+        if result == "line" then
+            HR.verifyHits = HR.verifyHits + 1
+            st.checking = nil
+            HR:Print(("Verify: projection confirmed (point %d has a node)."):format(item.j))
+            decideAbsent(r, i, st)
+        elseif result == "empty" then
+            ck.k = ck.k + 1
+        else
+            ck.none = ck.none + 1
+            ck.nextAt = GetTime() + 1
+            HR.lastCause = cause
+            if ck.none >= 6 then
+                st.checking, st.final = nil, true
+                HR:Print(("Verify: the projection check is inconclusive (%s): nothing removed."):format(cause))
+            end
+        end
+        HR:RouteChanged()
+    end, nil, recipeOpts())
 end
 
 local function step(r)
@@ -252,6 +337,7 @@ local function step(r)
         st = {misses = 0, none = 0, nextAt = 0}
         r.vstate[i] = st
     end
+    if st.checking and not st.final then return checkStep(r, i, st) end
     if st.final or GetTime() < st.nextAt then return end
 
     local g = geometry(r, i)
