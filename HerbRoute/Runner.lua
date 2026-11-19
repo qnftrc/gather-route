@@ -115,12 +115,83 @@ function HR:SkipPoint()
     end
 end
 
+local REROUTE_DELAY = 1.5
+
+-- Reorders the points still ahead of the current one (nearest neighbour then 2-opt, as for
+-- a new route) starting from the current point. The database is never touched; the
+-- verification state of the points ahead follows them to their new places.
+function HR:Reroute()
+    local r = self.route
+    if not r or r.mode ~= "follow" or self.rerouting then return end
+    local index, rev = r.index, r.rev or 0
+    local cur = r.points[index]
+    local tail = {}
+    for i = index + 1, #r.points do
+        if not r.removed[i] then tail[#tail + 1] = r.points[i] end
+    end
+    if #tail < 3 then return end
+    local start = {x = cur.x, y = cur.y}
+    local before = HR.Math.pathLength(tail, start)
+    self.rerouting = true
+    local co = coroutine.create(function()
+        local copy = {}
+        for i, p in ipairs(tail) do copy[i] = p end
+        return HR.Math.solve(copy, start, coroutine.yield)
+    end)
+    local function step()
+        if self.route ~= r then self.rerouting = false return end
+        local ok, result = coroutine.resume(co)
+        if not ok then
+            self.rerouting = false
+            return self:Print("Reroute error: " .. tostring(result))
+        end
+        if coroutine.status(co) ~= "dead" then return C_Timer.After(0, step) end
+        self.rerouting = false
+        if r.index ~= index or (r.rev or 0) ~= rev then
+            return self:ScheduleReroute()
+        end
+        local old = {}
+        for i = index + 1, #r.points do old[r.points[i]] = i end
+        local points, vstate = {}, {}
+        for i = 1, index do
+            points[i] = r.points[i]
+            vstate[i] = r.vstate and r.vstate[i]
+        end
+        for _, p in ipairs(result) do
+            points[#points + 1] = p
+            vstate[#points] = r.vstate and r.vstate[old[p]]
+        end
+        local removed = {}
+        for i = 1, index do if r.removed[i] then removed[i] = true end end
+        r.points, r.removed = points, removed
+        if r.vstate then r.vstate = vstate end
+        r.world = nil
+        r.rev = rev + 1
+        local after = HR.Math.pathLength(result, start)
+        self:Print(("Reroute: %d point(s) ahead reordered, distance %.1f -> %.1f."):format(#result, before, after))
+        self:RouteChanged()
+    end
+    step()
+end
+
+function HR:ScheduleReroute()
+    local r = self.route
+    if not r or r.mode ~= "follow" or self.db.reroute ~= true then return end
+    r.rerouteToken = (r.rerouteToken or 0) + 1
+    local token = r.rerouteToken
+    C_Timer.After(REROUTE_DELAY, function()
+        if self.route == r and r.rerouteToken == token and self.db.reroute == true then self:Reroute() end
+    end)
+end
+
 -- Drops a point from the running route (never from the database).
 function HR:DropPoint(i)
     local r = self.route
     if not r or r.removed[i] then return end
     r.removed[i] = true
+    r.rev = (r.rev or 0) + 1
     r.removedCount = (r.removedCount or 0) + 1
+    self:ScheduleReroute()
     if r.mode == "follow" then
         if i == r.index then self:Advance() end
     else

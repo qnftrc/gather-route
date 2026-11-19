@@ -253,9 +253,13 @@ local function build()
         end
     end)
 
-    ui.radiusText = label(ui, "", "TOPLEFT", 16, -510)
+    ui.reroute = check(ui, "Reorder the points ahead after removals", 12, -498, function(self)
+        HR.db.reroute = self:GetChecked() and true or false
+    end)
+
+    ui.radiusText = label(ui, "", "TOPLEFT", 16, -534)
     local slider = CreateFrame("Slider", nil, ui, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -512)
+    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -536)
     slider:SetSize(190, 16)
     slider:SetMinMaxValues(5, 40)
     slider:SetValueStep(1)
@@ -295,6 +299,7 @@ local function build()
         ui.showMini:SetChecked(HR.db.showMinimap)
         ui.isolate:SetChecked(HR.db.isolateTracking)
         ui.verify:SetChecked(HR.db.verify ~= "off")
+        ui.reroute:SetChecked(HR.db.reroute == true)
         ui.slider:SetValue(HR.db.radius)
         if not dirty then fillPosition() end
         HR:UpdateUI()

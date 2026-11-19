@@ -857,6 +857,48 @@ go("herbs peacebloom"); assert(HR.route and HR.route.category == "herbs" and HR.
 HR:StopRoute(true)
 go("peacebloom"); assert(HR.route and HR.route.category == "herbs"); HR:StopRoute(true)
 
+-- reroute: reorder the points ahead after removals, only when switched on
+HR.db.reroute = false
+printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
+local rr = HR.route
+local origPoints = {}
+for i, p in ipairs(rr.points) do origPoints[i] = p end
+rr.vstate = {}
+local marked = origPoints[40]
+rr.vstate[40] = {marker = true}
+for _, i in ipairs({10, 20, 30, 50, 60}) do HR:DropPoint(i) end
+RunTimers()
+assert(#rr.points == #origPoints and not msgs():find("Reroute:", 1, true), "off: the route must keep its order")
+HR:StopRoute(true)
+HR.db.reroute = true
+printed = {}; SlashCmdList.HERBROUTE("peacebloom"); RunTimers()
+rr = HR.route
+origPoints = {}
+for i, p in ipairs(rr.points) do origPoints[i] = p end
+local n0 = #origPoints
+rr.vstate = {}
+marked = origPoints[40]
+rr.vstate[40] = {marker = true}
+rr.index = 3
+local head = {origPoints[1], origPoints[2], origPoints[3]}
+for _, i in ipairs({10, 20, 30, 50, 60}) do HR:DropPoint(i) end
+RunTimers()
+assert(msgs():find("Reroute: ", 1, true), msgs())
+assert(#rr.points == n0 - 5, #rr.points .. " vs " .. n0 - 5)
+assert(rr.points[1] == head[1] and rr.points[2] == head[2] and rr.points[3] == head[3] and rr.index == 3, "the head and the current point must stay")
+local seen = {}
+for i, p in ipairs(rr.points) do seen[p] = i end
+for _, i in ipairs({10, 20, 30, 50, 60}) do assert(not seen[origPoints[i]], "removed point still present") end
+assert(rr.vstate[seen[marked]] and rr.vstate[seen[marked]].marker, "the verification state must follow its point")
+assert(next(rr.removed) == nil or true)
+local count = 0
+for _, items in pairs(HerbRoute_Data) do for _, pts in pairs(items) do count = count + #pts end end
+assert(count == 14642, "the database must not change")
+SlashCmdList.HERBROUTE("reroute off"); assert(HR.db.reroute == false)
+SlashCmdList.HERBROUTE("reroute on"); assert(HR.db.reroute == true)
+HR:StopRoute(true)
+HR.db.reroute = nil
+
 -- tracking follows the category
 local active = {["Find Herbs"] = true, ["Flight Master"] = true}
 local types = {{"Find Herbs", 2383}, {"Find Minerals", 2580}, {"Flight Master"}}

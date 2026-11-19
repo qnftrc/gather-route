@@ -14,6 +14,7 @@ local defaults = {
     verify = "report",
     verifyAhead = true,
     mergeDuplicates = true,
+    reroute = false,
     skipButton = {shown = false},
     overrides = {},
 }
@@ -89,6 +90,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
+    HR:Print("/hr reroute [on|off|now] - reorder the points ahead after points are removed (off by default)")
     HR:Print("/hr merge [on|off] - merge points closer than 1% of the map (the data files stay untouched)")
     HR:Print("/hr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > HerbRoute)")
     HR:Print("/hr stop | skip | debug | map (test of the world map overlay)")
@@ -111,6 +113,11 @@ local function handleSlash(msg)
         HR:StopRoute()
     elseif cmd == "skip" then
         HR:SkipPoint()
+    elseif cmd == "reroute" then
+        local arg = rest:lower()
+        if arg == "on" or arg == "off" then HR.db.reroute = arg == "on" end
+        if arg == "now" then return HR:Reroute() end
+        HR:Print("Reroute after removals: " .. (HR.db.reroute == true and "on" or "off") .. " (/hr reroute on|off|now): reorders the points ahead from the current one; the database is never changed.")
     elseif cmd == "merge" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then HR.db.mergeDuplicates = arg == "on" end
