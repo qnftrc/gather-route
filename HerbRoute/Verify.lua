@@ -98,20 +98,28 @@ end
 
 -- One probe. done(result, cause): "line" (a node is there), "empty" (the
 -- minimap is under the cursor and shows nothing) or "none" (inconclusive, with
--- the cause). `detail`, when given, receives what was measured.
-local function probe(ox, oy, done, detail)
+-- the cause). `detail`, when given, receives what was measured. `opts`:
+-- update (also call UpdateMouseoverAtPoint at the real cursor), soft (soft
+-- cursor on), frames (how many frames to wait for data, default 2).
+local function probe(ox, oy, done, detail, opts)
+    opts = opts or {}
+    local maxFrames = opts.frames or 2
     probing = true
     local pts = MM.savePoints()
     local sx, sy = GetCursorPosition()
     local es = Minimap:GetEffectiveScale()
     local cx, cy = Minimap:GetCenter()
     local hx, hy = (sx / es - ox) - cx, (sy / es - oy) - cy
-    if detail then detail.sx, detail.sy, detail.hx, detail.hy, detail.cx, detail.cy = sx, sy, hx, hy, cx, cy end
-    local finished = false
+    if detail then
+        detail.sx, detail.sy, detail.hx, detail.hy, detail.cx, detail.cy = sx, sy, hx, hy, cx, cy
+        detail.reads = {}
+    end
+    local finished, soft = false, false
     local function finish(result, cause)
         if finished then return end
         finished = true
         pcall(MM.placeMinimap, pts, 0, 0)
+        if soft then pcall(Minimap.SetUsingSoftCursor, Minimap, false) end
         MM.waitFrames(2, function()
             if detail then
                 local ax, ay = Minimap:GetCenter()
@@ -124,10 +132,16 @@ local function probe(ox, oy, done, detail)
     if hx ~= hx or hy ~= hy or math.abs(hx) > 3000 or math.abs(hy) > 3000 then
         return finish("none", "the shift is out of range")
     end
-    C_Timer.After(1, function() finish("none", "timeout") end)
+    C_Timer.After(2, function() finish("none", "timeout") end)
     if not pcall(MM.placeMinimap, pts, hx, hy) then return finish("none", "the minimap could not be moved") end
+    if opts.soft and Minimap.SetUsingSoftCursor then
+        soft = pcall(Minimap.SetUsingSoftCursor, Minimap, true)
+    end
+    if opts.update and Minimap.UpdateMouseoverAtPoint then
+        pcall(Minimap.UpdateMouseoverAtPoint, Minimap, sx, sy)
+    end
 
-    local function read(second)
+    local function read(n)
         if finished then return end
         local x, y = GetCursorPosition()
         if math.abs(x - sx) > 3 or math.abs(y - sy) > 3 then return finish("none", "the mouse moved") end
@@ -136,19 +150,19 @@ local function probe(ox, oy, done, detail)
         local applied = ncx ~= nil and math.abs(ncx - (cx + hx)) < 2 and math.abs(ncy - (cy + hy)) < 2
         local has, sig, anyData = MM.reading()
         if detail then
-            detail[second and "read2" or "read1"] = {
-                has = has, sig = sig, anyData = anyData, applied = applied, inside = MM.cursorInside(),
+            detail.reads[#detail.reads + 1] = {
+                frame = n, has = has, sig = sig, anyData = anyData, applied = applied, inside = MM.cursorInside(),
             }
         end
         if not applied then return finish("none", "the minimap did not move (another addon or the client re-anchored it)") end
         if has then return finish("line") end
         if anyData then return finish("empty") end
-        if not second then
-            return C_Timer.After(0, function() read(true) end)
+        if n < maxFrames then
+            return C_Timer.After(0, function() read(n + 1) end)
         end
         finish("none", "no hover data: the hover was not refreshed (after steering, move the mouse once)")
     end
-    C_Timer.After(0, function() read(false) end)
+    C_Timer.After(0, function() read(1) end)
 end
 
 local function decideAbsent(r, i, st)
@@ -255,33 +269,57 @@ function HR:VerifyStatus()
     end
 end
 
--- /hr verify probe: one probe on the current point, with everything measured.
+-- /hr verify probe: the same probe in several variants, with everything measured.
+local VARIANTS = {
+    {name = "plain", opts = {}},
+    {name = "update", opts = {update = true}},
+    {name = "soft cursor + update", opts = {soft = true, update = true}},
+    {name = "wait 6 frames", opts = {frames = 6}},
+}
+
 function HR:VerifyProbeNow()
     local r = self.route
     if not r or r.mode ~= "follow" then return self:Print("Start a route in follow mode first.") end
-    self:Print("Verify probe in 3 s: rest the mouse in the world, away from any window.")
+    self:Print("Verify probe in 3 s: MOVE the mouse a little in the world, then keep it still (a real movement refreshes the minimap hover).")
+    local x0, y0 = GetCursorPosition()
+    local movedDuring = false
+    local function watch(t)
+        local x, y = GetCursorPosition()
+        if math.abs(x - x0) > 2 or math.abs(y - y0) > 2 then movedDuring = true end
+        if t < 2.75 then C_Timer.After(0.25, function() watch(t + 0.25) end) end
+    end
+    watch(0)
     C_Timer.After(3, function()
         if HR.route ~= r or probing then return end
         local i = r.index
         local g = geometry(r, i)
         if not g then return HR:Print("Verify probe: no position data (HereBeDragons or the route overlay is missing).") end
-        HR:Print(("Verify probe: point %d/%d (%s), %.0f yd away, projected offset (%.0f, %.0f) units, %s the probe disc."):format(
-            i, #r.points, r.points[i].herb, g.dist, g.ox, g.oy, g.inside and "inside" or "outside"))
+        HR:Print(("Verify probe: point %d/%d (%s), %.0f yd away, projected offset (%.0f, %.0f) units, %s the probe disc; mouse moved during the countdown: %s."):format(
+            i, #r.points, r.points[i].herb, g.dist, g.ox, g.oy, g.inside and "inside" or "outside", movedDuring and "yes" or "NO"))
         local why = blocked(true)
         if why then return HR:Print("Verify probe: not run: " .. why .. ".") end
-        local d = {}
-        probe(g.ox, g.oy, function(result, cause)
-            HR:Print(("  cursor (%.0f, %.0f) px, minimap center (%.1f, %.1f), shift (%.1f, %.1f)"):format(
-                d.sx or 0, d.sy or 0, d.cx or 0, d.cy or 0, d.hx or 0, d.hy or 0))
-            for _, key in ipairs({"read1", "read2"}) do
-                local rd = d[key]
-                if rd then
-                    HR:Print(("  %s: moved=%s, cursor on minimap=%s, lines=%s, data=%s, %s"):format(
-                        key == "read1" and "+1 frame" or "+2 frames", tostring(rd.applied), tostring(rd.inside),
-                        tostring(rd.has), tostring(rd.anyData), tostring(rd.sig)))
+        local first = true
+        local function run(k)
+            local v = VARIANTS[k]
+            if not v then return end
+            local d = {}
+            probe(g.ox, g.oy, function(result, cause)
+                if first then
+                    first = false
+                    HR:Print(("  cursor (%.0f, %.0f) px, minimap center (%.1f, %.1f), shift (%.1f, %.1f)"):format(
+                        d.sx or 0, d.sy or 0, d.cx or 0, d.cy or 0, d.hx or 0, d.hy or 0))
                 end
-            end
-            HR:Print(("  result: %s%s; minimap back home: %s"):format(result, cause and (" (" .. cause .. ")") or "", tostring(d.homeOk)))
-        end, d)
+                local reads = {}
+                for _, rd in ipairs(d.reads or {}) do
+                    reads[#reads + 1] = ("+%d moved=%s onMinimap=%s lines=%s data=%s %s"):format(
+                        rd.frame, tostring(rd.applied), tostring(rd.inside), tostring(rd.has), tostring(rd.anyData), tostring(rd.sig))
+                end
+                HR:Print(("  [%s] %s%s; back home: %s; %s"):format(v.name, result, cause and (" (" .. cause .. ")") or "",
+                    tostring(d.homeOk), table.concat(reads, " | ")))
+                if result ~= "none" or k == #VARIANTS then return end
+                run(k + 1)
+            end, d, v.opts)
+        end
+        run(1)
     end)
 end

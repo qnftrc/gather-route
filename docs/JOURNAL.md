@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Relancer la vérification avec le zip corrigé** : démarrer une route en mode Suivi, **bouger la souris une fois** après toute utilisation de la caméra, la laisser immobile dans le monde, puis `/hr verify` (état, raison d'attente, causes des sondes inconclusives) et `/hr verify probe` (une sonde détaillée sur le point courant, après 3 s). Coller les sorties. Le résultat dit si le point projeté tombe bien sur le point jaune (R21) ou si la lecture n'est pas rafraîchie (R24).
+1. **Lancer `/hr verify probe` en bougeant la souris pendant les 3 s de décompte, puis en la laissant immobile**, et coller la sortie : elle teste quatre variantes (simple, avec `UpdateMouseoverAtPoint` au curseur réel, curseur logiciel, attente de 6 images) et dit si la souris a bougé pendant le décompte. Relancer aussi `/hr probe blink world` juste avant, avec les mêmes habitudes de souris, pour comparer. La variante qui donne des données sera adoptée par la vérification automatique (R24).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -147,6 +147,14 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Corrections : (1) plus d'abandon : réessais espacés (jusqu'à 10 s) et message au 3e échec avec la cause ; (2) **garde « bouger la souris une fois »** après tout appui sur un bouton (le sondage attend un vrai mouvement) ; (3) contrôle que la minimap a **réellement bougé** à la lecture ; (4) seconde lecture à +2 images si la première ne renvoie aucune donnée ; (5) `/hr verify` affiche le nombre de sondes inconclusives et leurs causes ; (6) nouvelle commande **`/hr verify probe`** : une sonde détaillée sur le point courant après 3 s (curseur, centre de la minimap, décalage, lectures à +1 et +2 images avec signature, retour à la position d'origine). État de repos réinitialisé à chaque route.
 - Tests hors jeu ajoutés : abandon supprimé, causes enregistrées, minimap figée (cause « did not move »), reprise après mouvement de souris, `/hr verify probe`.
 
+### 2026-11-19 — Rapports `/hr verify` et `/hr verify probe` : minimap déplacée, curseur dessus, mais aucune donnée
+- `/hr verify` : « point 1/126 is inconclusive (no hover data…) », 4 sondes, 0 confirmée, 0 vide, 4 inconclusives, cause unique « no hover data ».
+- `/hr verify probe` (point 1/126) : décalage projeté (-5 ; 23) unités, dans le disque ; curseur (861 ; 385) px ; centre de la minimap (1579,1 ; 909,5) ; décalage appliqué (-380,0 ; -397,8). À +1 et +2 images : **`moved=true`** (la minimap a bien suivi), **`cursor on minimap=true`** (le curseur est dans le disque), `lines=false`, **`data=false`** (aucune donnée du tout) ; résultat inconclusif ; la minimap est bien revenue (`back home: true`).
+- Ce que cela écarte : un décalage qui n'a pas eu lieu, un curseur hors du disque, un retour manquant. La **projection (R21) reste non vérifiée** : aucune lecture n'a été obtenue, donc on ne sait pas si le point tombe sur un point jaune.
+- Ce que cela montre : dans la même géométrie, `blink world` avait obtenu des données à +1 image (ligne ou lecture vide) ; ici le moteur ne renvoie **rien**. La différence est dans l'état du survol du moteur. Hypothèse principale : le survol de la minimap n'est recalculé qu'à un **vrai mouvement de souris** (les essais de `blink world` suivaient un déplacement manuel du curseur dans le monde, une souris parfaitement immobile ne produit pas d'événement). Non démontré.
+- Écrit : `/hr verify probe` teste maintenant quatre variantes dans l'ordre jusqu'à obtenir des données : simple ; avec `UpdateMouseoverAtPoint` appelé au curseur réel ; curseur logiciel + `UpdateMouseoverAtPoint` ; attente jusqu'à 6 images. Il demande de bouger la souris pendant le décompte et indique si le mouvement a été vu. Lectures détaillées par image (déplacement, curseur sur la minimap, lignes, données, signature).
+- Si une variante marche, la vérification automatique l'adoptera ; sinon la vérification ne pourra tourner qu'après un mouvement de souris (garde déjà en place pour les boutons) ou devra rester manuelle.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -189,7 +197,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R21 | La projection d'un point de la base sur la minimap (formule du tracé minimap) n'a jamais été vérifiée en jeu : si elle est fausse, tous les sondages tombent à côté | Garde-fou : aucun retrait avant un premier point confirmé ; à valider en jeu |
 | R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoquerait un retrait à tort | Atténué par 2 sondages, mode `report` par défaut, base intacte ; à mesurer en jeu |
 | R23 | Les passes exigent une souris immobile dans le monde, et un vrai mouvement après avoir dirigé à la souris : avec la souris tenue pour la caméra, elles seront souvent en attente | Garde « bouger la souris une fois » ajoutée ; raison visible par `/hr verify` ; à mesurer |
-| R24 | Premier essai en jeu : 4 sondes sur 4 inconclusives, cause inconnue (survol non rafraîchi après la caméra, minimap non déplacée, ou autre) | Ouvert, test = `/hr verify` puis `/hr verify probe` |
+| R24 | La vérification en jeu ne reçoit aucune donnée de survol (minimap déplacée, curseur dessus, `data=false` à +1 et +2 images) alors que `blink world` en recevait | Ouvert, test = `/hr verify probe` (4 variantes, souris bougée pendant le décompte) |
 
 ## Commits
 | Commit | Contenu |

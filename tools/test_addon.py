@@ -554,8 +554,16 @@ assert(HR.route.vstate[1].confirmed, "probing must resume after the mouse moved"
 -- 7d. /hr verify probe prints the measurements
 reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}
 go("peacebloom"); go("verify probe")
-assert(msgs():find("Verify probe: point 1/", 1, true) and msgs():find("result: line", 1, true) and msgs():find("minimap back home: true", 1, true), msgs())
-assert(msgs():find("+1 frame: moved=true", 1, true), msgs())
+assert(msgs():find("Verify probe: point 1/", 1, true) and msgs():find("mouse moved during the countdown: NO", 1, true), msgs())
+assert(msgs():find("[plain] line", 1, true) and msgs():find("back home: true", 1, true), msgs())
+assert(msgs():find("+1 moved=true onMinimap=true lines=true", 1, true), msgs())
+
+-- 7e. when plain gives nothing, the next variants are tried and reported
+reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}; engine = "none"
+go("peacebloom"); go("verify probe")
+assert(msgs():find("[plain] none", 1, true) and msgs():find("[update] none", 1, true)
+  and msgs():find("[soft cursor + update] none", 1, true) and msgs():find("[wait 6 frames] none", 1, true), msgs())
+assert(sx == 0 and sy == 0, "minimap not restored after the variants")
 
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
