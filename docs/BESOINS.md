@@ -29,6 +29,7 @@ Le tracé actuel (carte du monde et minimap) montre **tous les emplacements poss
 | B17 | Fusionner les doublons des bases à une unité de coordonnée près, sans toucher aux fichiers de données | Demande du joueur |
 | B18 | Ajuster la route en temps réel d'après la minimap : réordonner les points restants après des retraits, sous forme d'une fonction activable et désactivable à volonté | Demande du joueur |
 | B19 | Détecter les points **déjà skippés** (Skip, touche, ou retirés par la vérification comme absents) qui réapparaissent dans le cadre de la minimap, herbes et minerais ; les **réinsérer dans la route avec un nouveau waypoint et un message** ; rien détecté = ni action ni message ; minimap déplacée en mode `hidden` | Demande du joueur (livré : F60, D26) |
+| B20 | **Reroutage vers le point rempli le plus proche** : quand la minimap est sondée, le point rempli (nœud détecté) le plus proche de ma position devient la nouvelle cible (nouveau waypoint, réintégré dans la route) ; une fois ce waypoint atteint, la route est recalculée depuis ma position. Périmètre à préciser (voir le journal) | Demande du joueur |
 
 ## 3. Faits établis
 - Les points jaunes du pistage sont dessinés par le moteur, pas par des cadres Lua : un add-on ne peut pas les parcourir. Selon un commentaire de la page [GatherMate2](https://www.wowace.com/projects/gathermate2?page=47), les add-ons ne peuvent pas les voir.
