@@ -3,6 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
+0. **Tester les minerais en jeu** (zip à jour) : `/hr debug`, puis la fenêtre (cases Herbs / Ores), `/hr ores copper vein` dans une zone de minerais, vérifier que seul « Trouver les minéraux » reste actif pendant la route et que la configuration d'origine est rétablie à l'arrêt ; ouvrir la fenêtre sans erreur Lua (`/console scriptErrors 1`). La vérification minimap sur un minerai (calibrée sur un point d'herbe) n'est pas validée : rester en mode `report`.
 1. **Retester avec le zip qui vérifie la projection** : route en mode Suivi, souris immobile dans le monde, mode `report`. Au premier point vide, l'add-on sonde jusqu'à 12 points voisins pour trouver un nœud ; un message « projection confirmed » ou « none of the … nearest points has a node » apparaît. Dans le second cas, lancer `/hr verify scan` (carte ASCII points jaunes / points projetés) et coller la fenêtre. Quand « projection confirmed » apparaît, passer à `/hr verify remove`.
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
@@ -237,6 +238,7 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D15 | Le pin TomTom de la minimap du waypoint courant est **masqué pendant chaque sonde** (`HideWaypoint` puis `ShowWaypoint`), car c'est un bouton qui capte la souris | 2026-11-19 | Appliquée (non testée en jeu) |
 | D16 | Avant tout retrait dans une session, l'add-on **sonde jusqu'à 12 points voisins** pour trouver un nœud et confirmer la projection ; sans aucun nœud trouvé, rien n'est retiré et la vérification n'est pas retentée pour cette route | 2026-11-19 | Appliquée (non testée en jeu) |
 | D17 | La base peut être **enrichie par ajout seulement** (fichier séparé généré par `tools/merge_gathermate.py`) : les points d'origine ne sont jamais modifiés ni retirés ; un point de la source à moins de 0,5 % d'un point existant de la même herbe est un doublon et n'est pas ajouté | 2026-11-19 | Appliquée (GatherMate Forever : +1 386 points, région Felwood) |
+| D18 | Les **minerais** sont une seconde catégorie de données (`HerbRoute_OreData`, fichier séparé généré, jamais mélangée aux herbes) ; la catégorie, puis la région, puis le type se choisissent dans cet ordre ; le reste du comportement est inchangé | 2026-11-19 | Appliquée (GatherMate Forever : 8 920 points, 41 régions, 18 minerais) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
@@ -267,6 +269,17 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R24 | La vérification n'obtenait aucune donnée de survol, puis une variante renvoyait des lectures sans valeur | **Rouvert** : seule `blink world` a détecté un point connu ; la méthode est maintenant choisie par calibration sur un point connu |
 | R25 | Aucune des sept méthodes ne détecte un point connu en jeu | **Écarté** : six méthodes sur sept détectent le point (calibration du build 70959) |
 | R26 | Les sondes sur le waypoint courant ne recevaient aucune donnée | **Résolu en principe** : le pin TomTom masqué (D15), `focus=Minimap`, données renvoyées en jeu |
+| R27 | Pistage des minerais : le sort 2580 et le nom « Find Minerals » viennent du client d'origine ; la vérification minimap n'a été calibrée que sur un point d'herbe | À tester en jeu ; mode `report` conseillé pour les minerais |
+
+### 2026-11-19 — Minerais GatherMate et choix de catégorie (F16, besoin B11)
+- Demande du joueur : « la même chose pour les ores de GatherMate », même format, même déclinaison **par zone puis par catégorie** : une option pour choisir entre herbes et minerais, puis par type d'herbe ou de minerai. « Tout le reste est inchangé. »
+- Source : `GatherMate2_Data/Forever/MiningData.lua` (11 011 points, 41 zones, 18 minerais ; ids 201 à 219 de `Constants.lua`, aucun minerai des extensions ultérieures). Les noms viennent de `Constants.lua` (bloc `Mining`, lignes commentées ignorées).
+- Zones : mêmes numéros de carte que les herbes ; le rattachement aux régions reprend le tableau du rapport des herbes (`--zone-map docs/DONNEES_GATHERMATE.md`, dont 1448 = Felwood). Les minerais n'ont pas de base d'origine à comparer : seules les positions voisines (moins de 0,5 %, même minerai et même région) sont fusionnées : **8 920 points** gardés, 2 091 fusionnés. Les 41 régions existent déjà dans la liste des herbes.
+- Format : `Data/OreDataGatherMate.lua` définit `HerbRoute_OreData[région][minerai] = {{x, y}, ...}`, même précision (une décimale au plus), pourcentages. Les herbes ne sont pas touchées : `HerbData.lua` et `HerbDataGatherMate.lua` sont identiques à avant (régénération comparée), `tools/check_data.py` reste OK.
+- Add-on : catégorie `herbs` ou `ores` (`HR.categories`), cases « Herbs » / « Ores » dans la fenêtre (la liste de régions et la liste de types suivent la catégorie), sélection mémorisée séparément (`HerbRouteDB.herbs` et `.ores`), commandes `/hr ores <minerai>[, ...]` et `/hr ores <région>: <minerai>|all` (la commande sans préfixe reste celle des herbes), pistage isolé selon la catégorie (sort 2580 « Trouver les minéraux » pour les minerais, 2383 pour les herbes ; noms localisés lus par `C_Spell`). Le reste (algorithme, modes, tracés, vérification) est inchangé.
+- Correction au passage : la ligne « Total » du rapport des herbes avait les colonnes « Fusionnés » et « Ajoutés » inversées (1 386 et 458) ; elle est corrigée et le rapport régénéré.
+- Tests hors jeu : `tools/test_addon.py` couvre les données (41 régions, 8 920 points), les routes par minerai, `/hr ores ... all`, les erreurs, le pistage par catégorie, l'ouverture de la fenêtre sur la catégorie « ores » (faux widgets : rendu non testé).
+- Limites : (1) le sort 2580 est celui du client d'origine, non vérifié sur Forever (repli sur le nom « Find Minerals ») ; (2) la calibration de la vérification minimap a été faite sur un point d'herbe, rien ne garantit la même réponse pour un minerai.
 
 ## Commits
 | Commit | Contenu |

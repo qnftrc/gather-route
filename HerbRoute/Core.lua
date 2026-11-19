@@ -4,6 +4,8 @@ _G.HerbRoute = HR
 local defaults = {
     region = nil,
     herbs = {},
+    ores = {},
+    category = "herbs",
     mode = "follow",
     radius = 15,
     showMap = true,
@@ -39,13 +41,14 @@ local function splitList(s)
     return out
 end
 
-local function findRegion(name)
+local function findRegion(name, category)
     local n = normalize(name)
-    for _, region in ipairs(HR.regionNames) do
+    local regions = category and HR:GetRegions(category) or HR.regionNames
+    for _, region in ipairs(regions) do
         if normalize(region) == n then return region end
     end
     local hit
-    for _, region in ipairs(HR.regionNames) do
+    for _, region in ipairs(regions) do
         if normalize(region):find(n, 1, true) then
             if hit then return nil, "ambiguous" end
             hit = region
@@ -54,8 +57,8 @@ local function findRegion(name)
     return hit
 end
 
-local function findHerbs(region, names)
-    local available = HR:GetHerbs(region)
+local function findHerbs(region, names, category)
+    local available = HR:GetHerbs(region, category)
     local picked, missing = {}, {}
     for _, wanted in ipairs(names) do
         local w = normalize(wanted)
@@ -77,6 +80,7 @@ local function usage()
     HR:Print("/hr - open the window")
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
+    HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
     HR:Print("/hr stop | skip | debug")
     HR:Print("/hr tracking [on|off|status|restore] - keep only Find Herbs during a route")
     HR:Print("/hr verify [off|report|remove|status|probe|scan|calibrate|arming] - check the next point on the minimap")
@@ -103,7 +107,7 @@ local function handleSlash(msg)
         local arg = rest:lower()
         if arg == "on" or arg == "off" then
             HR.db.isolateTracking = arg == "on"
-            if arg == "off" then HR:RestoreTracking() elseif HR.route then HR:IsolateHerbTracking() end
+            if arg == "off" then HR:RestoreTracking() elseif HR.route then HR:IsolateTracking() end
             HR:TrackingStatus()
         elseif arg == "restore" then
             HR:RestoreTracking()
@@ -131,12 +135,22 @@ local function handleSlash(msg)
         HR:BuildMaps()
         HR:Print(real .. " -> map " .. id)
     else
+        local category = "herbs"
+        local word, tail = msg:match("^%s*(%a+)%s+(.-)%s*$")
+        if not word then word, tail = msg:match("^%s*(%a+)%s*$"), "" end
+        word = word and word:lower()
+        if word == "ores" or word == "ore" or word == "minerals" then
+            category, msg = "ores", tail
+        elseif word == "herbs" or word == "herb" then
+            msg = tail
+        end
+        local what = category == "ores" and "ore" or "herb"
         local regionPart, herbPart = msg:match("^%s*(.-)%s*:%s*(.-)%s*$")
         if not regionPart then herbPart = msg end
         local region
         if regionPart and regionPart ~= "" and regionPart:lower() ~= "here" then
             local err
-            region, err = findRegion(regionPart)
+            region, err = findRegion(regionPart, category)
             if not region then
                 HR:Print(err == "ambiguous" and ("Several regions match '" .. regionPart .. "'.") or ("Unknown region '" .. regionPart .. "'."))
                 return
@@ -144,21 +158,21 @@ local function handleSlash(msg)
         else
             region = HR:GetCurrentRegion()
             if not region then
-                HR:Print("Your current zone has no herb data. Use /hr <region>: <herbs>.")
+                HR:Print(("Your current zone has no %s data. Use /hr %s<region>: <%ss>."):format(what, category == "ores" and "ores " or "", what))
                 return
             end
         end
         local herbs, missing
         if herbPart:lower() == "all" then
-            herbs, missing = HR:GetHerbs(region), {}
+            herbs, missing = HR:GetHerbs(region, category), {}
         else
-            herbs, missing = findHerbs(region, splitList(herbPart))
+            herbs, missing = findHerbs(region, splitList(herbPart), category)
         end
         if #missing > 0 then
             HR:Print("Not found in " .. region .. ": " .. table.concat(missing, ", "))
         end
         if #herbs == 0 then return end
-        HR:GenerateRoute(region, herbs)
+        HR:GenerateRoute(region, herbs, nil, category)
     end
 end
 

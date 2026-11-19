@@ -40,12 +40,12 @@ local function selectedHerbs()
 end
 
 local function updateHerbCount()
-    ui.herbTitle:SetText(("Herbs (%d selected)"):format(#selectedHerbs()))
+    ui.herbTitle:SetText(("%s (%d selected)"):format(HR.categories[ui.category].label, #selectedHerbs()))
 end
 
 local function fillHerbs(region)
-    local herbs = HR:GetHerbs(region)
-    local saved = HR.db.herbs[region] or {}
+    local herbs = HR:GetHerbs(region, ui.category)
+    local saved = (ui.category == "ores" and HR.db.ores or HR.db.herbs)[region] or {}
     for i, herb in ipairs(herbs) do
         local row = ui.rows[i]
         if not row then
@@ -59,7 +59,7 @@ local function fillHerbs(region)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", ui.herbChild, "TOPLEFT", 0, -(i - 1) * 24)
         row.herb = herb
-        row.text:SetText(("%s |cff999999(%d)|r"):format(herb, HR:CountPoints(region, herb)))
+        row.text:SetText(("%s |cff999999(%d)|r"):format(herb, HR:CountPoints(region, herb, ui.category)))
         row:SetChecked(saved[herb] and true or false)
         row:Show()
     end
@@ -83,6 +83,32 @@ local function fillPosition()
     dirty = false
 end
 
+local function fillRegionPopup()
+    local regions = HR:GetRegions(ui.category)
+    local child = ui.regionChild
+    child:SetSize(290, #regions * 20)
+    for i, region in ipairs(regions) do
+        local b = ui.regionRows[i]
+        if not b then
+            b = CreateFrame("Button", nil, child)
+            b:SetSize(290, 20)
+            b:SetPoint("TOPLEFT", 0, -(i - 1) * 20)
+            b:SetNormalFontObject("GameFontHighlight")
+            b:SetHighlightFontObject("GameFontNormal")
+            b:SetText(region)
+            b:GetFontString():SetPoint("LEFT", 4, 0)
+            local hl = b:CreateTexture(nil, "HIGHLIGHT")
+            hl:SetAllPoints()
+            hl:SetColorTexture(1, 1, 1, 0.12)
+            ui.regionRows[i] = b
+        end
+        b:SetText(region)
+        b:SetScript("OnClick", function() ui.setRegion(region) end)
+        b:Show()
+    end
+    for i = #regions + 1, #ui.regionRows do ui.regionRows[i]:Hide() end
+end
+
 local function buildRegionPopup()
     local popup = CreateFrame("Frame", nil, ui, "BackdropTemplate")
     popup:SetFrameStrata("DIALOG")
@@ -99,24 +125,35 @@ local function buildRegionPopup()
     local scroll = CreateFrame("ScrollFrame", nil, popup, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 6, -6)
     scroll:SetPoint("BOTTOMRIGHT", -26, 6)
-    local child = CreateFrame("Frame", nil, scroll)
-    child:SetSize(290, #HR.regionNames * 20)
-    scroll:SetScrollChild(child)
-
-    for i, region in ipairs(HR.regionNames) do
-        local b = CreateFrame("Button", nil, child)
-        b:SetSize(290, 20)
-        b:SetPoint("TOPLEFT", 0, -(i - 1) * 20)
-        b:SetNormalFontObject("GameFontHighlight")
-        b:SetHighlightFontObject("GameFontNormal")
-        b:SetText(region)
-        b:GetFontString():SetPoint("LEFT", 4, 0)
-        b:SetScript("OnClick", function() setRegion(region) end)
-        local hl = b:CreateTexture(nil, "HIGHLIGHT")
-        hl:SetAllPoints()
-        hl:SetColorTexture(1, 1, 1, 0.12)
-    end
+    ui.regionChild = CreateFrame("Frame", nil, scroll)
+    ui.regionChild:SetSize(290, 1)
+    scroll:SetScrollChild(ui.regionChild)
+    ui.regionRows = {}
+    ui.setRegion = setRegion
     ui.regionPopup = popup
+    fillRegionPopup()
+end
+
+local function hasData(region, category)
+    for _, name in ipairs(HR:GetRegions(category)) do
+        if name == region then return true end
+    end
+    return false
+end
+
+local function setCategory(category)
+    ui.category = category
+    HR.db.category = category
+    ui.catHerbs:SetChecked(category == "herbs")
+    ui.catOres:SetChecked(category == "ores")
+    ui.isolate.label:SetText("Keep only " .. HR.categories[category].spellName .. " tracking during a route")
+    local region = ui.region
+    if not region or not hasData(region, category) then
+        local current = HR:GetCurrentRegion()
+        region = (current and hasData(current, category) and current) or HR:GetRegions(category)[1]
+    end
+    fillRegionPopup()
+    setRegion(region)
 end
 
 local function build()
@@ -135,6 +172,8 @@ local function build()
     ui.rows = {}
 
     label(ui, "Region", "TOPLEFT", 16, -34)
+    ui.catHerbs = check(ui, "Herbs", 140, -30, function() setCategory("herbs") end)
+    ui.catOres = check(ui, "Ores", 230, -30, function() setCategory("ores") end)
     ui.regionButton = button(ui, "", 328, "TOPLEFT", 16, -52, function()
         ui.regionPopup:SetShown(not ui.regionPopup:IsShown())
     end)
@@ -173,7 +212,7 @@ local function build()
     button(ui, "My position", 100, "TOPLEFT", 150, -317, function()
         fillPosition()
         local region = HR:GetCurrentRegion()
-        if region then setRegion(region) end
+        if region and hasData(region, ui.category) then setRegion(region) end
     end)
 
     ui.follow = check(ui, "Follow: one point at a time, auto-advance", 12, -346, function()
@@ -201,7 +240,7 @@ local function build()
         if not HR.db.isolateTracking then
             HR:RestoreTracking()
         elseif HR.route then
-            HR:IsolateHerbTracking()
+            HR:IsolateTracking()
         end
     end)
 
@@ -232,7 +271,7 @@ local function build()
 
     ui.generate = button(ui, "Generate", 100, "BOTTOMLEFT", 16, 40, function()
         local herbs = selectedHerbs()
-        if #herbs == 0 then return HR:Print("Select at least one herb.") end
+        if #herbs == 0 then return HR:Print("Select at least one " .. HR.categories[ui.category].item .. ".") end
         local start
         if dirty then
             local x, y = tonumber(ui.x:GetText()), tonumber(ui.y:GetText())
@@ -241,7 +280,7 @@ local function build()
             end
             start = {x = x, y = y}
         end
-        HR:GenerateRoute(ui.region, herbs, start)
+        HR:GenerateRoute(ui.region, herbs, start, ui.category)
     end)
     ui.skip = button(ui, "Skip", 100, "BOTTOM", 0, 40, function() HR:SkipPoint() end)
     ui.stop = button(ui, "Stop", 100, "BOTTOMRIGHT", -16, 40, function() HR:StopRoute() end)
@@ -261,8 +300,14 @@ local function build()
         HR:UpdateUI()
     end)
 
-    local region = HR:GetCurrentRegion() or HR.db.region or HR.regionNames[1]
-    setRegion(region)
+    ui.category = HR.categories[HR.db.category] and HR.db.category or "herbs"
+    local region = HR:GetCurrentRegion()
+    if not (region and hasData(region, ui.category)) then
+        region = HR.db.region
+        if not (region and hasData(region, ui.category)) then region = HR:GetRegions(ui.category)[1] end
+    end
+    ui.region = region
+    setCategory(ui.category)
 end
 
 function HR:UpdateUI()

@@ -78,7 +78,8 @@ end
 
 -- Why a probe cannot run right now, or nil.
 local function blocked(ignoreRest, noRecipe)
-    if HR:HerbTrackingActive() ~= true then return "Find Herbs tracking is not active" end
+    local r = HR.route
+    if HR:TrackingActive(r and r.category) ~= true then return HR:TrackingName(r and r.category) .. " tracking is not active" end
     if not noRecipe and not recipeOpts() then
         return "run /hr verify calibrate once (the probe method is not calibrated for this build)"
     end

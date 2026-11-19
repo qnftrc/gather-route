@@ -15,6 +15,8 @@ python3 -I tools/check_data.py
 ```
 Le premier lit `HerbData.lua` sans le modifier, rattache chaque zone GatherMate à une région par recouvrement (les zones sans recouvrement demandent `--zone ID=Région`), écarte les points à moins de `--tol` % (0,5 par défaut) d'un point existant de la même herbe, fusionne les doublons internes et écrit `HerbRoute/Data/HerbDataGatherMate.lua`. Le second vérifie que les points d'origine sont inchangés à leur indice et que les ajouts sont distincts.
 
+Pour les minerais : `python3 -I tools/merge_gathermate.py <GatherMate2> <GatherMate2_Data/Forever> --category ores --zone-map docs/DONNEES_GATHERMATE.md --report docs/DONNEES_GATHERMATE_MINERAIS.md` écrit `HerbRoute/Data/OreDataGatherMate.lua` (`HerbRoute_OreData[région][minerai]`). Il n'y a pas de base d'origine à comparer : seules les positions à moins de `--tol` % d'un même minerai sont fusionnées ; le rattachement des zones aux régions vient du rapport des herbes (`--zone-map`).
+
 ## test_math.py — fidélité de l'algorithme
 ```bash
 python3 -I tools/test_math.py WoW_Forever_Herb_Planner.html wowhead_forever_herbes_regions_waypoints.json

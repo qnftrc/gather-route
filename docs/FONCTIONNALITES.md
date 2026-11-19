@@ -26,6 +26,7 @@ Colonnes de vérification : « Hors jeu » = testé par script ou faux environne
 | F13 | Réglages mémorisés (`HerbRouteDB`) | Livré | Partiel | Non | `Core.lua`, `UI.lua` |
 | F14 | Documentation et zip d'installation | Livré | n/a | n/a | `README.md`, `CLAUDE.md`, `tools/README.md` |
 | F15 | Enrichissement de la base par GatherMate (Forever) : fichier `Data/HerbDataGatherMate.lua` (+1 386 points, région Felwood), base d'origine intacte, outils `tools/merge_gathermate.py` et `tools/check_data.py` | **Livré** (vérifié hors jeu : points d'origine inchangés, ajouts distincts, tests de l'add-on) ; non testé en jeu | Hors jeu : oui | Non | `Data/HerbDataGatherMate.lua`, `tools/` |
+| F16 | **Minerais GatherMate** : fichier `Data/OreDataGatherMate.lua` (8 920 points, 41 régions, 18 minerais), choix de la catégorie herbes / minerais (cases dans la fenêtre, `/hr ores ...`) puis de la région et du type, pistage isolé selon la catégorie (Trouver les minéraux) ; le reste est inchangé | **Livré** (testé hors jeu : données, routes, commandes, pistage simulé, ouverture de la fenêtre sur faux widgets) ; non testé en jeu ; vérification minimap non validée sur minerais | Hors jeu : oui | Non | `Data/OreDataGatherMate.lua`, `Resolver.lua`, `Runner.lua`, `Tracking.lua`, `Core.lua`, `UI.lua`, `tools/merge_gathermate.py` |
 
 ## Cadré (vérification des points sur la minimap)
 | Réf. | Fonctionnalité | Statut | Dépend de | Fichiers prévus |

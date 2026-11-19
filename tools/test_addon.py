@@ -59,7 +59,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
+for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -68,7 +68,7 @@ HR = ns
 lua.execute(r'''
 local ev = CreateFrame()  -- the addon frame is a mock: fire its init by hand
 HerbRouteDB = nil
-HR.db = {region=nil, herbs={}, mode="follow", radius=15, showMap=true, showMinimap=true, overrides={}}
+HR.db = {region=nil, herbs={}, ores={}, category="herbs", mode="follow", radius=15, showMap=true, showMinimap=true, overrides={}}
 HR:OnLoaded()
 SlashCmdList.HERBROUTE("debug"); RunTimers()
 print(#printed .. " debug lines") printed = {}
@@ -715,4 +715,75 @@ go("verify remove"); assert(HR.db.verify == "remove")
 go("verify"); assert(msgs():find("this route:", 1, true), msgs())
 go("stop")
 io.write("VERIFY TESTS OK\n")
+''')
+
+lua.execute(r'''
+-- ores: category choice, data, tracking of the category, UI smoke test
+local function count(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n end
+local function msgs() return table.concat(printed, "\n") end
+local function go(m) printed = {}; SlashCmdList.HERBROUTE(m); RunTimers() end
+HR.db = {region=nil, herbs={}, ores={}, category="herbs", mode="follow", radius=15, showMap=true, showMinimap=true,
+  isolateTracking=true, verify="off", overrides={}}
+HR:OnLoaded()
+playerMap = 37; px, py = 0.5, 0.5
+if HR.route then HR:StopRoute(true) end
+
+assert(#HR:GetRegions("ores") == 41 and #HR:GetRegions("herbs") == 46, #HR:GetRegions("ores") .. "/" .. #HR:GetRegions("herbs"))
+local ores = HR:GetHerbs("Elwynn Forest", "ores")
+assert(#ores > 0 and HR:GetHerbs("Elwynn Forest", "herbs")[1] ~= ores[1])
+for _, o in ipairs(ores) do assert(not HerbRoute_Data["Elwynn Forest"][o], "ore name in the herb data: " .. o) end
+local total = 0
+for _, regions in pairs(HerbRoute_OreData) do for _, pts in pairs(regions) do total = total + #pts for _, p in ipairs(pts) do
+  assert(p[1] >= 0 and p[1] <= 100 and p[2] >= 0 and p[2] <= 100) end end end
+assert(total == 8920, total)
+
+local herbsBefore = HR.db.herbs
+go("ores copper vein")
+local r = HR.route
+assert(r and r.category == "ores", msgs())
+assert(#r.points == #HerbRoute_OreData["Elwynn Forest"]["Copper Vein"] and r.points[1].herb == "Copper Vein")
+assert(HR.db.ores["Elwynn Forest"]["Copper Vein"] and next(HR.db.herbs) == nil and HR.db.category == "ores")
+HR:StopRoute(true)
+
+go("ores Stranglethorn Vale: all")
+r = HR.route
+local want = 0
+for _, pts in pairs(HerbRoute_OreData["Stranglethorn Vale"]) do want = want + #pts end
+assert(r and r.category == "ores" and #r.points == want, msgs())
+HR:StopRoute(true)
+
+go("ores nonsense: copper"); assert(msgs():find("Unknown region", 1, true), msgs())
+go("ores Teldrassil: all"); assert(msgs():find("Unknown region", 1, true), msgs())
+go("ores peacebloom"); assert(HR.route == nil and msgs():find("Not found in Elwynn Forest", 1, true), msgs())
+go("herbs peacebloom"); assert(HR.route and HR.route.category == "herbs" and HR.db.category == "herbs", msgs())
+HR:StopRoute(true)
+go("peacebloom"); assert(HR.route and HR.route.category == "herbs"); HR:StopRoute(true)
+
+-- tracking follows the category
+local active = {["Find Herbs"] = true, ["Flight Master"] = true}
+local types = {{"Find Herbs", 2383}, {"Find Minerals", 2580}, {"Flight Master"}}
+C_Spell = {GetSpellName = function(id) return id == 2383 and "Find Herbs" or id == 2580 and "Find Minerals" or nil end}
+C_Minimap = {GetNumTrackingTypes = function() return #types end,
+  GetTrackingInfo = function(i) return {name = types[i][1], active = active[types[i][1]] or false, spellID = types[i][2]} end,
+  SetTracking = function(i, on) active[types[i][1]] = on or nil end}
+local function list() local o = {} for _, t in ipairs(types) do if active[t[1]] then o[#o + 1] = t[1] end end return table.concat(o, ",") end
+go("ores copper vein")
+assert(HR.route and list() == "Find Minerals", list())
+assert(HR:TrackingActive("ores") == true and HR:TrackingActive("herbs") == false and HR:TrackingName("ores") == "Find Minerals")
+HR:StopRoute()
+assert(list() == "Find Herbs,Flight Master", list())
+go("peacebloom"); assert(list() == "Find Herbs", list()); HR:StopRoute()
+assert(list() == "Find Herbs,Flight Master", list())
+
+-- the window opens on the saved category without error
+HR.db.category = "ores"
+local ns2 = {}
+for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
+  local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
+  assert(load(src, f))("HerbRoute", ns2)
+end
+ns2.db = {region = "Elwynn Forest", herbs = {}, ores = {}, category = "ores", mode = "follow", radius = 15, overrides = {}}
+ns2:ToggleUI()
+assert(ns2.db.category == "ores")
+io.write("ORE TESTS OK\n")
 ''')

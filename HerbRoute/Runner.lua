@@ -187,10 +187,11 @@ function HR:StopRoute(silent, keepTracking)
     self:RouteChanged()
 end
 
-function HR:StartRoute(region, mapID, points, start, length)
+function HR:StartRoute(region, mapID, points, start, length, category)
     self:StopRoute(true, true)
     local r = {
         region = region,
+        category = category or "herbs",
         mapID = mapID,
         points = points,
         start = start,
@@ -200,7 +201,7 @@ function HR:StartRoute(region, mapID, points, start, length)
         removed = {},
     }
     self.route = r
-    self:IsolateHerbTracking()
+    self:IsolateTracking(r.category)
     if r.mode == "follow" then showCurrent(r) else showAll(r) end
     self:StartVerify()
     self:Print(("%s: %d points, map distance %.1f."):format(region, #points, length))
@@ -210,7 +211,8 @@ end
 -- Computes the route (in slices, to keep the client responsive) and starts it.
 -- `start` is {x=, y=} in percent; it defaults to the player's position when
 -- the player is in the region, else the map center.
-function HR:GenerateRoute(region, herbs, start)
+function HR:GenerateRoute(region, herbs, start, category)
+    category = category or "herbs"
     local mapID = self:GetRegionMapID(region)
     if not mapID then
         return self:Print(region .. " is not resolved to a map. Try /hr debug.")
@@ -218,7 +220,7 @@ function HR:GenerateRoute(region, herbs, start)
 
     local points = {}
     for _, herb in ipairs(herbs) do
-        for _, p in ipairs(HerbRoute_Data[region][herb] or {}) do
+        for _, p in ipairs(self.categories[category].data[region][herb] or {}) do
             points[#points + 1] = {x = p[1], y = p[2], herb = herb}
         end
     end
@@ -230,8 +232,10 @@ function HR:GenerateRoute(region, herbs, start)
     end
 
     self.db.region = region
-    self.db.herbs[region] = {}
-    for _, herb in ipairs(herbs) do self.db.herbs[region][herb] = true end
+    self.db.category = category
+    local saved = category == "ores" and "ores" or "herbs"
+    self.db[saved][region] = {}
+    for _, herb in ipairs(herbs) do self.db[saved][region][herb] = true end
 
     self.genToken = (self.genToken or 0) + 1
     local token = self.genToken
@@ -251,7 +255,7 @@ function HR:GenerateRoute(region, herbs, start)
         end
         if coroutine.status(co) == "dead" then
             HR.generating = false
-            HR:StartRoute(region, mapID, route, start, HR.Math.pathLength(route, start))
+            HR:StartRoute(region, mapID, route, start, HR.Math.pathLength(route, start), category)
         else
             C_Timer.After(0, step)
         end

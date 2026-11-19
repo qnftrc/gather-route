@@ -49,7 +49,7 @@ Généré par `tools/merge_gathermate.py`. Tolérance de doublon : 0.50 % de la 
 | Wetlands | 513 | 513 | 0 | 0 |
 | Winterspring | 298 | 298 | 0 | 0 |
 | Zephras Isle | 637 | 636 | 0 | 1 |
-| **Total** | 14605 | 12761 | 1386 | 458 |
+| **Total** | 14605 | 12761 | 458 | 1386 |
 
 ## Correspondance des zones
 

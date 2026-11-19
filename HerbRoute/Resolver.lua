@@ -1,17 +1,41 @@
 local addonName, HR = ...
 local normalize = HR.normalize
 
+HR.categories = {
+    herbs = {data = HerbRoute_Data, label = "Herbs", item = "herb", spell = 2383, spellName = "Find Herbs"},
+    ores = {data = HerbRoute_OreData or {}, label = "Ores", item = "ore", spell = 2580, spellName = "Find Minerals"},
+}
+
+local function sortedRegions(data)
+    local list = {}
+    for name in pairs(data) do list[#list + 1] = name end
+    table.sort(list)
+    return list
+end
+
+HR.categoryRegions = {herbs = sortedRegions(HR.categories.herbs.data), ores = sortedRegions(HR.categories.ores.data)}
+
 HR.regionNames = {}
-for name in pairs(HerbRoute_Data) do HR.regionNames[#HR.regionNames + 1] = name end
-table.sort(HR.regionNames)
+do
+    local all = {}
+    for _, c in pairs(HR.categoryRegions) do
+        for _, name in ipairs(c) do all[name] = true end
+    end
+    for name in pairs(all) do HR.regionNames[#HR.regionNames + 1] = name end
+    table.sort(HR.regionNames)
+end
 
 HR.regionToMap = {}
 HR.mapToRegion = {}
 HR.unresolved = {}
 
-function HR:GetHerbs(region)
+function HR:GetRegions(category)
+    return self.categoryRegions[category or "herbs"] or {}
+end
+
+function HR:GetHerbs(region, category)
     local list = {}
-    local data = HerbRoute_Data[region]
+    local data = self.categories[category or "herbs"].data[region]
     if data then
         for herb in pairs(data) do list[#list + 1] = herb end
         table.sort(list)
@@ -19,8 +43,9 @@ function HR:GetHerbs(region)
     return list
 end
 
-function HR:CountPoints(region, herb)
-    local pts = HerbRoute_Data[region] and HerbRoute_Data[region][herb]
+function HR:CountPoints(region, herb, category)
+    local data = self.categories[category or "herbs"].data
+    local pts = data[region] and data[region][herb]
     return pts and #pts or 0
 end
 
@@ -72,7 +97,7 @@ function HR:GetPlayerPosition()
     return m, x * 100, y * 100
 end
 
--- The player's map, or the closest parent map, that has herb data.
+-- The player's map, or the closest parent map, that has data.
 function HR:GetCurrentRegion()
     self:EnsureMaps()
     local m = TomTom:GetCurrentPlayerPosition()

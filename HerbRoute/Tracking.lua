@@ -1,25 +1,29 @@
 local addonName, HR = ...
 
--- While a route runs, only the Find Herbs tracking stays on; the player's own
+-- While a route runs, only the tracking of its category (Find Herbs or Find Minerals) stays on; the player's own
 -- configuration is saved in HerbRouteDB.trackingSnapshot and put back when the
 -- route stops (also after a /reload or a crash, at the next login).
-
-local FIND_HERBS_SPELL = 2383
 
 local function api()
     return C_Minimap and C_Minimap.GetNumTrackingTypes and C_Minimap.GetTrackingInfo and C_Minimap.SetTracking
 end
 
-local function herbsName()
+local function currentCategory(category)
+    category = category or (HR.route and HR.route.category) or "herbs"
+    return HR.categories[category] or HR.categories.herbs
+end
+
+local function wantedName(category)
+    local c = currentCategory(category)
     local name
     if C_Spell and C_Spell.GetSpellName then
-        local ok, n = pcall(C_Spell.GetSpellName, FIND_HERBS_SPELL)
+        local ok, n = pcall(C_Spell.GetSpellName, c.spell)
         if ok then name = n end
     elseif GetSpellInfo then
-        local ok, n = pcall(GetSpellInfo, FIND_HERBS_SPELL)
+        local ok, n = pcall(GetSpellInfo, c.spell)
         if ok then name = n end
     end
-    return name or "Find Herbs"
+    return name or c.spellName
 end
 
 local function list()
@@ -44,8 +48,8 @@ local function key(t)
     return "n" .. HR.normalize(tostring(t.name))
 end
 
-local function isHerbs(t, wanted)
-    if t.spellID == FIND_HERBS_SPELL then return true end
+local function isWanted(t, wanted, category)
+    if t.spellID == currentCategory(category).spell then return true end
     return HR.normalize(tostring(t.name)) == wanted
 end
 
@@ -53,7 +57,7 @@ local function inCombat()
     return InCombatLockdown and InCombatLockdown()
 end
 
-function HR:IsolateHerbTracking()
+function HR:IsolateTracking(category)
     if not self.db.isolateTracking then return end
     if self.db.trackingSnapshot then return end
     if not api() then return end
@@ -63,13 +67,13 @@ function HR:IsolateHerbTracking()
     end
 
     local items = list()
-    local wanted = HR.normalize(herbsName())
+    local wanted = HR.normalize(wantedName(category))
     local herbs
     for _, t in ipairs(items) do
-        if isHerbs(t, wanted) then herbs = t end
+        if isWanted(t, wanted, category) then herbs = t end
     end
     if not herbs then
-        self:Print("Find Herbs tracking is not available: the other trackings are left unchanged.")
+        self:Print(currentCategory(category).spellName .. " tracking is not available: the other trackings are left unchanged.")
         return
     end
 
@@ -117,14 +121,21 @@ function HR:RestoreTracking()
     self:Print("Tracking restored to your configuration.")
 end
 
-function HR:HerbTrackingActive()
+function HR:TrackingActive(category)
     if not api() then return nil end
-    local wanted = HR.normalize(herbsName())
+    local wanted = HR.normalize(wantedName(category))
     for _, t in ipairs(list()) do
-        if isHerbs(t, wanted) then return t.active end
+        if isWanted(t, wanted, category) then return t.active end
     end
     return nil
 end
+
+function HR:TrackingName(category)
+    return currentCategory(category).spellName
+end
+
+HR.IsolateHerbTracking = HR.IsolateTracking
+HR.HerbTrackingActive = HR.TrackingActive
 
 function HR:TrackingStatus()
     self:Print("Tracking isolation: " .. (self.db.isolateTracking and "on" or "off")
@@ -143,7 +154,7 @@ function HR:OnTrackingEvent(event)
         if pending == "restore" then
             self:RestoreTracking()
         elseif self.route then
-            self:IsolateHerbTracking()
+            self:IsolateTracking()
         end
     end
 end

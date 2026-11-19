@@ -1,11 +1,11 @@
 # gather-route
 
-Itinéraires de récolte d'herbes pour **WoW Forever**, pilotés par **TomTom**.
+Itinéraires de récolte d'herbes et de minerais pour **WoW Forever**, pilotés par **TomTom**.
 
 Le dépôt contient l'add-on **HerbRoute** : on choisit une région et des herbes, l'add-on calcule une route optimisée à partir de la position du personnage et la fait suivre par la flèche et les waypoints de TomTom, avec un tracé sur la carte du monde et la minimap.
 
 ## Origine
-Ce projet remplace un planner HTML hors-jeu (saisie manuelle de la région, de X/Y et des herbes, puis copier-coller de lignes `/way`). Les données proviennent de Wowhead Forever (45 régions, 29 herbes, 13 256 points), complétées par ajout seul avec GatherMate (Forever) : 1 386 points et la région Felwood, soit 14 642 points. L'algorithme du planner (plus proche voisin puis amélioration 2-opt) est repris à l'identique.
+Ce projet remplace un planner HTML hors-jeu (saisie manuelle de la région, de X/Y et des herbes, puis copier-coller de lignes `/way`). Les données proviennent de Wowhead Forever (45 régions, 29 herbes, 13 256 points), complétées par ajout seul avec GatherMate (Forever) : 1 386 points et la région Felwood, soit 14 642 points ; et une seconde catégorie, les minerais de GatherMate (41 régions, 18 minerais, 8 920 points). L'algorithme du planner (plus proche voisin puis amélioration 2-opt) est repris à l'identique.
 
 ## Installation
 1. Installer TomTom.
@@ -16,6 +16,7 @@ Ce projet remplace un planner HTML hors-jeu (saisie manuelle de la région, de X
 - `/hr` ouvre la fenêtre (région pré-sélectionnée selon la position, herbes, départ, mode, distance d'arrivée).
 - `/hr Fadeleaf, Briarthorn` : route dans la région actuelle.
 - `/hr Stranglethorn Vale: Goldthorn` : route dans une autre région.
+- `/hr ores Copper Vein` ou `/hr ores Tanaris: all` : même chose pour les minerais (cases Herbs / Ores dans la fenêtre).
 - `/hr stop` supprime la route, `/hr skip` passe le point courant, `/hr debug` liste les régions résolues.
 
 Détails : [HerbRoute/README.md](HerbRoute/README.md).
