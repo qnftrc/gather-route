@@ -396,8 +396,12 @@ local softOn, updated, hitR = false, false, 6
 local ppx, ppy = 950, 950 -- fake player world position (1 % of the map = 1 yd)
 local nodes, afterFirstLine, linesSeen, tracking = {}, false, 0, true
 local cursor, moving, mouseDown, combat, castName, unitUnder, tooltip, engine = {100, 100}, false, false, false, nil, false, false, "real"
-local counter = 0
+local counter, calibT0, alphaCalled = 0, nil, false
 GetCursorPosition = function()
+  if calibT0 then
+    if Now() >= calibT0 + 4 then return cursor[1], cursor[2] end
+    return (cxm + 20) * es, (cym + 10) * es -- phase A: the mouse is on the blip at offset (20, 10)
+  end
   if moving then counter = counter + 20; return cursor[1] + counter, cursor[2] end
   return cursor[1], cursor[2]
 end
@@ -420,10 +424,10 @@ Minimap = {
   GetNumPoints = function() return 1 end,
   GetPoint = function() return "CENTER", UIParent, "CENTER", sx, sy end,
   ClearAllPoints = function() end,
-  SetPoint = function(_, _, _, _, x, y) setCalls = setCalls + 1; updated = false; if not freeze then sx, sy = x, y end end,
+  SetPoint = function(_, _, _, _, x, y) setCalls = setCalls + 1; updated = false; alphaCalled = false; if not freeze then sx, sy = x, y end end,
   SetUsingSoftCursor = function(_, b) softOn = b end,
   UpdateMouseoverAtPoint = function() updated = true end,
-  GetAlpha = function() return 1 end, SetAlpha = function() end,
+  GetAlpha = function() return 1 end, SetAlpha = function() alphaCalled = true end,
 }
 C_Minimap = {
   GetViewRadius = function() return 70 end, GetNumTrackingTypes = function() return 1 end,
@@ -447,7 +451,10 @@ playerMap, px, py = 37, 0.5, 0.5
 local function offsetOf(n) return ppx - (1000 - n[1]), (1000 - n[2]) - ppy end
 C_TooltipInfo = {GetMinimapMouseover = function()
   if engine == "none" then return nil end
-  if engine == "soft" and not (softOn and updated) then return nil end
+  local shifted = sx ~= 0 or sy ~= 0
+  if shifted and engine == "soft" and not (softOn and updated) then return nil end
+  if shifted and engine == "needalpha" and not alphaCalled then return nil end
+  if shifted and engine == "deadshift" then return nil end
   local cu, cv = GetCursorPosition()
   local dx, dy = cu / es - (cxm + sx), cv / es - (cym + sy)
   if dx * dx + dy * dy > 70 ^ 2 then return nil end
@@ -469,7 +476,8 @@ local function reset()
   go("stop"); nodes = {}; afterFirstLine = false; linesSeen = 0; setCalls = 0
   ppx, ppy = 950, 950; moving = false; mouseDown = false; combat = false; castName = nil
   unitUnder = false; tooltip = false; tracking = true; engine = "real"; cursor = {100, 100}; freeze = false
-  softOn = false; updated = false; hitR = 6
+  softOn = false; updated = false; hitR = 6; alphaCalled = false; calibT0 = nil
+  HR.db.recipe, HR.db.recipeBuild = "plain", "70999"
 end
 
 -- 1. report mode: the first point has a node -> confirmed, nothing removed
@@ -547,7 +555,7 @@ engine = "none"
 go("peacebloom")
 assert((HR.route.removedCount or 0) == 0 and HR.route.vstate[1].none >= 4 and not HR.route.vstate[1].final, "inconclusive must not give up")
 assert(msgs():find("is inconclusive (no hover data", 1, true), msgs())
-assert(HR.route.vstats.causes["no hover data: the hover was not refreshed (after steering, move the mouse once)"] >= 4)
+assert(HR.route.vstats.causes["no hover data: the client did not refresh the minimap hover"] >= 4)
 
 -- 7b. the minimap does not follow the shift (frozen by another addon)
 reset(); HR.db.verify = "remove"; HR.verifyHits = 3; nodes = {{first.x, first.y}}; freeze = true
@@ -569,24 +577,52 @@ assert(HR.route.vstate[1].confirmed, "probing must resume after the mouse moved"
 reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}
 go("peacebloom"); go("verify probe")
 assert(msgs():find("Verify probe: point 1/", 1, true) and msgs():find("mouse moved during the countdown: NO", 1, true), msgs())
-assert(msgs():find("[soft cursor + update] line", 1, true) and msgs():find("back home: true", 1, true), msgs())
-assert(msgs():find("+1 moved=true onMinimap=true lines=true", 1, true), msgs())
+assert(msgs():find("result: line", 1, true) and msgs():find("minimap back home: true", 1, true), msgs())
+assert(msgs():find("+1: moved=true onMinimap=true lines=true", 1, true), msgs())
 
--- 7e. when plain gives nothing, the next variants are tried and reported
-reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}; engine = "none"
-go("peacebloom"); go("verify probe")
-assert(msgs():find("[plain] none", 1, true) and msgs():find("[update] none", 1, true)
-  and msgs():find("[soft cursor + update] none", 1, true) and msgs():find("[wait 6 frames] none", 1, true), msgs())
-assert(sx == 0 and sy == 0, "minimap not restored after the variants")
+-- 9. calibration finds the method that detects the dot the player points at
+local function calibrate(eng)
+  reset(); HR.db.verify = "off"; HR.db.recipe, HR.db.recipeBuild = nil, nil
+  nodes = {{70, 40}} -- offsetOf gives (20, 10): the dot under the mouse in phase A
+  engine = eng; calibT0 = Now()
+  go("verify calibrate")
+  local m = msgs()
+  calibT0 = nil
+  assert(sx == 0 and sy == 0 and softOn == false, "minimap or soft cursor not restored")
+  return m
+end
+local m = calibrate("real")
+assert(HR.db.recipe == "plain" and HR.db.recipeBuild == "70999" and m:find("method 'plain' stored", 1, true), m)
+m = calibrate("needalpha")
+assert(HR.db.recipe == "alpha" and m:find("[plain] on the dot: none", 1, true), m)
+m = calibrate("soft")
+assert(HR.db.recipe == "soft cursor + update", m)
+assert(m:find("[plain] on the dot: none", 1, true) and m:find("[update] on the dot: none", 1, true), m)
+m = calibrate("deadshift")
+assert(HR.db.recipe == nil and m:find("Calibration failed", 1, true), m)
 
--- 9. automatic verification uses the soft cursor variant (plain probes get nothing)
-reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}; engine = "soft"
+-- calibration needs a dot under the mouse in phase A
+reset(); HR.db.recipe, HR.db.recipeBuild = nil, nil; nodes = {}; calibT0 = Now()
+go("verify calibrate"); calibT0 = nil
+assert(msgs():find("no tooltip line under the cursor", 1, true) and HR.db.recipe == nil, msgs())
+
+-- without a calibrated method the automatic verification does not probe
+reset(); HR.db.verify = "remove"; HR.verifyHits = 3; nodes = {{first.x, first.y}}
+HR.db.recipe, HR.db.recipeBuild = nil, nil
 go("peacebloom")
-assert(HR.route.vstate[1] and HR.route.vstate[1].confirmed, "soft cursor probing must confirm the point: " .. tostring(HR.verifyReason))
-assert(softOn == false, "the soft cursor must be switched off again")
-reset(); HR.db.verify = "report"; nodes = {{first.x, first.y}}; engine = "soft"
-go("peacebloom"); go("verify probe")
-assert(msgs():find("[soft cursor + update] line", 1, true) and not msgs():find("[plain]", 1, true), msgs())
+assert(HR.route.vstats.probes == 0 and HR.verifyReason:find("run /hr verify calibrate once", 1, true), tostring(HR.verifyReason))
+HR.db.recipe, HR.db.recipeBuild = "plain", "12345" -- another build: calibration is stale
+go("stop"); go("peacebloom")
+assert(HR.route.vstats.probes == 0 and HR.verifyReason:find("run /hr verify calibrate once", 1, true))
+
+-- the automatic verification uses the calibrated method
+reset(); HR.db.verify = "report"; HR.verifyHits = 0; nodes = {{first.x, first.y}}
+engine = "needalpha"; HR.db.recipe, HR.db.recipeBuild = "alpha", "70999"
+go("peacebloom")
+assert(HR.route.vstate[1] and HR.route.vstate[1].confirmed, "the calibrated method must confirm the point: " .. tostring(HR.verifyReason))
+reset(); engine = "needalpha"; HR.db.verify = "report"; nodes = {{first.x, first.y}} -- recipe 'plain' fails on this engine
+go("peacebloom")
+assert(not (HR.route.vstate[1] and HR.route.vstate[1].confirmed))
 
 -- 10. scan: does the projection of the route points land on the blips?
 reset(); HR.db.verify = "off"

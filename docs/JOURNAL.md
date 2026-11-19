@@ -3,7 +3,7 @@
 Registre chronologique des décisions, constats, risques et prochaines actions. À compléter à chaque séance. Le détail du besoin est dans [BESOINS.md](BESOINS.md), l'état des fonctionnalités dans [FONCTIONNALITES.md](FONCTIONNALITES.md).
 
 ## Prochaines actions
-1. **Lancer `/hr verify scan`** (route en mode Suivi dans une zone avec des herbes du type choisi, souris bougée pendant le décompte puis immobile environ 10 s) et coller le contenu de la fenêtre : carte ASCII des points jaunes (`X`) et des points projetés de la route (`o`). Elle montre si les points projetés tombent sur les points jaunes (R21). Ensuite laisser la vérification automatique tourner en mode `report` et comparer ses messages à la minimap.
+1. **Lancer `/hr verify calibrate`** : phase A, la souris **sur un point jaune d'herbe proche du centre de la minimap** (3 s) ; phase B, la souris dans le monde, hors de toute fenêtre, immobile (5 s). L'add-on essaie sept méthodes sur ce point et sur une position témoin et retient la première qui voit le point sans voir le témoin. Coller les lignes du chat (une par méthode). Si une méthode est retenue, relancer `/hr verify scan` puis laisser la vérification automatique tourner en mode `report`. Si aucune ne marche, la vérification automatique est impossible sur ce build (R25).
 2. Tester en jeu l'add-on déjà livré : `/hr debug`, UI, flèche, tracés carte et minimap, avec `/console scriptErrors 1`.
 3. Décider du sort de la mémoire de récolte (survit-elle d'un trajet à l'autre ?).
 
@@ -165,6 +165,16 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 - Limite du scan : avec des herbes denses (40 candidats dans le disque), presque n'importe quelle position tombe près d'un point jaune ; seule une symétrie nettement meilleure est signalée. La carte ASCII est le vrai juge.
 - Tests hors jeu : adoption de la variante (un moteur qui exige curseur logiciel + mise à jour), verdict avec point voisin, balayage et carte.
 
+### 2026-11-19 — Rapport `/hr verify scan` : 92 cases, aucun point jaune ; la variante « curseur logiciel » était une fausse piste
+- Rapport : 92 cases sondées avec la variante curseur logiciel + `UpdateMouseoverAtPoint`, **0 avec ligne, 92 vides, 0 inconclusives** ; « no blip found ». La carte ASCII montre le disque entièrement vide (`.`) et quelques points projetés (`o`). Le joueur est dans une zone où la minimap affiche des points jaunes (même secteur que les essais précédents).
+- Conclusion : cette variante fait renvoyer des **données** (lecture vide) quelle que soit la position, mais elle ne lit **pas** la position sous le curseur : même un vrai point jaune donne « vide ». Le résultat « vide » du point 1/126 dans le rapport précédent ne prouvait donc rien. **La décision D13 (adopter le curseur logiciel) est révoquée.**
+- Leçon de méthode : une méthode de sondage ne se valide que sur un **point connu** (`blink world` : point sous la souris, puis amené sous le curseur au repos), pas sur le seul fait d'obtenir des données.
+- Écart toujours inexpliqué : `blink world` (sans curseur logiciel) détecte un point connu, alors que la sonde automatique simple n'obtenait aucune donnée. Différences : `blink world` commence par une étape témoin (placement sans décalage, pause) et rappelle `SetAlpha` à chaque retour, et lit à +1, +3 et +6 images. Pistes à tester : échauffement, `SetAlpha`.
+- Écrit : **`/hr verify calibrate`** (D14). Phase A : le joueur pointe un point jaune, le décalage est mémorisé. Phase B : souris dans le monde ; pour sept méthodes (simple, échauffement, `SetAlpha`, échauffement + `SetAlpha`, mise à jour, curseur logiciel + mise à jour, échauffement + `SetAlpha` + attente de 6 images), l'add-on sonde le point connu et une position témoin à 40 unités. La première méthode qui renvoie une ligne sur le point et pas sur le témoin est **mémorisée avec le numéro de build** (`HerbRouteDB.recipe`). Si seul le point voisin répond, on retient la première qui voit le point.
+- **La vérification automatique, `/hr verify probe` et `/hr verify scan` exigent cette calibration** : sans méthode mémorisée, ou si le build du client a changé, la raison d'attente est « run /hr verify calibrate once ». `/hr verify` affiche la méthode retenue.
+- Si aucune méthode ne détecte le point : « Calibration failed », la vérification reste désactivée (R25) et la mémoire de récolte redevient le repli.
+- Tests hors jeu : calibration sur quatre moteurs simulés (méthode simple, `SetAlpha` requis, curseur logiciel requis, aucune méthode), échec propre, absence de point en phase A, refus de sonder sans calibration ou avec un autre build, usage de la méthode mémorisée.
+
 ## Décisions
 | Réf. | Décision | Date | Statut |
 |---|---|---|---|
@@ -180,7 +190,8 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | D10 | Vérification par **présence** d'un point : le nom (secret) n'est pas nécessaire, l'herbe attendue étant celle du waypoint. **Présence = au moins une ligne d'infobulle** (une donnée vide n'est pas une présence). Limite : un autre type de nœud au même endroit compterait comme présent | 2026-11-19 | **Rétablie et redéfinie** après le rapport `watch` ; à confirmer par `blink world` (R13) |
 | D11 | Pendant une route, seul « Trouver les herbes » reste actif ; la configuration d'origine est sauvegardée et rétablie à l'arrêt, au chargement ou après combat. Option désactivable | 2026-11-19 | Appliquée (non testée en jeu) |
 | D12 | Vérification **ciblée** sur le prochain waypoint (choix du joueur), automatique en mode Suivi, **`report` par défaut**, retrait seulement en mode `remove` et seulement après au moins un point confirmé dans la session ; la minimap n'est pas cachée (la variante cachée n'est pas moins gênante) | 2026-11-19 | Appliquée (non testée en jeu) |
-| D13 | La vérification automatique utilise la variante **curseur logiciel + `UpdateMouseoverAtPoint` au curseur réel** (seule variante qui renvoie des données en jeu), le curseur logiciel étant remis à faux après chaque sonde | 2026-11-19 | Appliquée (confirmée sur un point en jeu) |
+| D13 | ~~Adopter la variante curseur logiciel + `UpdateMouseoverAtPoint`~~ | 2026-11-19 | **Révoquée** : elle renvoie des données sans lire la position (scan : 92 cases vides) |
+| D14 | La méthode de sondage est **calibrée en jeu** sur un point jaune connu (`/hr verify calibrate`), mémorisée avec le numéro de build ; sans calibration valide la vérification ne sonde pas | 2026-11-19 | Appliquée (non testée en jeu) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
@@ -208,7 +219,8 @@ Registre chronologique des décisions, constats, risques et prochaines actions. 
 | R21 | La projection d'un point de la base sur la minimap (formule du tracé minimap) n'a jamais été vérifiée en jeu : si elle est fausse, tous les sondages tombent à côté | Garde-fou : aucun retrait avant un premier point confirmé ; à valider en jeu |
 | R22 | Faux négatif : un nœud existant non détecté (erreur de nos coordonnées, zone de réponse) provoquerait un retrait à tort | Atténué par 2 sondages, mode `report` par défaut, base intacte ; à mesurer en jeu |
 | R23 | Les passes exigent une souris immobile dans le monde, et un vrai mouvement après avoir dirigé à la souris : avec la souris tenue pour la caméra, elles seront souvent en attente | Garde « bouger la souris une fois » ajoutée ; raison visible par `/hr verify` ; à mesurer |
-| R24 | La vérification n'obtenait aucune donnée de survol | **Résolu en principe** : curseur logiciel + `UpdateMouseoverAtPoint` au curseur réel renvoie des données dès +1 image ; à confirmer sur plusieurs points |
+| R24 | La vérification n'obtenait aucune donnée de survol, puis une variante renvoyait des lectures sans valeur | **Rouvert** : seule `blink world` a détecté un point connu ; la méthode est maintenant choisie par calibration sur un point connu |
+| R25 | Aucune des sept méthodes ne détecte un point connu en jeu : la vérification serait impossible sur ce build | Ouvert, test = `/hr verify calibrate` |
 
 ## Commits
 | Commit | Contenu |

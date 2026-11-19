@@ -1,10 +1,14 @@
 local addonName, HR = ...
 
 -- Verification of the next waypoint on the minimap (follow mode). When the
--- cursor rests in the world, the minimap is moved for one frame so that the
+-- cursor rests in the world, the minimap is moved for a few frames so that the
 -- projected position of the point lies under the cursor; at least one tooltip
 -- line there means a node is present. A point with no line twice in a row is
 -- removed from the route (the herb database is never touched).
+--
+-- How to make the client refresh the minimap hover after the minimap moved
+-- differs between builds, so /hr verify calibrate tries several methods on a
+-- yellow dot the player points at, and stores the one that detects it.
 HR.verifyHits = 0
 
 local ENTER = 0.85  -- fraction of the view radius inside which a point is probed
@@ -13,13 +17,37 @@ local REST = 0.5    -- seconds the cursor must stay still
 local TICK = 0.25
 local RETRY = 1.5   -- delay before a second probe of the same point
 local MISSES = 2    -- empty probes in a row needed to call a point absent
--- The soft cursor with UpdateMouseoverAtPoint at the real cursor is the variant
--- that returned minimap hover data in game (plain probes returned nothing).
-local PROBE_OPTS = {soft = true, update = true}
 
 local MM = HR.MM
 local rest = {}
 local probing = false
+
+-- Probe methods, simplest first. warmup: a no-op placement and a pause before
+-- the real shift; alpha: SetAlpha after each placement; update: also call
+-- UpdateMouseoverAtPoint at the real cursor; soft: soft cursor on; frames: how
+-- many frames to wait for data.
+local VARIANTS = {
+    {name = "plain", opts = {}},
+    {name = "warmup", opts = {warmup = true}},
+    {name = "alpha", opts = {alpha = true}},
+    {name = "warmup + alpha", opts = {warmup = true, alpha = true}},
+    {name = "update", opts = {update = true}},
+    {name = "soft cursor + update", opts = {soft = true, update = true}},
+    {name = "warmup + alpha + wait", opts = {warmup = true, alpha = true, frames = 6}},
+}
+
+local function currentBuild()
+    return tostring((select(2, GetBuildInfo())))
+end
+
+-- Options of the calibrated method, or nil when not calibrated for this build.
+local function recipeOpts()
+    local name = HR.db.recipe
+    if not name or HR.db.recipeBuild ~= currentBuild() then return nil end
+    for _, v in ipairs(VARIANTS) do
+        if v.name == name then return v.opts end
+    end
+end
 
 local function hbdLib()
     return LibStub and LibStub("HereBeDragons-2.0", true)
@@ -49,8 +77,11 @@ local function updateRest()
 end
 
 -- Why a probe cannot run right now, or nil.
-local function blocked(ignoreRest)
+local function blocked(ignoreRest, noRecipe)
     if HR:HerbTrackingActive() ~= true then return "Find Herbs tracking is not active" end
+    if not noRecipe and not recipeOpts() then
+        return "run /hr verify calibrate once (the probe method is not calibrated for this build)"
+    end
     if InCombatLockdown and InCombatLockdown() then return "combat" end
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return "dead" end
     if UnitOnTaxi and UnitOnTaxi("player") then return "flight" end
@@ -101,14 +132,14 @@ end
 
 -- One probe. done(result, cause): "line" (a node is there), "empty" (the
 -- minimap is under the cursor and shows nothing) or "none" (inconclusive, with
--- the cause). `detail`, when given, receives what was measured. `opts`:
--- update (also call UpdateMouseoverAtPoint at the real cursor), soft (soft
--- cursor on), frames (how many frames to wait for data, default 2).
+-- the cause). `detail`, when given, receives what was measured; `opts` is one
+-- of the VARIANTS options.
 local function probe(ox, oy, done, detail, opts)
     opts = opts or {}
-    local maxFrames = opts.frames or 2
+    local maxFrames = opts.frames or 3
     probing = true
     local pts = MM.savePoints()
+    local alpha0 = Minimap:GetAlpha()
     local sx, sy = GetCursorPosition()
     local es = Minimap:GetEffectiveScale()
     local cx, cy = Minimap:GetCenter()
@@ -122,6 +153,7 @@ local function probe(ox, oy, done, detail, opts)
         if finished then return end
         finished = true
         pcall(MM.placeMinimap, pts, 0, 0)
+        if opts.alpha then pcall(Minimap.SetAlpha, Minimap, alpha0) end
         if soft then pcall(Minimap.SetUsingSoftCursor, Minimap, false) end
         MM.waitFrames(2, function()
             if detail then
@@ -135,14 +167,7 @@ local function probe(ox, oy, done, detail, opts)
     if hx ~= hx or hy ~= hy or math.abs(hx) > 3000 or math.abs(hy) > 3000 then
         return finish("none", "the shift is out of range")
     end
-    C_Timer.After(2, function() finish("none", "timeout") end)
-    if not pcall(MM.placeMinimap, pts, hx, hy) then return finish("none", "the minimap could not be moved") end
-    if opts.soft and Minimap.SetUsingSoftCursor then
-        soft = pcall(Minimap.SetUsingSoftCursor, Minimap, true)
-    end
-    if opts.update and Minimap.UpdateMouseoverAtPoint then
-        pcall(Minimap.UpdateMouseoverAtPoint, Minimap, sx, sy)
-    end
+    C_Timer.After(3, function() finish("none", "timeout") end)
 
     local function read(n)
         if finished then return end
@@ -163,9 +188,29 @@ local function probe(ox, oy, done, detail, opts)
         if n < maxFrames then
             return C_Timer.After(0, function() read(n + 1) end)
         end
-        finish("none", "no hover data: the hover was not refreshed (after steering, move the mouse once)")
+        finish("none", "no hover data: the client did not refresh the minimap hover")
     end
-    C_Timer.After(0, function() read(1) end)
+
+    local function start()
+        if finished then return end
+        if not pcall(MM.placeMinimap, pts, hx, hy) then return finish("none", "the minimap could not be moved") end
+        if opts.alpha then pcall(Minimap.SetAlpha, Minimap, alpha0) end
+        if opts.soft and Minimap.SetUsingSoftCursor then
+            soft = pcall(Minimap.SetUsingSoftCursor, Minimap, true)
+        end
+        if opts.update and Minimap.UpdateMouseoverAtPoint then
+            pcall(Minimap.UpdateMouseoverAtPoint, Minimap, sx, sy)
+        end
+        C_Timer.After(0, function() read(1) end)
+    end
+
+    if opts.warmup then
+        pcall(MM.placeMinimap, pts, 0, 0)
+        if opts.alpha then pcall(Minimap.SetAlpha, Minimap, alpha0) end
+        MM.waitFrames(4, start)
+    else
+        start()
+    end
 end
 
 local function decideAbsent(r, i, st)
@@ -240,7 +285,7 @@ local function step(r)
             end
         end
         HR:RouteChanged()
-    end, nil, PROBE_OPTS)
+    end, nil, recipeOpts())
 end
 
 function HR:StartVerify()
@@ -260,7 +305,8 @@ end
 
 function HR:VerifyStatus()
     local r = self.route
-    local line = ("Verify: %s (%d blip(s) confirmed this session)"):format(self.db.verify, self.verifyHits)
+    local line = ("Verify: %s (%d blip(s) confirmed this session), method: %s"):format(
+        self.db.verify, self.verifyHits, recipeOpts() and self.db.recipe or "not calibrated (/hr verify calibrate)")
     if r and r.vstats then
         line = line .. (", this route: %d probe(s), %d confirmed, %d empty, %d inconclusive, %d removed"):format(
             r.vstats.probes, r.vstats.confirmed, r.vstats.empty, r.vstats.none, r.removedCount or 0)
@@ -272,18 +318,77 @@ function HR:VerifyStatus()
     end
 end
 
--- /hr verify probe: the same probe in several variants, with everything measured.
-local VARIANTS = {
-    {name = "soft cursor + update", opts = {soft = true, update = true}},
-    {name = "update", opts = {update = true}},
-    {name = "plain", opts = {}},
-    {name = "wait 6 frames", opts = {frames = 6}},
-}
+-- /hr verify calibrate: the player points at a yellow dot (phase A), then rests
+-- the mouse in the world (phase B); every method probes that dot and a control
+-- position, and the first method that sees the dot and not the control is kept.
+function HR:VerifyCalibrate()
+    self:Print("Calibration, phase A in 3 s: put the mouse ON a yellow herb dot of the minimap and keep it still.")
+    C_Timer.After(3, function()
+        if probing then return end
+        if InCombatLockdown and InCombatLockdown() then return HR:Print("Calibration: not in combat.") end
+        local has = MM.reading()
+        if MM.cursorInside() ~= true or not has then
+            return HR:Print("Calibration: no tooltip line under the cursor. Rest the mouse on a yellow dot and retry.")
+        end
+        local sx, sy = GetCursorPosition()
+        local es = Minimap:GetEffectiveScale()
+        local cx, cy = Minimap:GetCenter()
+        local ox, oy = sx / es - cx, sy / es - cy
+        HR:Print(("Calibration: dot captured at (%.1f, %.1f) units. Phase B in 5 s: move the mouse into the world, away from any window, and keep it still."):format(ox, oy))
+        C_Timer.After(5, function()
+            if probing then return end
+            local why = blocked(true, true)
+            if why then return HR:Print("Calibration not run: " .. why .. ".") end
+            local halfW = Minimap:GetWidth() / 2
+            local control
+            for _, c in ipairs({{40, 0}, {-40, 0}, {0, 40}, {0, -40}}) do
+                local x, y = ox + c[1], oy + c[2]
+                if x * x + y * y <= (0.8 * halfW) ^ 2 then control = {x, y} break end
+            end
+            if not control then
+                return HR:Print("Calibration: the dot is too close to the minimap edge for a control; pick a dot nearer the center.")
+            end
+            local results = {}
+            local function conclude()
+                local best
+                for _, r in ipairs(results) do
+                    if r.hit == "line" and r.control ~= "line" then best = best or r end
+                end
+                for _, r in ipairs(results) do
+                    if r.hit == "line" then best = best or r end
+                end
+                if best then
+                    HR.db.recipe, HR.db.recipeBuild = best.v.name, currentBuild()
+                    HR:Print(("Calibration done: method '%s' stored for build %s. Automatic verification is enabled."):format(
+                        best.v.name, currentBuild()))
+                else
+                    HR.db.recipe, HR.db.recipeBuild = nil, nil
+                    HR:Print("Calibration failed: no method detects the dot. Automatic verification stays off on this build.")
+                end
+            end
+            local function run(k)
+                local v = VARIANTS[k]
+                if not v then return conclude() end
+                probe(ox, oy, function(hit, hitCause)
+                    probe(control[1], control[2], function(ctl)
+                        results[#results + 1] = {v = v, hit = hit, control = ctl}
+                        HR:Print(("  [%s] on the dot: %s%s; control: %s"):format(
+                            v.name, hit, hitCause and (" (" .. hitCause .. ")") or "", ctl))
+                        run(k + 1)
+                    end, nil, v.opts)
+                end, nil, v.opts)
+            end
+            run(1)
+        end)
+    end)
+end
 
+-- /hr verify probe: one probe on the current point with the calibrated method
+-- (plain when not calibrated), with everything measured.
 function HR:VerifyProbeNow()
     local r = self.route
     if not r or r.mode ~= "follow" then return self:Print("Start a route in follow mode first.") end
-    self:Print("Verify probe in 3 s: MOVE the mouse a little in the world, then keep it still (a real movement refreshes the minimap hover).")
+    self:Print("Verify probe in 3 s: MOVE the mouse a little in the world, then keep it still.")
     local x0, y0 = GetCursorPosition()
     local movedDuring = false
     local function watch(t)
@@ -297,33 +402,21 @@ function HR:VerifyProbeNow()
         local i = r.index
         local g = geometry(r, i)
         if not g then return HR:Print("Verify probe: no position data (HereBeDragons or the route overlay is missing).") end
-        HR:Print(("Verify probe: point %d/%d (%s), %.0f yd away, projected offset (%.0f, %.0f) units, %s the probe disc; mouse moved during the countdown: %s."):format(
-            i, #r.points, r.points[i].herb, g.dist, g.ox, g.oy, g.inside and "inside" or "outside", movedDuring and "yes" or "NO"))
-        local why = blocked(true)
+        HR:Print(("Verify probe: point %d/%d (%s), %.0f yd away, projected offset (%.0f, %.0f) units, %s the probe disc; mouse moved during the countdown: %s; method: %s."):format(
+            i, #r.points, r.points[i].herb, g.dist, g.ox, g.oy, g.inside and "inside" or "outside",
+            movedDuring and "yes" or "NO", recipeOpts() and HR.db.recipe or "plain (not calibrated)"))
+        local why = blocked(true, true)
         if why then return HR:Print("Verify probe: not run: " .. why .. ".") end
-        local first = true
-        local function run(k)
-            local v = VARIANTS[k]
-            if not v then return end
-            local d = {}
-            probe(g.ox, g.oy, function(result, cause)
-                if first then
-                    first = false
-                    HR:Print(("  cursor (%.0f, %.0f) px, minimap center (%.1f, %.1f), shift (%.1f, %.1f)"):format(
-                        d.sx or 0, d.sy or 0, d.cx or 0, d.cy or 0, d.hx or 0, d.hy or 0))
-                end
-                local reads = {}
-                for _, rd in ipairs(d.reads or {}) do
-                    reads[#reads + 1] = ("+%d moved=%s onMinimap=%s lines=%s data=%s %s"):format(
-                        rd.frame, tostring(rd.applied), tostring(rd.inside), tostring(rd.has), tostring(rd.anyData), tostring(rd.sig))
-                end
-                HR:Print(("  [%s] %s%s; back home: %s; %s"):format(v.name, result, cause and (" (" .. cause .. ")") or "",
-                    tostring(d.homeOk), table.concat(reads, " | ")))
-                if result ~= "none" or k == #VARIANTS then return end
-                run(k + 1)
-            end, d, v.opts)
-        end
-        run(1)
+        local d = {}
+        probe(g.ox, g.oy, function(result, cause)
+            HR:Print(("  cursor (%.0f, %.0f) px, minimap center (%.1f, %.1f), shift (%.1f, %.1f)"):format(
+                d.sx or 0, d.sy or 0, d.cx or 0, d.cy or 0, d.hx or 0, d.hy or 0))
+            for _, rd in ipairs(d.reads or {}) do
+                HR:Print(("  +%d: moved=%s onMinimap=%s lines=%s data=%s %s"):format(
+                    rd.frame, tostring(rd.applied), tostring(rd.inside), tostring(rd.has), tostring(rd.anyData), tostring(rd.sig)))
+            end
+            HR:Print(("  result: %s%s; minimap back home: %s"):format(result, cause and (" (" .. cause .. ")") or "", tostring(d.homeOk)))
+        end, d, recipeOpts() or {})
     end)
 end
 
@@ -373,7 +466,7 @@ end
 local function finishScan(r, cells, counts, R)
     local hits = {}
     for _, c in ipairs(cells) do if c.res == "line" then hits[#hits + 1] = c end end
-    local report = {("HerbRoute verify scan %s"):format(date("%Y-%m-%d %H:%M:%S"))}
+    local report = {("HerbRoute verify scan %s, method %s"):format(date("%Y-%m-%d %H:%M:%S"), tostring(HR.db.recipe))}
     local function say(fmt, ...)
         local line = select("#", ...) > 0 and fmt:format(...) or fmt
         report[#report + 1] = line
@@ -423,6 +516,7 @@ function HR:VerifyScan()
         if HR.route ~= r or probing then return end
         local why = blocked(true)
         if why then return HR:Print("Verify scan: not run: " .. why .. ".") end
+        local opts = recipeOpts()
         local R = 0.9 * Minimap:GetWidth() / 2
         local cells = {}
         local gx = -R
@@ -454,7 +548,7 @@ function HR:VerifyScan()
                     end
                 end
                 nextCell()
-            end, nil, PROBE_OPTS)
+            end, nil, opts)
         end
         nextCell()
     end)
