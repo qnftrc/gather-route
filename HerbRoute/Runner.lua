@@ -316,17 +316,8 @@ function HR:RetargetNearest(r)
         if a.d ~= b.d then return a.d < b.d end
         return a.j < b.j
     end)
-    local bestJ, bestD
-    for _, c in ipairs(cands) do
-        local a = c.st.amb
-        if not a or a.state == "distinct" then
-            bestJ, bestD = c.j, c.d
-            break
-        elseif a.state == "pending" then
-            a.want = true
-            return false
-        end
-    end
+    -- An ambiguous point counts like any other filled point: the nearest wins.
+    local bestJ, bestD = cands[1] and cands[1].j, cands[1] and cands[1].d
     if not bestJ or bestJ == r.index then return false end
     moveToIndex(r, bestJ, r.index)
     r.world = nil

@@ -365,7 +365,7 @@ local function markAmbiguity(r, cg)
     if HR.db.ambiguity == false or not cg then return nil end
     local nb = neighbours(r, cg)
     if not nb or not nb.ambiguous then return nil end
-    local a = {state = "pending", tries = 0, nextAt = 0}
+    local a = {state = "pending", tries = 0, nextAt = 0, want = true}
     r.vstats.amb.marked = r.vstats.amb.marked + 1
     if not bestOffset(nb) then
         a.state = "unresolved"
@@ -576,6 +576,22 @@ local function liveKeys(r)
     return live
 end
 
+-- Spots that the minimap read as filled but that may come from a neighbouring
+-- point of the database: still waiting for their offset probe, or unresolved.
+-- The overlay draws them in red.
+function HR.AmbiguousSpots(r)
+    local out = {}
+    if not r or not r.vstate or not r.world then return out end
+    for j = r.index, #r.points do
+        local st = r.vstate[j]
+        local a = st and st.amb
+        if a and not r.removed[j] and (a.state == "pending" or a.state == "unresolved") and r.world.x[j] then
+            out[#out + 1] = {x = r.points[j].x, y = r.points[j].y, wx = r.world.x[j], wy = r.world.y[j]}
+        end
+    end
+    return out
+end
+
 function HR.RevivePool(r)
     return r and poolOf(r)
 end
@@ -644,16 +660,8 @@ local function runRevive(r, e, g)
             local hbd = hbdLib()
             local rec = r.cause and r.cause[e.key]
             e.cause = rec and rec.cause or "passed"
-            local a = hbd and e.wx and markAmbiguity(r, project(hbd, e.wx, e.wy, e.inst))
-            if not a then
-                HR:ReviveSkipped(e)
-            elseif a.state == "unresolved" then
-                e.amb = a
-                HR:ReviveSkipped(e, true)
-            else
-                a.want = true
-                e.amb = a
-            end
+            e.amb = hbd and e.wx and markAmbiguity(r, project(hbd, e.wx, e.wy, e.inst)) or nil
+            HR:ReviveSkipped(e)
         elseif result == "empty" then
             e.stay = e.stay + 1
             e.nextOdo = (r.odo or 0) + rescanDist()
@@ -663,9 +671,9 @@ local function runRevive(r, e, g)
     end, nil, opts)
 end
 
--- Ambiguous positives that a decision depends on (F61 wants to target the
--- point, F60 wants to put it back, or it is the current target): the nearest
--- one is probed at the position found by bestOffset, with the minimap hidden.
+-- Ambiguous positives still waiting for their offset probe, which runs in the
+-- background (the point is targeted or put back meanwhile): the nearest one is
+-- probed at the position found by bestOffset, with the minimap hidden.
 local function pickResolve(r)
     if HR.db.ambiguity == false then return end
     local best
@@ -892,9 +900,16 @@ function HR:VerifyStatus()
     if r and r.vstats and r.vstats.amb then
         local a = r.vstats.amb
         local half, source = zoneHalf()
-        self:Print(("  Ambiguity: %s, zone half-width %s; %d ambiguous positive(s): %d distinct, %d rejected (treated as absent), %d unresolved; %d offset probe(s)"):format(
+        local pending = 0
+        if r.vstate then
+            for j = r.index, #r.points do
+                local st = r.vstate[j]
+                if st and st.amb and st.amb.state == "pending" and not r.removed[j] then pending = pending + 1 end
+            end
+        end
+        self:Print(("  Ambiguity: %s, zone half-width %s; %d ambiguous positive(s): %d distinct, %d rejected (treated as absent), %d unresolved, %d waiting for the offset probe; %d offset probe(s); red marks %s"):format(
             self.db.ambiguity == false and "off" or "on", half and ("%.1f units (%s)"):format(half, source) or "unknown",
-            a.marked, a.distinct, a.rejected, a.unresolved, a.probes))
+            a.marked, a.distinct, a.rejected, a.unresolved, pending, a.probes, self.db.ambiguityMarks == false and "off" or "on"))
     end
     if r and r.vstats then
         for cause, n in pairs(r.vstats.causes) do self:Print(("  inconclusive x%d: %s"):format(n, cause)) end

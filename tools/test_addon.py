@@ -1007,8 +1007,8 @@ local r13e = revAmbiguous({{8, 35}, {15, 35}})
 assert(msgs():find("Revive:", 1, true) and r13e.vstats.amb.marked == 1 and r13e.vstats.amb.distinct == 1, msgs())
 ELW2["TestNeigh"] = nil; revTeardown()
 local r13f = revAmbiguous({{15, 35}})
-assert((r13f.revivedCount or 0) == 0 and r13f.vstats.amb.rejected >= 1 and not msgs():find("Revive:", 1, true), "only the neighbour answers: " .. msgs() .. " rejected=" .. r13f.vstats.amb.rejected)
-assert(poolEntry(r13f, 35).stay >= 1, "a rejected read counts as an empty probe")
+assert((r13f.revivedCount or 0) == 1 and msgs():find("Revive:", 1, true), "the point is put back at once even though a neighbour may answer for it: " .. msgs())
+assert(r13f.vstats.amb.rejected >= 1, "the offset probe then finds that only the neighbour answers: rejected=" .. r13f.vstats.amb.rejected)
 ELW2["TestNeigh"] = nil; revTeardown()
 HR.db.ambiguity = false; HR.db.zone = nil
 Minimap.SetAlpha = baseSetAlpha
@@ -1141,7 +1141,7 @@ go("testnb"); RunTimers(); r = HR.route
 assert(r.vstate[1].amb == nil, "formula must apply when the measured scale differs")
 ambTeardown()
 
--- F61 ignores ambiguous points that are not distinct, and waits for a pending one
+-- F61 treats an ambiguous point like any other filled point: the nearest wins, nothing waits
 local twoPts = {{8, 35}}
 local function ambRoute(state)
   local rt = ambSetup({}, {}, "off", twoPts)
@@ -1151,31 +1151,40 @@ local function ambRoute(state)
   printed = {}
   return rt
 end
-r = ambRoute("unresolved")
-assert(HR:RetargetNearest(r) == false and r.index == 1 and not msgs():find("Nearest:", 1, true), "unresolved must be ignored")
-ambTeardown()
-r = ambRoute("pending")
-assert(HR:RetargetNearest(r) == false and r.vstate[2].amb.want == true and r.index == 1, "pending must wait and ask for a probe")
-ambTeardown()
-r = ambRoute("distinct")
-assert(HR:RetargetNearest(r) == true and r.points[1].y == 12 and msgs():find("Nearest:", 1, true), "distinct may be targeted")
-ambTeardown()
+for _, state in ipairs({"unresolved", "pending", "distinct"}) do
+  r = ambRoute(state)
+  assert(HR:RetargetNearest(r) == true and r.points[1].y == 12 and msgs():find("Nearest:", 1, true), state .. " is targeted like any other point")
+  ambTeardown()
+end
 r = ambRoute(nil)
 assert(HR:RetargetNearest(r) == true and r.points[1].y == 12, "a clean positive may be targeted")
 ambTeardown()
--- F60: an unresolved point is put back but never at the head of the route
-r = ambRoute("unresolved")
+-- F60: a point put back goes to the cheapest place, the head included, whatever its ambiguity; noHead stays available
+r = ambRoute(nil); r.vstate[2].confirmed = false
 local entry = {p = {x = 50, y = 50, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0, amb = {state = "unresolved", tries = 0, nextAt = 0}}
 local head = r.points[1]
-assert(HR:ReviveSkipped(entry, true) and r.points[1] == head and r.points[#r.points].x == 50, "no head insertion")
+assert(HR:ReviveSkipped(entry, true) and r.points[1] == head and r.points[#r.points].x == 50, "no head insertion when asked")
 ambTeardown()
-r = ambRoute("unresolved")
-entry = {p = {x = 50, y = 50, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0}
-assert(HR:ReviveSkipped(entry) and r.points[1].x == 50, "a clean point goes to the head when that is the cheapest")
+r = ambRoute(nil); r.vstate[2].confirmed = false
+entry = {p = {x = 50, y = 50, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0, amb = {state = "unresolved", tries = 0, nextAt = 0}}
+assert(HR:ReviveSkipped(entry) and r.points[1].x == 50, "an ambiguous point goes to the head when that is the cheapest")
+ambTeardown()
+-- red marks: the spots still in doubt (waiting or unresolved), nothing once the doubt is lifted
+r = ambRoute("pending")
+local spots = HR.AmbiguousSpots(r)
+assert(#spots == 1 and spots[1].y == 12 and spots[1].wx and spots[1].wy, "a pending ambiguity is marked")
+assert(pcall(HR.UpdateOverlay, HR), "the overlay must draw the red marks without error")
+HR.db.ambiguityMarks = false; assert(pcall(HR.UpdateOverlay, HR), "and with the marks hidden"); HR.db.ambiguityMarks = true
+r.vstate[2].amb.state = "unresolved"; assert(#HR.AmbiguousSpots(r) == 1, "an unresolved one too")
+r.vstate[2].amb.state = "distinct"; assert(#HR.AmbiguousSpots(r) == 0, "a distinct one is not marked")
+r.vstate[2].amb.state = "rejected"; assert(#HR.AmbiguousSpots(r) == 0, "a rejected one is not marked")
+r.vstate[2].amb.state = "pending"; r.removed[2] = true; assert(#HR.AmbiguousSpots(r) == 0, "a point that left the route is not marked")
 ambTeardown()
 -- commands
 go("ambiguity off"); assert(HR.db.ambiguity == false and msgs():find("Ambiguous positives: off", 1, true), msgs())
 go("ambiguity on"); assert(HR.db.ambiguity == true and msgs():find("zone half-width", 1, true), msgs())
+go("ambiguity marks off"); assert(HR.db.ambiguityMarks == false and msgs():find("red marks off", 1, true), msgs())
+go("ambiguity marks on"); assert(HR.db.ambiguityMarks == true and msgs():find("red marks on", 1, true), msgs())
 HR.db.ambiguity = false
 go("stop")
 

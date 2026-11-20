@@ -13,7 +13,7 @@ local MAP_MAX_SEGMENTS = 800
 local MINIMAP_INTERVAL = 0.1
 
 local hbd
-local mapFrame, mapLines, mapDots
+local mapFrame, mapLines, mapDots, mapMarks, miniMarks
 local miniFrame, miniLines, miniDots
 local miniElapsed = 0
 
@@ -36,6 +36,18 @@ local function getDot(pool, parent, i, size)
     if not t then
         t = parent:CreateTexture(nil, "OVERLAY")
         t:SetTexture(DOT)
+        pool[i] = t
+    end
+    t:SetSize(size, size)
+    return t
+end
+
+-- A red square, for the spots where the minimap read is in doubt (HR.AmbiguousSpots).
+local function getMark(pool, parent, i, size)
+    local t = pool[i]
+    if not t then
+        t = parent:CreateTexture(nil, "OVERLAY")
+        t:SetColorTexture(1, 0.1, 0.1, 0.95)
         pool[i] = t
     end
     t:SetSize(size, size)
@@ -207,6 +219,18 @@ function refreshMap()
         end
     end
     hideFrom(mapDots, dots + 1)
+
+    local marks = 0
+    if HR.db.ambiguityMarks ~= false and HR.AmbiguousSpots then
+        for _, spot in ipairs(HR.AmbiguousSpots(r)) do
+            marks = marks + 1
+            local m = getMark(mapMarks, mapFrame, marks, 12)
+            m:ClearAllPoints()
+            m:SetPoint("CENTER", canvas, "TOPLEFT", spot.x / 100 * w, -spot.y / 100 * h)
+            m:Show()
+        end
+    end
+    hideFrom(mapMarks, marks + 1)
 end
 
 -- Minimap ------------------------------------------------------------------
@@ -295,6 +319,23 @@ local function refreshMinimap()
     end
     hideFrom(miniLines, used + 1)
     hideFrom(miniDots, dots + 1)
+
+    local marks = 0
+    if HR.db.ambiguityMarks ~= false and HR.AmbiguousSpots then
+        for _, spot in ipairs(HR.AmbiguousSpots(r)) do
+            local dx, dy = px - spot.wx, py - spot.wy
+            if rotate then dx, dy = dx * cosF - dy * sinF, dx * sinF + dy * cosF end
+            local fx, fy = dx / radius, dy / radius
+            if fx * fx + fy * fy <= CIRCLE * CIRCLE then
+                marks = marks + 1
+                local m = getMark(miniMarks, miniFrame, marks, 10)
+                m:ClearAllPoints()
+                m:SetPoint("CENTER", Minimap, "CENTER", fx * halfW, -fy * halfH)
+                m:Show()
+            end
+        end
+    end
+    hideFrom(miniMarks, marks + 1)
 end
 
 -- Setup --------------------------------------------------------------------
@@ -325,6 +366,7 @@ end
 function HR:InitOverlay()
     hbd = LibStub and LibStub("HereBeDragons-2.0", true)
     mapLines, mapDots, miniLines, miniDots = {}, {}, {}, {}
+    mapMarks, miniMarks = {}, {}
     ensureMapFrame()
     local f = CreateFrame("Frame")
     f:RegisterEvent("ADDON_LOADED")

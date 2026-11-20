@@ -19,6 +19,7 @@ local defaults = {
     ambiguity = true,
     verifyCombat = false,
     gatherDebug = false,
+    ambiguityMarks = true,
     chat = true,
     skipButton = {shown = false},
     overrides = {},
@@ -105,7 +106,7 @@ local function usage()
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
     HR:Print("/hr chat [on|off] - show or hide the messages HerbRoute writes by itself (replies to commands and diagnostics are always shown)")
     HR:Print("/hr gather [debug on|off] - a gathering starts: every point that may have respawned is probed again, during the channel (debug prints the spell events)")
-    HR:Print("/hr ambiguity [on|off] - tell apart a positive read that comes from a neighbouring point (on by default)")
+    HR:Print("/hr ambiguity [on|off|marks on|marks off] - tell apart a positive read that comes from a neighbouring point; the spots still in doubt are marked in red on the map and the minimap (both on by default)")
     HR:Print("/hr nearest [on|off] - the filled point nearest to you becomes the target, the route is recomputed on arrival (on by default)")
     HR:Print("/hr revive [on|off] - put points of the database that are no longer ahead in the route (reached, skipped, removed) back when they reappear on the minimap (on by default)")
     HR:Print("/hr reroute [on|off|now] - reorder the points ahead after points are removed (off by default)")
@@ -148,11 +149,17 @@ local function handleSlash(msg)
             HR.db.gatherDebug == true and "on" or "off", HR.gatherEvents and #HR.gatherEvents > 0 and table.concat(HR.gatherEvents, ", ") or "none"))
     elseif cmd == "ambiguity" then
         local arg = rest:lower()
-        if arg == "on" or arg == "off" then HR.db.ambiguity = arg == "on" end
+        local marks = arg:match("^marks%s+(%a+)$")
+        if marks == "on" or marks == "off" then
+            HR.db.ambiguityMarks = marks == "on"
+            HR:RouteChanged()
+        elseif arg == "on" or arg == "off" then
+            HR.db.ambiguity = arg == "on"
+        end
         local half, source = HR.ZoneHalf and HR.ZoneHalf()
-        HR:Print(("Ambiguous positives: %s (/hr ambiguity on|off), zone half-width %s, margin %.1f units; the route's own category only, the database is never changed. /hr probe zone measures the zone."):format(
-            HR.db.ambiguity == false and "off" or "on", half and ("%.1f units (%s)"):format(half, source) or "unknown",
-            HR.AMB_MARGIN or 0))
+        HR:Print(("Ambiguous positives: %s (/hr ambiguity on|off), red marks %s (/hr ambiguity marks on|off), zone half-width %s, margin %.1f units; the route's own category only, the database is never changed. /hr probe zone measures the zone."):format(
+            HR.db.ambiguity == false and "off" or "on", HR.db.ambiguityMarks == false and "off" or "on",
+            half and ("%.1f units (%s)"):format(half, source) or "unknown", HR.AMB_MARGIN or 0))
     elseif cmd == "nearest" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then HR.db.nearest = arg == "on" end
