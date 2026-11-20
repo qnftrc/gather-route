@@ -94,7 +94,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
-    HR:Print("/hr gather [debug on|off] - gathering ends: every point that may have respawned is probed again (debug prints the spell events)")
+    HR:Print("/hr gather [debug on|off] - a gathering starts: every point that may have respawned is probed again, during the channel (debug prints the spell events)")
     HR:Print("/hr ambiguity [on|off] - tell apart a positive read that comes from a neighbouring point (on by default)")
     HR:Print("/hr nearest [on|off] - the filled point nearest to you becomes the target, the route is recomputed on arrival (on by default)")
     HR:Print("/hr revive [on|off] - put points of the database that are no longer ahead in the route (reached, skipped, removed) back when they reappear on the minimap (on by default)")
@@ -130,7 +130,7 @@ local function handleSlash(msg)
         local arg = rest:lower()
         local val = arg:match("^debug%s+(%a+)$")
         if val == "on" or val == "off" then HR.db.gatherDebug = val == "on" end
-        HR:Print(("Gathering: every end of a gathering probes again the points of your route that may have respawned. Debug %s (/hr gather debug on|off). Events watched: %s."):format(
+        HR:Print(("Gathering: every start of a gathering probes again the points of your route that may have respawned, during the channel. Debug %s (/hr gather debug on|off). Events watched: %s."):format(
             HR.db.gatherDebug == true and "on" or "off", HR.gatherEvents and #HR.gatherEvents > 0 and table.concat(HR.gatherEvents, ", ") or "none"))
     elseif cmd == "ambiguity" then
         local arg = rest:lower()

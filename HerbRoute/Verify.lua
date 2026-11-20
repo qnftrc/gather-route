@@ -14,7 +14,8 @@ HR.verifyHits = 0
 local ENTER = 0.85  -- fraction of the view radius inside which a point is probed
 local NEAR = 35     -- yards: last check of a confirmed point before arrival
 HR.RECHECK_YD = 110 -- yards: one recheck of a point confirmed from farther away
-local REVIVE_GAP = 8    -- seconds between two probes of a point that may have respawned
+HR.RESCAN_YD = 110  -- yards travelled between two probes of a point that may have respawned
+local function rescanDist() return HR.RESCAN_YD or 110 end
 local REST = 0.5    -- seconds the cursor must stay still
 local TICK = 0.25
 local RETRY = 1.5   -- delay before a second probe of the same point
@@ -89,7 +90,8 @@ local function blocked(ignoreRest, noRecipe)
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return "dead" end
     if UnitOnTaxi and UnitOnTaxi("player") then return "flight" end
     if MM.buttonDown() then return "mouse button held" end
-    if (UnitCastingInfo and UnitCastingInfo("player")) or (UnitChannelInfo and UnitChannelInfo("player")) then
+    local gathering = HR.gatheringUntil and GetTime() < HR.gatheringUntil
+    if not gathering and ((UnitCastingInfo and UnitCastingInfo("player")) or (UnitChannelInfo and UnitChannelInfo("player"))) then
         return "casting"
     end
     if not Minimap:IsVisible() then return "minimap hidden" end
@@ -374,8 +376,8 @@ end
 
 -- A point without a node. In remove mode it leaves the route (and becomes a
 -- candidate to come back, see pickRevive); in report mode it stays in the route
--- and is probed again every REVIVE_GAP seconds, silently, since it may have
--- respawned.
+-- and is probed again each time the character has travelled RESCAN_YD yards,
+-- silently, since it may have respawned.
 local function decideAbsent(r, i, st)
     local p = r.points[i]
     local again = st.final or st.wasEmpty
@@ -386,7 +388,7 @@ local function decideAbsent(r, i, st)
         HR:Print(("Verify: %s has no node: removed."):format(("point %d/%d (%s)"):format(i, #r.points, p.herb)))
         HR:DropPoint(i)
     else
-        st.nextAt = GetTime() + REVIVE_GAP
+        st.nextOdo = (r.odo or 0) + rescanDist()
         if not again then
             r.vstats.empty = r.vstats.empty + 1
             HR:Print(("Verify: point %d/%d (%s) has no node (report mode, kept; /hr verify remove to remove)."):format(i, #r.points, p.herb))
@@ -402,6 +404,7 @@ local function step(r)
         r.vstate[i] = st
     end
     if st.final and HR.db.verify ~= "report" then return end
+    if st.final and (r.odo or 0) < (st.nextOdo or 0) then return end
     if GetTime() < st.nextAt then return end
 
     local g = geometry(r, i)
@@ -485,7 +488,7 @@ local function pickAhead(r)
             local g = geometry(r, j)
             if g and g.inside then
                 if not st.final then pending = true end
-                if GetTime() >= st.nextAt then
+                if GetTime() >= st.nextAt and (not st.final or (r.odo or 0) >= (st.nextOdo or 0)) then
                     if st.final then
                         if not againG or g.dist < againG.dist then againJ, againG = j, g end
                     elseif not bestG or g.dist < bestG.dist then
@@ -498,11 +501,19 @@ local function pickAhead(r)
     return bestJ, bestG, pending, againJ, againG
 end
 
+-- Trace of the probes made during a gathering (/hr gather debug on).
+local function gTrace(kind, result, cause)
+    if HR.db.gatherDebug == true and HR.gatheringUntil and GetTime() < HR.gatheringUntil then
+        HR:Print(("Gather: probe during the gathering (%s): %s%s"):format(kind, result, cause and (" - " .. cause) or ""))
+    end
+end
+
 local function runAhead(r, j, g)
     local st, p = r.vstate[j], r.points[j]
     HR.verifyReason = "probing ahead"
     probe(g.ox, g.oy, function(result, cause)
         if HR.route ~= r or r.removed[j] or r.points[j] ~= p then return end
+        gTrace("point ahead", result, cause)
         r.vstats.probes = r.vstats.probes + 1
         r.vstats.ahead = (r.vstats.ahead or 0) + 1
         if result == "line" then
@@ -602,12 +613,12 @@ local function pickRevive(r)
         elseif e.inst == pinst and (e.wx - px) ^ 2 + (e.wy - py) ^ 2 <= reachSq then
             local g = project(hbd, e.wx, e.wy, e.inst)
             if g and g.inside then
-                if not e.inside then e.inside, e.stay, e.nextAt = true, 0, 0 end
+                if not e.inside then e.inside, e.stay, e.nextAt, e.nextOdo = true, 0, 0, 0 end
                 local ready = e.nextAt
                 local rec = r.cause and r.cause[e.key]
                 if rec and rec.cause == "reached" and rec.at + REACHED_DELAY > ready then ready = rec.at + REACHED_DELAY end
                 local waiting = e.amb and e.amb.state == "pending"
-                if not waiting and now >= ready and (not bestG or g.dist < bestG.dist) then
+                if not waiting and now >= ready and (r.odo or 0) >= (e.nextOdo or 0) and (not bestG or g.dist < bestG.dist) then
                     best, bestG = e, g
                 end
             else
@@ -625,8 +636,9 @@ local function runRevive(r, e, g)
     if not base then return end
     local opts = {hidden = true}
     for k, v in pairs(base) do opts[k] = v end
-    probe(g.ox, g.oy, function(result)
+    probe(g.ox, g.oy, function(result, cause)
         if HR.route ~= r then return end
+        gTrace("point outside the route", result, cause)
         if result == "line" then
             HR.verifyHits = HR.verifyHits + 1
             local hbd = hbdLib()
@@ -644,7 +656,7 @@ local function runRevive(r, e, g)
             end
         elseif result == "empty" then
             e.stay = e.stay + 1
-            e.nextAt = GetTime() + REVIVE_GAP
+            e.nextOdo = (r.odo or 0) + rescanDist()
         else
             e.nextAt = GetTime() + REVIVE_RETRY
         end
@@ -699,9 +711,10 @@ local function runResolve(r, c)
     for k, v in pairs(base) do opts[k] = v end
     local tag = c.kind == "point" and r.points[c.ref] or nil
     r.vstats.amb.probes = r.vstats.amb.probes + 1
-    probe(c.g.ox + px, c.g.oy + py, function(result)
+    probe(c.g.ox + px, c.g.oy + py, function(result, cause)
         if HR.route ~= r then return end
         if c.kind == "point" and r.points[c.ref] ~= tag then return end
+        gTrace("ambiguity", result, cause)
         if result == "line" then
             a.state = "distinct"
             r.vstats.amb.distinct = r.vstats.amb.distinct + 1
@@ -724,7 +737,7 @@ local function runResolve(r, c)
                 local e = c.ref
                 e.amb = nil
                 e.stay = e.stay + 1
-                e.nextAt = GetTime() + REVIVE_GAP
+                e.nextOdo = (r.odo or 0) + rescanDist()
             end
         else
             a.tries = a.tries + 1
@@ -780,16 +793,32 @@ local function probeCandidates(r)
     else runResolve(r, rc) end
 end
 
+-- Distance travelled by the character since the route started (yards).
+local function updateOdometer(r)
+    local hbd = hbdLib()
+    if not hbd then return end
+    local x, y, inst = hbd:GetPlayerWorldPosition()
+    if not x then return end
+    local last = r.lastPos
+    if last and last.inst == inst then
+        local d = math.sqrt((x - last.x) ^ 2 + (y - last.y) ^ 2)
+        if d < 100 then r.odo = r.odo + d end
+    end
+    r.lastPos = {x = x, y = y, inst = inst}
+end
+
 function HR:StartVerify()
     local r = self.route
     if not r then return end
     for k in pairs(rest) do rest[k] = nil end
+    r.odo = 0
     r.vstate = {}
     r.vstats = {probes = 0, confirmed = 0, empty = 0, none = 0, causes = {},
         amb = {marked = 0, distinct = 0, rejected = 0, unresolved = 0, probes = 0}}
     local function tick()
         if HR.route ~= r then return end
         updateRest()
+        updateOdometer(r)
         if r.mode == "follow" and not probing then
             if HR.db.verify ~= "off" then step(r) end
             if not probing then probeCandidates(r) end
@@ -799,17 +828,18 @@ function HR:StartVerify()
     tick()
 end
 
--- After a gathering: every point that may have respawned is probed again at once,
--- without waiting for its REVIVE_GAP; the usual order applies (nearest first).
+-- When a gathering starts: every point that may have respawned is probed again at
+-- once, without waiting for the distance to be travelled; the usual order applies
+-- (nearest first).
 function HR.StartWave(r)
     if not r or not r.vstate then return end
     local pool = poolOf(r)
     if pool then
-        for _, e in ipairs(pool) do e.nextAt = 0 end
+        for _, e in ipairs(pool) do e.nextAt, e.nextOdo = 0, 0 end
     end
     for j = r.index, #r.points do
         local st = r.vstate[j]
-        if st and st.final and not r.removed[j] then st.nextAt = 0 end
+        if st and st.final and not r.removed[j] then st.nextAt, st.nextOdo = 0, 0 end
     end
     r.vstats.waves = (r.vstats.waves or 0) + 1
 end
@@ -856,8 +886,8 @@ function HR:VerifyStatus()
                 if g and g.inside then empty = empty + 1 end
             end
         end
-        self:Print(("  Watch: %d point(s) outside the route and %d empty point(s) ahead are inside the minimap, each probed again every %d s; %d gathering wave(s), %d gathered point(s)"):format(
-            outside, empty, REVIVE_GAP, r.vstats and r.vstats.waves or 0, r.harvestedCount or 0))
+        self:Print(("  Watch: %d point(s) outside the route and %d empty point(s) ahead are inside the minimap, each probed again every %d yd travelled; %d gathering wave(s), %d gathered point(s)"):format(
+            outside, empty, rescanDist(), r.vstats and r.vstats.waves or 0, r.harvestedCount or 0))
     end
     if r and r.vstats and r.vstats.amb then
         local a = r.vstats.amb

@@ -2,9 +2,13 @@ local addonName, HR = ...
 
 -- Gathering. The character stands still during the channel, so the position read
 -- when it starts names the node: the nearest point of the database (route's
--- types) within RANGE yards. When the gathering ends, whether it succeeded or
--- not, every point that may have respawned is probed again at once (HR.StartWave).
+-- types) within RANGE yards. When a gathering starts, every point that may have
+-- respawned is probed again at once (HR.StartWave), during the channel: the minimap
+-- can be read and moved while it lasts, so the "casting" guard of the probes is
+-- lifted until the gathering ends (HR.gatheringUntil). The end only settles the
+-- gathered point.
 local RANGE = 12
+local SAFETY = 30   -- seconds after which the guard lifted for a gathering is dropped anyway
 
 local EVENTS = {
     "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START",
@@ -107,7 +111,13 @@ function HR.GatherEvent(event, unit, castGUID, spellId)
         if gather == nil then gather = node ~= nil end
         if not gather then active = nil return end
         active = {kind = START[event], at = GetTime(), endsAt = endTime(START[event]), node = node}
+        HR.gatheringUntil = GetTime() + SAFETY
         trace("gathering started, node in range: %s", node and ("%s %.1f yd"):format(node.p.herb, d) or "none")
+        if r and r.mode == "follow" then
+            HR.StartWave(r)
+            if node then node.nextAt, node.nextOdo = GetTime() + SAFETY, (r.odo or 0) + 1e9 end
+            trace("every point that may have respawned is probed again now, during the gathering")
+        end
         return
     end
 
@@ -116,15 +126,16 @@ function HR.GatherEvent(event, unit, castGUID, spellId)
     if a.kind == "channel" and (event == "UNIT_SPELLCAST_SUCCEEDED" or event == "UNIT_SPELLCAST_STOP") then return end
     if a.kind == "cast" and event == "UNIT_SPELLCAST_CHANNEL_STOP" then return end
     active = nil
+    HR.gatheringUntil = nil
     local failed = event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED"
         or (a.kind == "cast" and event == "UNIT_SPELLCAST_STOP")
     if not failed and a.kind == "channel" and a.endsAt and GetTime() < a.endsAt - 0.4 then failed = true end
     local note = "no node in range"
-    if r and r.mode == "follow" then
-        if not failed and a.node then note = harvest(r, a.node) end
-        HR.StartWave(r)
+    if r and r.mode == "follow" and not failed and a.node then
+        a.node.nextAt, a.node.nextOdo = 0, 0
+        note = harvest(r, a.node)
     end
-    trace("gathering %s: %s; every point that may have respawned is probed again", failed and "failed" or "succeeded", note)
+    trace("gathering %s: %s", failed and "failed" or "succeeded", note)
 end
 
 function HR:InitGather()

@@ -903,6 +903,12 @@ end
 local function revTeardown()
   go("stop"); ELW2["TestNb"] = nil; HR.categories.herbs.merged = nil
 end
+-- the player walks back and forth by 10 yd steps: n steps travel 10 * n yd (position samples are taken every tick)
+local function travel(n)
+  local x0 = ppx
+  for i = 1, n do ppx = x0 - ((i % 2 == 1) and 10 or 0); RunTimers() end -- towards the test points: they stay inside the minimap
+  ppx = x0
+end
 local function poolEntry(rt, y)
   for _, e in ipairs(HR.RevivePool(rt)) do if e.p.y == y then return e end end
 end
@@ -919,17 +925,19 @@ local probes0 = #probeTimes
 RunTimers() -- the player is far: nothing is probed, nothing is printed
 assert(#probeTimes == probes0 and not msgs():find("Revive", 1, true), "nothing must happen while the point is out of the minimap")
 local sy0 = r13.points[1].y
--- the player comes back near, no node there: silent empty probes, 8 seconds apart, without end
+-- the player comes back near, no node there: one silent empty probe at once, then one more each 110 yd travelled
 ppx, ppy = NEAR_PL[1], NEAR_PL[2]
 local candidate
 for _, e in ipairs(HR.RevivePool(r13)) do if e.key == skippedKey then candidate = e end end
 printed = {}; probeTimes = {}; alphaLog = {}
 RunTimers()
-assert(#probeTimes >= 10 and candidate.stay == #probeTimes, "no cap: the point is probed again and again: " .. #probeTimes .. " " .. candidate.stay)
-for k = 2, #probeTimes do
-  local d = probeTimes[k] - probeTimes[k - 1]
-  assert(d >= 8 and d <= 9, "probes must be 8 seconds apart, got " .. d)
-end
+assert(#probeTimes == 1 and candidate.stay == 1, "one probe while the player stays still: " .. #probeTimes)
+RunTimers()
+assert(#probeTimes == 1, "time alone does not start a new probe")
+travel(8) -- 80 yd
+assert(#probeTimes == 1, "80 yd are not enough: " .. #probeTimes)
+travel(6) -- 140 yd in total
+assert(#probeTimes == 2 and candidate.stay == 2, "110 yd travelled start a new probe: " .. #probeTimes)
 assert(msgs() == "" and (r13.revivedCount or 0) == 0 and #r13.points == before, "an empty probe must be silent: " .. msgs())
 assert(alphaLog[1] == 0 and alphaLog[#alphaLog] == 1, "the minimap must be hidden while it moves and restored")
 assert(sx == 0 and sy == 0)
@@ -999,8 +1007,8 @@ local r13e = revAmbiguous({{8, 35}, {15, 35}})
 assert(msgs():find("Revive:", 1, true) and r13e.vstats.amb.marked == 1 and r13e.vstats.amb.distinct == 1, msgs())
 ELW2["TestNeigh"] = nil; revTeardown()
 local r13f = revAmbiguous({{15, 35}})
-assert((r13f.revivedCount or 0) == 0 and r13f.vstats.amb.rejected >= 3 and not msgs():find("Revive:", 1, true), "only the neighbour answers: " .. msgs() .. " rejected=" .. r13f.vstats.amb.rejected)
-assert(poolEntry(r13f, 35).stay >= 3, "a rejected read counts as an empty probe")
+assert((r13f.revivedCount or 0) == 0 and r13f.vstats.amb.rejected >= 1 and not msgs():find("Revive:", 1, true), "only the neighbour answers: " .. msgs() .. " rejected=" .. r13f.vstats.amb.rejected)
+assert(poolEntry(r13f, 35).stay >= 1, "a rejected read counts as an empty probe")
 ELW2["TestNeigh"] = nil; revTeardown()
 HR.db.ambiguity = false; HR.db.zone = nil
 Minimap.SetAlpha = baseSetAlpha
@@ -1239,17 +1247,18 @@ assert((rtOn.revivedCount or 0) == 1, "the point outside the route is probed and
 ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.RECHECK_YD = nil; HR.db.verifyCombat = false
 go("stop")
 
--- 19. report mode: an empty point ahead is probed again every 8 seconds, silently, and followed when a node appears
+-- 19. report mode: an empty point ahead is probed again each 110 yd travelled, silently, and followed when a node appears
 reset()
 ELW3["TestNb"] = {{8, 12}, {8, 35}}; HR.categories.herbs.merged = nil
 HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.revive = false; HR.db.nearest = true
 HR.db.ambiguity = false; HR.RECHECK_YD = 0; HR.verifyHits = 3
 ppx, ppy = 1032, 988; nodes = {}; hitR = 6
 printed = {}
-C_Timer.After(20, function() nodes = {{8, 12}} end) -- a node respawns on the point that is not the current target
 SlashCmdList.HERBROUTE("testnb")
 local rt19 = HR.route
 RunTimers()
+nodes = {{8, 12}} -- a node respawns on the point that is not the current target
+travel(14) -- the player walks 140 yd: the empty points ahead are probed again
 local keptCount = 0
 for _ in msgs():gmatch("has no node %(report mode, kept") do keptCount = keptCount + 1 end
 assert(keptCount == 2, "each empty point is announced once, not at every new probe: " .. keptCount .. " " .. msgs())
@@ -1396,6 +1405,67 @@ gather(2366, "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_START")
 assert(rg.removed[indexOf(rg, 14, 12)] and rg.vstats.waves == 1, "cast gathering")
 HR.GatherEvent("UNIT_SPELLCAST_STOP", "player", "guid", 2366)
 assert(rg.vstats.waves == 1, "the STOP that follows a success does not start a second wave")
+gaTeardown()
+
+-- the probes run during the gathering: the "casting" guard is lifted from its start to its end, and no wave starts at the end
+local gaActive = function() return "Herb Gathering", "", "", Now() * 1000, (Now() + 3) * 1000 end -- a channel in progress
+local function candidateScene()
+  local rt = gaSetup()
+  HR:SkipPoint()
+  local cand
+  for _, e in ipairs(HR.RevivePool(rt)) do if rt.cause[e.key] and rt.cause[e.key].cause == "skip" then cand = e end end
+  ppx, ppy = 1000 - cand.p.x + 25, 1000 - cand.p.y -- the candidate is inside the minimap, away from the other points
+  nodes = {{cand.p.x, cand.p.y}}
+  return rt, cand
+end
+-- control: the player is channelling something else, the guard stays
+UnitChannelInfo = gaActive
+local rc, cand = candidateScene()
+printed = {}; RunTimers()
+assert((rc.revivedCount or 0) == 0 and (rc.vstats.waves or 0) == 0, "no probe while casting when it is not a gathering: " .. msgs())
+gaTeardown()
+-- gathering in progress: the point outside the route is probed at once and put back
+rc, cand = candidateScene()
+cand.nextAt, cand.nextOdo = Now() + 500, 1e9 -- it would not be probed for a long time
+UnitChannelInfo = gaActive
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+assert(HR.gatheringUntil and rc.vstats.waves == 1 and cand.nextAt == 0 and cand.nextOdo == 0, "the wave starts with the gathering")
+printed = {}; RunTimers()
+assert((rc.revivedCount or 0) == 1 and msgs():find("Revive:", 1, true), "the probe must run during the channel: " .. msgs())
+UnitChannelInfo = gaChannel
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+assert(HR.gatheringUntil == nil and rc.vstats.waves == 1, "no wave at the end")
+UnitChannelInfo = noChannel
+gaTeardown()
+-- the end does not start a wave: what was waiting keeps waiting
+rc, cand = candidateScene()
+UnitChannelInfo = gaActive
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+cand.nextAt, cand.nextOdo = 0, rc.odo + 500
+UnitChannelInfo = gaChannel
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+assert(cand.nextOdo == rc.odo + 500 and rc.vstats.waves == 1, "the end of a gathering changes nothing for the candidates")
+UnitChannelInfo = noChannel
+gaTeardown()
+-- the gathered point itself is left out of the wave
+rc, cand = candidateScene()
+standAt(cand.p.x, cand.p.y)
+UnitChannelInfo = gaActive
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+assert(cand.nextOdo > rc.odo + 1000 and cand.nextAt > Now(), "the node being gathered is not probed by the wave")
+UnitChannelInfo = noChannel
+HR.GatherEvent("UNIT_SPELLCAST_FAILED", "player", "guid", 2366)
+gaTeardown()
+-- trace of the probes made during the gathering
+rc, cand = candidateScene()
+HR.db.gatherDebug = true
+UnitChannelInfo = gaActive
+printed = {}
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+RunTimers()
+assert(msgs():find("Gather: probe during the gathering (point outside the route): line", 1, true), msgs())
+UnitChannelInfo = noChannel
+HR.GatherEvent("UNIT_SPELLCAST_FAILED", "player", "guid", 2366)
 gaTeardown()
 
 -- trace
