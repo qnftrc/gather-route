@@ -1203,6 +1203,32 @@ ppx = 1025; RunTimers()
 assert(rc.vstats.probes == 2 and rc.vstate[1].nearDone, "only the last check")
 rcTeardown()
 
+-- 18b. the combat checkbox is one switch for every probe: current point, ahead, points outside the route, ambiguity
+local function combatRun(allowed)
+  reset()
+  ELW3["TestNb"] = {{8, 12}, {8, 35}, {14, 12}}; HR.categories.herbs.merged = nil
+  HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.revive = true; HR.db.nearest = false
+  HR.db.ambiguity = false; HR.RECHECK_YD = 0; HR.verifyHits = 3; HR.db.verifyCombat = allowed
+  ppx, ppy = 1332, 988; nodes = {}; hitR = 6
+  printed = {}; SlashCmdList.HERBROUTE("testnb")
+  local rt = HR.route
+  RunTimers()
+  HR:SkipPoint() -- the current point leaves the route: a candidate outside the route
+  combat = true
+  ppx, ppy = 1032, 988; nodes = {{8, 12}, {8, 35}, {14, 12}}
+  printed = {}; RunTimers()
+  combat = false
+  return rt
+end
+local rtOff = combatRun(false)
+assert(rtOff.vstats.probes == 0 and (rtOff.revivedCount or 0) == 0, "no probe of any kind in combat when the box is off")
+go("stop")
+local rtOn = combatRun(true)
+assert(rtOn.vstats.probes >= 1 and rtOn.vstats.ahead and rtOn.vstats.ahead >= 1, "the points ahead are probed in combat")
+assert((rtOn.revivedCount or 0) == 1, "the point outside the route is probed and put back in combat: " .. msgs())
+ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.RECHECK_YD = nil; HR.db.verifyCombat = false
+go("stop")
+
 -- 19. report mode: an empty point ahead is probed again every 8 seconds, silently, and followed when a node appears
 reset()
 ELW3["TestNb"] = {{8, 12}, {8, 35}}; HR.categories.herbs.merged = nil
