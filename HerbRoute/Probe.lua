@@ -321,7 +321,8 @@ local ZONE_DIRS = {
     {name = "cursor below the blip", dx = 0, dy = 1},
     {name = "cursor above the blip", dx = 0, dy = -1},
 }
-local ZONE_MAXD = 12
+local ZONE_MAXD = 30
+local ZONE_FINE = 8 -- 1 unit steps up to here, 2 unit steps beyond
 
 local maskFrames = {}
 local function maskFrame(size, ox, oy)
@@ -372,14 +373,16 @@ local function runZoneB(hidden, ox, oy)
             for k, dir in ipairs(ZONE_DIRS) do
                 local r = reach[k]
                 add("ZONE %s: lines present up to %d unit(s)%s.", dir.name, r.present,
-                    r.absentAt and (", absent from " .. r.absentAt) or (" (no end found within " .. ZONE_MAXD .. ")"))
+                    r.absentAt and (", absent from " .. r.absentAt)
+                    or (r.limited and (" (stopped: the cursor would leave the minimap)")
+                    or (" (no end found within " .. ZONE_MAXD .. ")")))
             end
             -- Edge of the zone on each side, in units from the captured point (the
             -- edge lies between the last present and the first absent distance).
             local function axis(name, kNeg, kPos, negName, posName)
                 local n, p = reach[kNeg], reach[kPos]
                 if n.absentAt and p.absentAt then
-                    local en, ep = n.present + 0.5, p.present + 0.5
+                    local en, ep = (n.present + n.absentAt) / 2, (p.present + p.absentAt) / 2
                     local width = en + ep
                     add("AXIS %s: edges %.1f unit(s) %s and %.1f unit(s) %s of the captured point: width %.1f units (%s), half-width %.1f units (%s), centre %.1f units %s of the captured point.",
                         name, en, negName, ep, posName, width, yd(width), width / 2, yd(width / 2),
@@ -389,6 +392,7 @@ local function runZoneB(hidden, ox, oy)
                 local minWidth = n.present + p.present
                 add("AXIS %s: an edge was not found within %d units; width at least %d units (%s).",
                     name, ZONE_MAXD, minWidth, yd(minWidth))
+                return nil
             end
             axis("horizontal", 1, 2, "left", "right")
             axis("vertical", 3, 4, "below", "above")
@@ -416,12 +420,12 @@ local function runZoneB(hidden, ox, oy)
     local halfW = Minimap:GetWidth() / 2
     local hx, hy = (sx / es - ox) - cx0, (sy / es - oy) - cy0
     if math.abs(hx) > 3000 or math.abs(hy) > 3000 then return conclude("the shift needed is too large") end
-    if (math.abs(ox) + ZONE_MAXD) ^ 2 + (math.abs(oy) + ZONE_MAXD) ^ 2 > (0.85 * halfW) ^ 2 then
+    if ox * ox + oy * oy > (0.8 * halfW) ^ 2 then
         return conclude("the blip is too close to the edge of the minimap: capture a blip nearer the centre")
     end
 
     pts, alpha = savePoints(), Minimap:GetAlpha()
-    C_Timer.After(240, function() conclude("timeout") end)
+    C_Timer.After(400, function() conclude("timeout") end)
 
     local function stillOk()
         if InCombatLockdown and InCombatLockdown() then conclude("combat started") return false end
@@ -443,15 +447,21 @@ local function runZoneB(hidden, ox, oy)
             local r = reach[last.zoneDir]
             if any(last) then r.present = last.zoneDist else r.absentAt = last.zoneDist end
             if any(last) and last.zoneDist < ZONE_MAXD then
-                dist = last.zoneDist + 1
+                dist = last.zoneDist + (last.zoneDist < ZONE_FINE and 1 or 2)
             else
                 dirK, dist = last.zoneDir + 1, 1
             end
         end
-        if dirK <= #ZONE_DIRS then
+        while dirK <= #ZONE_DIRS do
             local dir = ZONE_DIRS[dirK]
-            return {key = ("%s, %d unit(s)"):format(dir.name, dist), ddx = dir.dx * dist, ddy = dir.dy * dist,
-                zoneDir = dirK, zoneDist = dist}
+            local cxr, cyr = ox - dir.dx * dist, oy - dir.dy * dist
+            if cxr * cxr + cyr * cyr > (0.9 * halfW) ^ 2 then
+                reach[dirK].limited = true
+                dirK, dist = dirK + 1, 1
+            else
+                return {key = ("%s, %d unit(s)"):format(dir.name, dist), ddx = dir.dx * dist, ddy = dir.dy * dist,
+                    zoneDir = dirK, zoneDist = dist}
+            end
         end
     end
 

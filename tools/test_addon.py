@@ -335,7 +335,11 @@ zt = bw("hover", "zone")
 assert(zt:find("lines present up to 0 unit(s), absent from 1.", 1, true) and zt:find("width 1.0 units", 1, true), zt)
 zoneR = 100 -- 50 units: no edge is found within the range
 zt = bw("hover", "zone")
-assert(zt:find("no end found within 12", 1, true) and zt:find("an edge was not found within 12 units; width at least 24 units", 1, true), zt)
+assert(zt:find("no end found within 30", 1, true) and zt:find("an edge was not found within 30 units; width at least 60 units", 1, true), zt)
+zoneR = 40 -- 20 units: beyond 8 units the steps are of 2 units
+zt = bw("hover", "zone")
+assert(zt:find("ZONE cursor left of the blip: lines present up to 20 unit(s), absent from 22.", 1, true), zt)
+assert(zt:find("AXIS horizontal: edges 21.0 unit(s) left and 21.0 unit(s) right of the captured point: width 42.0 units", 1, true), zt)
 for _, m in ipairs(masks) do assert(not m.shown, "a frame was left shown") end
 zoneR = 10; maskMode = "none"; CreateFrame = realCF; worldAfter = false
 io.write("PROBE TESTS OK\n")
