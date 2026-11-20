@@ -42,16 +42,22 @@ local function getDot(pool, parent, i, size)
     return t
 end
 
--- A red square, for the spots where the minimap read is in doubt (HR.AmbiguousSpots).
-local function getMark(pool, parent, i, size)
-    local t = pool[i]
-    if not t then
-        t = parent:CreateTexture(nil, "OVERLAY")
-        t:SetColorTexture(1, 0.1, 0.1, 0.95)
-        pool[i] = t
+local MARK = {1, 0.1, 0.1, 1}
+
+-- A red cross (two diagonal lines) for the spots where the minimap read is in
+-- doubt (HR.AmbiguousSpots). `put(line, dx, dy)` places a line end relative to the centre.
+local function drawCross(pool, parent, k, half, thickness, put)
+    for n = 1, 2 do
+        local line = getLine(pool, parent, 2 * k - 2 + n)
+        line:SetColorTexture(MARK[1], MARK[2], MARK[3], MARK[4])
+        line:SetThickness(thickness)
+        if n == 1 then
+            put(line, -half, -half, half, half)
+        else
+            put(line, -half, half, half, -half)
+        end
+        line:Show()
     end
-    t:SetSize(size, size)
-    return t
 end
 
 local function hideFrom(pool, n)
@@ -224,13 +230,14 @@ function refreshMap()
     if HR.db.ambiguityMarks ~= false and HR.AmbiguousSpots then
         for _, spot in ipairs(HR.AmbiguousSpots(r)) do
             marks = marks + 1
-            local m = getMark(mapMarks, mapFrame, marks, 12)
-            m:ClearAllPoints()
-            m:SetPoint("CENTER", canvas, "TOPLEFT", spot.x / 100 * w, -spot.y / 100 * h)
-            m:Show()
+            local cx, cy = spot.x / 100 * w, -spot.y / 100 * h
+            drawCross(mapMarks, mapFrame, marks, 7, 3, function(line, x1, y1, x2, y2)
+                line:SetStartPoint("TOPLEFT", canvas, cx + x1, cy + y1)
+                line:SetEndPoint("TOPLEFT", canvas, cx + x2, cy + y2)
+            end)
         end
     end
-    hideFrom(mapMarks, marks + 1)
+    hideFrom(mapMarks, 2 * marks + 1)
 end
 
 -- Minimap ------------------------------------------------------------------
@@ -328,14 +335,15 @@ local function refreshMinimap()
             local fx, fy = dx / radius, dy / radius
             if fx * fx + fy * fy <= CIRCLE * CIRCLE then
                 marks = marks + 1
-                local m = getMark(miniMarks, miniFrame, marks, 10)
-                m:ClearAllPoints()
-                m:SetPoint("CENTER", Minimap, "CENTER", fx * halfW, -fy * halfH)
-                m:Show()
+                local cx, cy = fx * halfW, -fy * halfH
+                drawCross(miniMarks, miniFrame, marks, 6, 3, function(line, x1, y1, x2, y2)
+                    line:SetStartPoint("CENTER", Minimap, cx + x1, cy + y1)
+                    line:SetEndPoint("CENTER", Minimap, cx + x2, cy + y2)
+                end)
             end
         end
     end
-    hideFrom(miniMarks, marks + 1)
+    hideFrom(miniMarks, 2 * marks + 1)
 end
 
 -- Setup --------------------------------------------------------------------
@@ -347,6 +355,11 @@ local function computeWorld(r)
         x[i], y[i], instance = wx, wy, inst
     end
     r.world = {x = x, y = y, instance = instance}
+end
+
+-- Number of line objects created for the red crosses (map, minimap): two per cross.
+function HR.MarkLineCount()
+    return mapMarks and #mapMarks or 0, miniMarks and #miniMarks or 0
 end
 
 HR.ComputeRouteWorld = computeWorld

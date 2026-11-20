@@ -1181,6 +1181,8 @@ r = ambRoute("pending")
 local spots = HR.AmbiguousSpots(r)
 assert(#spots == 1 and spots[1].y == 12 and spots[1].wx and spots[1].wy, "a pending ambiguity is marked")
 assert(pcall(HR.UpdateOverlay, HR), "the overlay must draw the red marks without error")
+local _, miniLinesMade = HR.MarkLineCount()
+assert(miniLinesMade >= 2, "a red cross is two lines on the minimap: " .. tostring(miniLinesMade))
 HR.db.ambiguityMarks = false; assert(pcall(HR.UpdateOverlay, HR), "and with the marks hidden"); HR.db.ambiguityMarks = true
 r.vstate[2].amb.state = "unresolved"; assert(#HR.AmbiguousSpots(r) == 1, "an unresolved one too")
 r.vstate[2].amb.state = "distinct"; assert(#HR.AmbiguousSpots(r) == 0, "a distinct one is not marked")
