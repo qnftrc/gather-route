@@ -185,14 +185,16 @@ local function add(id, link, n)
     e.count = e.count + n
 end
 
+local function bagCount(id)
+    local fn = (C_Item and C_Item.GetItemCount) or GetItemCount
+    if not fn then return nil end
+    local ok, c = pcall(fn, id)
+    if ok and type(c) == "number" and not isSecret(c) then return c end
+end
+
 local function snapshot()
     local snap = {}
-    if GetItemCount then
-        for id in pairs(allItems()) do
-            local ok, c = pcall(GetItemCount, id)
-            if ok and type(c) == "number" then snap[id] = c end
-        end
-    end
+    for id in pairs(allItems()) do snap[id] = bagCount(id) end
     return snap
 end
 
@@ -200,21 +202,27 @@ local function windowOpen()
     return gather and (gather.open or GetTime() < gather.closeAt)
 end
 
+-- Bag counts stand in for the loot messages of a window that read none, or unreadable ones.
+local function settle(g)
+    if not g.snap or (g.seen and not g.unreadable) then return end
+    for id, before in pairs(g.snap) do
+        local now = bagCount(id)
+        local gain = now and (now - before - (g.counted[id] or 0)) or 0
+        if gain > 0 then add(id, nil, gain) end
+    end
+end
+
 local function closeWindow(g)
     if gather ~= g then return end
     gather = nil
-    if g.unreadable and g.snap and GetItemCount then
-        for id, before in pairs(g.snap) do
-            local ok, now = pcall(GetItemCount, id)
-            if ok and type(now) == "number" and now > before then add(id, nil, now - before) end
-        end
-    end
+    settle(g)
     HR:UpdateStats()
 end
 
 function HR.StatsGatherStart()
     if not s or s.stoppedAt then return end
-    gather = {open = true, closeAt = GetTime() + GATHER_MAX, snap = snapshot()}
+    if gather then local prev = gather gather = nil settle(prev) end
+    gather = {open = true, closeAt = GetTime() + GATHER_MAX, snap = snapshot(), counted = {}}
     local g = gather
     C_Timer.After(GATHER_MAX, function()
         if gather == g and g.open then g.open = false; g.closeAt = GetTime() + GRACE; C_Timer.After(GRACE, function() closeWindow(g) end) end
@@ -264,6 +272,8 @@ function HR.StatsLoot(message)
     end
     local n = tonumber(message:match("|h|rx(%d+)") or message:match("|hx(%d+)")) or 1
     add(id, link, n)
+    gather.seen = true
+    gather.counted[id] = (gather.counted[id] or 0) + n
     HR:UpdateStats()
 end
 

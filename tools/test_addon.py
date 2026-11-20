@@ -1608,6 +1608,46 @@ bag = 6
 HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
 RunTimers()
 assert(HR.StatsText().body:find("Blindweed x2", 1, true), HR.StatsText().body)
+-- no loot message at all: bag counts
+go("stats reset")
+bag = 6
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+bag = 7
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+RunTimers()
+assert(HR.StatsText().body:find("Blindweed x1", 1, true), HR.StatsText().body)
+-- two gatherings in a row, no message: neither is lost
+go("stats reset")
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+bag = 9
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+Advance(2)
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+bag = 10
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+RunTimers()
+assert(HR.StatsText().body:find("Blindweed x3", 1, true), HR.StatsText().body)
+-- one message read, one unreadable: the messages are not counted twice
+go("stats reset")
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+HR.StatsLoot("You receive loot: " .. blind .. "x2.")
+issecretvalue = function(v) return v == "secret" end
+HR.StatsLoot("secret")
+issecretvalue = nil
+bag = 13
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+RunTimers()
+assert(HR.StatsText().body:find("Blindweed x3", 1, true), HR.StatsText().body)
+-- C_Item.GetItemCount is used when it exists
+C_Item = {GetItemCount = function(id) if id == 8839 then return bag end return 0 end}
+GetItemCount = function() error("old function must not be called") end
+go("stats reset")
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+bag = 14
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+RunTimers()
+assert(HR.StatsText().body:find("Blindweed x1", 1, true), HR.StatsText().body)
+C_Item = nil
 gaTeardown()
 Auctionator, GetItemCount, GetItemInfo = nil, nil, nil
 
