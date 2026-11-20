@@ -1648,6 +1648,61 @@ HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
 RunTimers()
 assert(HR.StatsText().body:find("Blindweed x1", 1, true), HR.StatsText().body)
 C_Item = nil
+-- every herb and every ore node of the database: loot message, Auctionator price, bag count
+do
+  local DEMON = 99001
+  local names = {}
+  GetItemInfo = function(x)
+    if x == "Demonsage" then return "Demonsage", "|cff1eff00|Hitem:" .. DEMON .. "::::::::60:::::|h[Demonsage]|h|r" end
+  end
+  Auctionator = {API = {v1 = {GetAuctionPriceByItemID = function(_, id) return 1000 + (id % 1000) end}}}
+  local ni = HR.NodeItems()
+  assert(HR:RefreshPrices() > 0)
+  ni = HR.NodeItems()
+  local cnt, bagN, expectNames = 0, {}, {}
+  for node, id in pairs(ni) do
+    if node ~= "TestNb" then
+      assert(id, node .. " has no item")
+      assert(HR.db.prices[id] and HR.db.prices[id].c == 1000 + (id % 1000), node .. " price not remembered")
+      cnt = cnt + 1
+    end
+  end
+  assert(cnt >= 40, cnt)
+  assert(ni["Demonsage"] == DEMON, "Demonsage must be learned by name")
+  local ids = {}
+  for node, id in pairs(ni) do if node ~= "TestNb" then ids[id] = node end end
+  go("stats reset")
+  HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+  local tot = 0
+  for id, node in pairs(ids) do
+    local nm = (HerbRoute_Data["Elwynn Forest"] and node) or node
+    HR.StatsLoot("You receive loot: |cffffffff|Hitem:" .. id .. "::::::::60:::::|h[" .. node .. "]|h|rx2.")
+    tot = tot + 2 * (1000 + (id % 1000))
+  end
+  local gotTotal = HR.StatsTotal()
+  assert(gotTotal == tot, gotTotal .. " vs " .. tot)
+  local nitems = 0
+  for _ in pairs(ids) do nitems = nitems + 1 end
+  local lines = 0
+  for _ in HR.StatsText().body:gmatch("x2") do lines = lines + 1 end
+  assert(lines == math.min(nitems, 12), lines)
+  HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+  RunTimers()
+  -- bag counts for each of them, one by one
+  local bagById = {}
+  C_Item = {GetItemCount = function(id) return bagById[id] or 0 end}
+  for id, node in pairs(ids) do
+    go("stats reset")
+    HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+    bagById[id] = (bagById[id] or 0) + 1
+    HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+    RunTimers()
+    assert(HR.StatsTotal() == 1000 + (id % 1000), node .. " bag fallback " .. HR.StatsTotal())
+  end
+  C_Item = nil
+  Auctionator, GetItemInfo = nil, nil
+  io.write("STATS ALL ITEMS: " .. nitems .. " items checked\n")
+end
 gaTeardown()
 Auctionator, GetItemCount, GetItemInfo = nil, nil, nil
 
