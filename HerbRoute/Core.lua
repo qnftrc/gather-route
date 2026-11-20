@@ -16,6 +16,7 @@ local defaults = {
     reroute = false,
     revive = true,
     nearest = true,
+    ambiguity = true,
     skipButton = {shown = false},
     overrides = {},
 }
@@ -91,6 +92,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
+    HR:Print("/hr ambiguity [on|off] - tell apart a positive read that comes from a neighbouring point (on by default)")
     HR:Print("/hr nearest [on|off] - the filled point nearest to you becomes the target, the route is recomputed on arrival (on by default)")
     HR:Print("/hr revive [on|off] - put skipped or removed points that respawn on the minimap back in the route (on by default)")
     HR:Print("/hr reroute [on|off|now] - reorder the points ahead after points are removed (off by default)")
@@ -121,6 +123,13 @@ local function handleSlash(msg)
         if arg == "on" or arg == "off" then HR.db.reroute = arg == "on" end
         if arg == "now" then return HR:Reroute() end
         HR:Print("Reroute after removals: " .. (HR.db.reroute == true and "on" or "off") .. " (/hr reroute on|off|now): reorders the points ahead from the current one; the database is never changed.")
+    elseif cmd == "ambiguity" then
+        local arg = rest:lower()
+        if arg == "on" or arg == "off" then HR.db.ambiguity = arg == "on" end
+        local half, source = HR.ZoneHalf and HR.ZoneHalf()
+        HR:Print(("Ambiguous positives: %s (/hr ambiguity on|off), zone half-width %s, margin %.1f units; the route's own category only, the database is never changed. /hr probe zone measures the zone."):format(
+            HR.db.ambiguity == false and "off" or "on", half and ("%.1f units (%s)"):format(half, source) or "unknown",
+            HR.AMB_MARGIN or 0))
     elseif cmd == "nearest" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then HR.db.nearest = arg == "on" end

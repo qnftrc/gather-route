@@ -246,6 +246,113 @@ function HR.ProjectWorld(wx, wy, winstance)
     return project(hbd, wx, wy, winstance)
 end
 
+-- Ambiguous positives. The response zone of a blip is a square of about 22
+-- units, centred on its point (8 / effective scale units of half-width, or the
+-- value measured by /hr probe zone). A positive read at a candidate may come
+-- from a neighbouring point of the database (any type of the route's category)
+-- whose zone covers the cursor. One probe at a position inside the candidate's
+-- zone and outside every neighbour's zone tells which one answers.
+local AMB_MARGIN = 2.5  -- units kept on each side for the projection error
+local AMB_TRIES = 3
+local AMB_RETRY = 3
+local AMB_STEP = 0.5
+
+local function zoneHalf()
+    local ok, es = pcall(Minimap.GetEffectiveScale, Minimap)
+    if not ok or type(es) ~= "number" or es <= 0 then return nil end
+    local z = HR.db.zone
+    if type(z) == "table" and z.half and z.es and math.abs(z.es - es) <= 0.02 * es then return z.half, "measured" end
+    return 8 / es, "formula"
+end
+HR.ZoneHalf = zoneHalf
+HR.AMB_MARGIN = AMB_MARGIN
+
+local function dbWorld(r)
+    if r.dbw then return r.dbw end
+    local hbd = hbdLib()
+    if not hbd then return nil end
+    local list = {}
+    local data = HR:DataFor(r.category)[r.region]
+    if data then
+        for _, pts in pairs(data) do
+            for _, pt in ipairs(pts) do
+                local wx, wy, inst = hbd:GetWorldCoordinatesFromZone(pt[1] / 100, pt[2] / 100, r.mapID)
+                if wx then list[#list + 1] = {wx = wx, wy = wy, inst = inst} end
+            end
+        end
+    end
+    r.dbw = list
+    return list
+end
+
+-- Neighbours of a candidate (cg = its geometry): offsets in units relative to
+-- the candidate of the points that could answer for it or for a probe near it.
+local function neighbours(r, cg)
+    local H = zoneHalf()
+    local hbd = hbdLib()
+    if not H or not hbd or not cg then return nil end
+    local list = dbWorld(r)
+    if not list then return nil end
+    local halfW = Minimap:GetWidth() / 2
+    local reach = 2 * H + 1
+    local near, ambiguous = {}, false
+    for _, d in ipairs(list) do
+        local g = project(hbd, d.wx, d.wy, d.inst)
+        if g and g.ox * g.ox + g.oy * g.oy <= halfW * halfW then
+            local dx, dy = g.ox - cg.ox, g.oy - cg.oy
+            local adx, ady = math.abs(dx), math.abs(dy)
+            local c = math.max(adx, ady)
+            if c >= 0.3 and c <= reach then
+                near[#near + 1] = {dx, dy}
+                if c <= H + AMB_MARGIN then ambiguous = true end
+            end
+        end
+    end
+    return {H = H, near = near, ambiguous = ambiguous}
+end
+
+-- A probe position (offset from the candidate, units) inside its zone and
+-- outside every neighbour's zone, with the largest margin; nil when none.
+local function bestOffset(nb)
+    local lim = nb.H - AMB_MARGIN
+    if lim <= 0 then return nil end
+    local n = math.floor(lim / AMB_STEP)
+    local bx, by, bm, br
+    for ix = -n, n do
+        for iy = -n, n do
+            local px, py = ix * AMB_STEP, iy * AMB_STEP
+            local m = math.huge
+            for _, o in ipairs(nb.near) do
+                local c = math.max(math.abs(px - o[1]), math.abs(py - o[2])) - (nb.H + AMB_MARGIN)
+                if c < m then m = c end
+            end
+            if m > 0 then
+                local rr = px * px + py * py
+                if not bm or m > bm + 1e-6 or (math.abs(m - bm) <= 1e-6 and rr < br) then
+                    bx, by, bm, br = px, py, m, rr
+                end
+            end
+        end
+    end
+    return bx, by
+end
+
+-- Called for a positive read: nil when no neighbour is in reach (a clean
+-- positive), else the ambiguity record (pending, or unresolved when no probe
+-- position exists).
+local function markAmbiguity(r, cg)
+    if HR.db.ambiguity == false or not cg then return nil end
+    local nb = neighbours(r, cg)
+    if not nb or not nb.ambiguous then return nil end
+    local a = {state = "pending", tries = 0, nextAt = 0}
+    r.vstats.amb.marked = r.vstats.amb.marked + 1
+    if not bestOffset(nb) then
+        a.state = "unresolved"
+        r.vstats.amb.unresolved = r.vstats.amb.unresolved + 1
+    end
+    return a
+end
+
 local function decideAbsent(r, i, st)
     local p = r.points[i]
     local label = ("point %d/%d (%s)"):format(i, #r.points, p.herb)
@@ -300,6 +407,8 @@ local function step(r)
             else
                 st.confirmed = true
                 r.vstats.confirmed = r.vstats.confirmed + 1
+                st.amb = markAmbiguity(r, geometry(r, i))
+                if st.amb and st.amb.state == "pending" then st.amb.want = true end
             end
             HR:RetargetNearest(r)
         elseif result == "empty" then
@@ -353,6 +462,7 @@ local function runAhead(r, j, g)
             HR.verifyHits = HR.verifyHits + 1
             st.confirmed = true
             r.vstats.confirmed = r.vstats.confirmed + 1
+            st.amb = markAmbiguity(r, geometry(r, j))
             HR:RetargetNearest(r)
         elseif result == "empty" then
             st.final = true
@@ -412,13 +522,97 @@ local function runRevive(r, e, g)
         if HR.route ~= r then return end
         if result == "line" then
             HR.verifyHits = HR.verifyHits + 1
-            HR:ReviveSkipped(e)
+            local hbd = hbdLib()
+            local a = hbd and e.wx and markAmbiguity(r, project(hbd, e.wx, e.wy, e.inst))
+            if not a then
+                HR:ReviveSkipped(e)
+            elseif a.state == "unresolved" then
+                e.amb = a
+                HR:ReviveSkipped(e, true)
+            else
+                a.want = true
+                e.amb = a
+            end
         elseif result == "empty" then
             e.stay = e.stay + 1
             e.nextAt = GetTime() + REVIVE_GAP
         else
             e.nextAt = GetTime() + REVIVE_RETRY
         end
+    end, nil, opts)
+end
+
+-- Ambiguous positives that a decision depends on (F61 wants to target the
+-- point, F60 wants to put it back, or it is the current target): the nearest
+-- one is probed at the position found by bestOffset, with the minimap hidden.
+local function pickResolve(r)
+    if HR.db.ambiguity == false then return end
+    local best
+    local function consider(kind, ref, a, g)
+        if g and g.inside and a.state == "pending" and a.want and a.tries < AMB_TRIES
+            and GetTime() >= a.nextAt and (not best or g.dist < best.g.dist) then
+            best = {kind = kind, ref = ref, a = a, g = g}
+        end
+    end
+    for j = r.index, #r.points do
+        local st = r.vstate[j]
+        if st and st.amb and not r.removed[j] then consider("point", j, st.amb, geometry(r, j)) end
+    end
+    local hbd = hbdLib()
+    for _, e in ipairs(r.skipped or {}) do
+        if e.amb and hbd and e.wx then consider("entry", e, e.amb, project(hbd, e.wx, e.wy, e.inst)) end
+    end
+    return best
+end
+
+local function runResolve(r, c)
+    local a = c.a
+    local nb = neighbours(r, c.g)
+    local px, py
+    if nb then px, py = bestOffset(nb) end
+    if not px then
+        a.state = "unresolved"
+        r.vstats.amb.unresolved = r.vstats.amb.unresolved + 1
+        if c.kind == "entry" then HR:ReviveSkipped(c.ref, true) end
+        return
+    end
+    local base = recipeOpts()
+    if not base then return end
+    local opts = {hidden = true}
+    for k, v in pairs(base) do opts[k] = v end
+    local tag = c.kind == "point" and r.points[c.ref] or nil
+    r.vstats.amb.probes = r.vstats.amb.probes + 1
+    probe(c.g.ox + px, c.g.oy + py, function(result)
+        if HR.route ~= r then return end
+        if c.kind == "point" and r.points[c.ref] ~= tag then return end
+        if result == "line" then
+            a.state = "distinct"
+            r.vstats.amb.distinct = r.vstats.amb.distinct + 1
+            if c.kind == "point" then HR:RetargetNearest(r) else HR:ReviveSkipped(c.ref) end
+        elseif result == "empty" then
+            a.state = "rejected"
+            r.vstats.amb.rejected = r.vstats.amb.rejected + 1
+            if c.kind == "point" then
+                local st = r.vstate[c.ref]
+                st.confirmed = false
+                decideAbsent(r, c.ref, st)
+                HR:RetargetNearest(r)
+            else
+                local e = c.ref
+                e.amb = nil
+                e.stay = e.stay + 1
+                e.nextAt = GetTime() + REVIVE_GAP
+            end
+        else
+            a.tries = a.tries + 1
+            a.nextAt = GetTime() + AMB_RETRY
+            if a.tries >= AMB_TRIES then
+                a.state = "unresolved"
+                r.vstats.amb.unresolved = r.vstats.amb.unresolved + 1
+                if c.kind == "entry" then HR:ReviveSkipped(c.ref, true) end
+            end
+        end
+        HR:RouteChanged()
     end, nil, opts)
 end
 
@@ -432,14 +626,20 @@ local function probeCandidates(r)
         HR:Print(("Verify ahead: done (%d point(s) probed ahead, %d removed so far)."):format(r.vstats.ahead or 0, r.removedCount or 0))
     end
     local re, rg = pickRevive(r)
-    if not aj and not re then return end
-    local useAhead = aj and (not re or ag.dist <= rg.dist)
+    local rc = pickResolve(r)
+    if not aj and not re and not rc then return end
+    local kind, dist = nil, math.huge
+    if aj then kind, dist = "ahead", ag.dist end
+    if re and rg.dist < dist then kind, dist = "revive", rg.dist end
+    if rc and rc.g.dist < dist then kind = "resolve" end
     local why = blocked()
     if why then
-        if useAhead then HR.verifyReason = "waiting: " .. why end
+        if kind == "ahead" then HR.verifyReason = "waiting: " .. why end
         return
     end
-    if useAhead then runAhead(r, aj, ag) else runRevive(r, re, rg) end
+    if kind == "ahead" then runAhead(r, aj, ag)
+    elseif kind == "revive" then runRevive(r, re, rg)
+    else runResolve(r, rc) end
 end
 
 function HR:StartVerify()
@@ -447,7 +647,8 @@ function HR:StartVerify()
     if not r then return end
     for k in pairs(rest) do rest[k] = nil end
     r.vstate = {}
-    r.vstats = {probes = 0, confirmed = 0, empty = 0, none = 0, causes = {}}
+    r.vstats = {probes = 0, confirmed = 0, empty = 0, none = 0, causes = {},
+        amb = {marked = 0, distinct = 0, rejected = 0, unresolved = 0, probes = 0}}
     local function tick()
         if HR.route ~= r then return end
         updateRest()
@@ -482,6 +683,13 @@ function HR:VerifyStatus()
     end
     if r and self.verifyReason and self.db.verify ~= "off" then line = line .. ". " .. self.verifyReason end
     self:Print(line)
+    if r and r.vstats and r.vstats.amb then
+        local a = r.vstats.amb
+        local half, source = zoneHalf()
+        self:Print(("  Ambiguity: %s, zone half-width %s; %d ambiguous positive(s): %d distinct, %d rejected (treated as absent), %d unresolved; %d offset probe(s)"):format(
+            self.db.ambiguity == false and "off" or "on", half and ("%.1f units (%s)"):format(half, source) or "unknown",
+            a.marked, a.distinct, a.rejected, a.unresolved, a.probes))
+    end
     if r and r.vstats then
         for cause, n in pairs(r.vstats.causes) do self:Print(("  inconclusive x%d: %s"):format(n, cause)) end
     end

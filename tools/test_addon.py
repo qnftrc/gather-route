@@ -326,6 +326,8 @@ assert(zt:find("AXIS vertical: edges 3.5 unit(s) below and 3.5 unit(s) above", 1
 assert(zt:find("CONTROL: a frame on the cursor blocks the reading", 1, true), zt)
 assert(zt:find("RESULT: zone measured", 1, true), zt)
 assert(not zt:find("frame on the blip", 1, true), zt)
+assert(zt:find("ZONE saved: half-width 3.5 units at effective scale 2.00", 1, true), zt)
+assert(HR.db.zone and HR.db.zone.half == 3.5 and HR.db.zone.es == 2, "the measured zone must be stored")
 assert(zt:find("DATABASE: HereBeDragons is not available.", 1, true), zt)
 local P = HR:DataFor("herbs")["Elwynn Forest"]["Peacebloom"][1]
 local hbdZ = {GetPlayerWorldPosition = function() return 1000 - P[1] + 20, 1000 - P[2] - 10, "inst" end,
@@ -344,6 +346,7 @@ zoneR = 1 -- smaller than one unit: only the blip centre answers
 maskMode = "focus"
 zt = bw("hover", "zone")
 assert(zt:find("lines present up to 0 unit(s), absent from 1.", 1, true) and zt:find("width 1.0 units", 1, true), zt)
+assert(zt:find("ZONE not saved", 1, true), zt)
 zoneR = 100 -- 50 units: no edge is found within the range
 zt = bw("hover", "zone")
 assert(zt:find("no end found within 30", 1, true) and zt:find("an edge was not found within 30 units; width at least 60 units", 1, true), zt)
@@ -579,6 +582,7 @@ local function reset()
   unitUnder = false; tooltip = false; tracking = true; engine = "real"; cursor = {100, 100}; freeze = false
   softOn = false; updated = false; hitR = 6; alphaCalled = false; calibT0 = nil; pinHidden = false; foci = nil
   HR.db.recipe, HR.db.recipeBuild = "plain", "70999"
+  HR.db.ambiguity = false; HR.db.zone = nil
 end
 
 -- 1. report mode: the first point has a node -> confirmed, nothing removed
@@ -999,6 +1003,105 @@ go("stop")
 HR.db.nearest = true; HR.db.revive = true
 
 Minimap.SetAlpha = baseSetAlpha
+
+-- 16. step C: positives that may come from a neighbouring point (zone half-width 8 units, margin 2.5)
+local ELW = HerbRoute_Data["Elwynn Forest"]
+local function ambSetup(neigh, nodeList, mode, extra)
+  reset()
+  ELW["TestNb"] = {{8, 12}}
+  if extra then for _, q in ipairs(extra) do ELW["TestNb"][#ELW["TestNb"] + 1] = q end end
+  ELW["TestNeigh"] = neigh
+  HR.categories.herbs.merged = nil
+  ppx, ppy = 1032, 988 -- the candidate lies 40 units from the player, inside the minimap
+  HR.db.ambiguity = true; HR.db.zone = {half = 8, es = 2, build = "70999"}
+  HR.db.verify = mode; HR.db.verifyAhead = false; HR.db.revive = false; HR.db.nearest = true; HR.verifyHits = 3
+  nodes = nodeList; hitR = 8
+  printed = {}; SlashCmdList.HERBROUTE("testnb")
+  local rt = HR.route
+  RunTimers()
+  return rt
+end
+local function ambTeardown()
+  go("stop"); ELW["TestNb"] = nil; ELW["TestNeigh"] = nil
+  HR.categories.herbs.merged = nil; HR.db.ambiguity = false; HR.db.zone = nil
+end
+-- distinct: the candidate and a neighbour both have a node; the probe off to the side hears only the candidate
+r = ambSetup({{15, 12}}, {{8, 12}, {15, 12}}, "report")
+assert(r.vstate[1].confirmed and r.vstate[1].amb and r.vstate[1].amb.state == "distinct", "state: " .. tostring(r.vstate[1].amb and r.vstate[1].amb.state))
+assert(r.vstats.amb.marked == 1 and r.vstats.amb.distinct == 1 and r.vstats.amb.rejected == 0 and r.vstats.amb.probes == 1, "stats")
+assert(not r.removed[1] and sx == 0 and sy == 0, "nothing removed, minimap restored")
+assert(#HerbRoute_Data["Elwynn Forest"]["Peacebloom"] == peaceCount, "database changed")
+ambTeardown()
+-- rejected: only the neighbour has a node; the probe off to the side hears nothing, the candidate is treated as absent
+r = ambSetup({{15, 12}}, {{15, 12}}, "remove")
+assert(r.vstats.amb.marked == 1 and r.vstats.amb.rejected == 1 and r.vstats.amb.distinct == 0, "rejected stats")
+assert(r.removed[1] and msgs():find("has no node: removed", 1, true), "a rejected candidate must be removed: " .. msgs())
+ambTeardown()
+-- report mode: the same case is only reported
+r = ambSetup({{15, 12}}, {{15, 12}}, "report")
+assert(r.vstats.amb.rejected == 1 and not r.removed[1] and msgs():find("report mode, kept", 1, true), msgs())
+ambTeardown()
+-- unresolved: neighbours on every side leave no position outside their zones; no probe, nothing removed
+r = ambSetup({{13, 12}, {3, 12}, {8, 17}, {8, 7}}, {{8, 12}, {13, 12}, {3, 12}, {8, 17}, {8, 7}}, "remove")
+assert(r.vstate[1].amb and r.vstate[1].amb.state == "unresolved" and r.vstats.amb.unresolved == 1 and r.vstats.amb.probes == 0, "unresolved stats")
+assert(not r.removed[1], "an unresolved point must not be removed")
+ambTeardown()
+-- clean: no neighbour within reach
+r = ambSetup({{28, 12}}, {{8, 12}}, "report")
+assert(r.vstate[1].confirmed and r.vstate[1].amb == nil and r.vstats.amb.marked == 0, "clean positive")
+ambTeardown()
+-- off
+r = ambSetup({{15, 12}}, {{8, 12}, {15, 12}}, "report")
+ambTeardown()
+HR.db.ambiguity = false
+r = ambSetup({{15, 12}}, {{8, 12}, {15, 12}}, "report")
+HR.db.ambiguity = false; go("stop"); go("testnb"); RunTimers(); r = HR.route
+assert(r.vstate[1].amb == nil and r.vstats.amb.marked == 0, "ambiguity off")
+ambTeardown()
+-- a zone measured at another scale is ignored: the formula (8 / scale = 4 units) applies, the neighbour at 7 is no longer in reach
+r = ambSetup({{15, 12}}, {{8, 12}, {15, 12}}, "report")
+go("stop"); HR.db.zone = {half = 8, es = 1}; HR.db.ambiguity = true
+go("testnb"); RunTimers(); r = HR.route
+assert(r.vstate[1].amb == nil, "formula must apply when the measured scale differs")
+ambTeardown()
+
+-- F61 ignores ambiguous points that are not distinct, and waits for a pending one
+local twoPts = {{8, 35}}
+local function ambRoute(state)
+  local rt = ambSetup({}, {}, "off", twoPts)
+  HR.db.verify = "off"
+  assert(#rt.points == 2 and rt.points[1].y == 35 and rt.points[2].y == 12, "route order")
+  rt.vstate[2] = {misses = 0, none = 0, nextAt = 0, confirmed = true, amb = state and {state = state, tries = 0, nextAt = 0} or nil}
+  printed = {}
+  return rt
+end
+r = ambRoute("unresolved")
+assert(HR:RetargetNearest(r) == false and r.index == 1 and not msgs():find("Nearest:", 1, true), "unresolved must be ignored")
+ambTeardown()
+r = ambRoute("pending")
+assert(HR:RetargetNearest(r) == false and r.vstate[2].amb.want == true and r.index == 1, "pending must wait and ask for a probe")
+ambTeardown()
+r = ambRoute("distinct")
+assert(HR:RetargetNearest(r) == true and r.points[1].y == 12 and msgs():find("Nearest:", 1, true), "distinct may be targeted")
+ambTeardown()
+r = ambRoute(nil)
+assert(HR:RetargetNearest(r) == true and r.points[1].y == 12, "a clean positive may be targeted")
+ambTeardown()
+-- F60: an unresolved point is put back but never at the head of the route
+r = ambRoute("unresolved")
+local entry = {p = {x = 50, y = 50, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0, amb = {state = "unresolved", tries = 0, nextAt = 0}}
+local head = r.points[1]
+assert(HR:ReviveSkipped(entry, true) and r.points[1] == head and r.points[#r.points].x == 50, "no head insertion")
+ambTeardown()
+r = ambRoute("unresolved")
+entry = {p = {x = 50, y = 50, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0}
+assert(HR:ReviveSkipped(entry) and r.points[1].x == 50, "a clean point goes to the head when that is the cheapest")
+ambTeardown()
+-- commands
+go("ambiguity off"); assert(HR.db.ambiguity == false and msgs():find("Ambiguous positives: off", 1, true), msgs())
+go("ambiguity on"); assert(HR.db.ambiguity == true and msgs():find("zone half-width", 1, true), msgs())
+HR.db.ambiguity = false
+go("stop")
 
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}

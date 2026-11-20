@@ -197,7 +197,7 @@ end
 -- Puts a skipped or removed point that has respawned back into the route, at
 -- the cheapest place from the player's position on (it becomes the current
 -- target when that is the cheapest). The database is never touched.
-function HR:ReviveSkipped(entry)
+function HR:ReviveSkipped(entry, noHead)
     local r = self.route
     if not r or r.mode ~= "follow" then return false end
     local live = {}
@@ -209,7 +209,7 @@ function HR:ReviveSkipped(entry)
     local dist = HR.Math.distance
     local bestPos, bestCost
     local m, px, py = self:GetPlayerPosition()
-    if m ~= nil and m == r.mapID then
+    if not noHead and m ~= nil and m == r.mapID then
         local s, b = {x = px, y = py}, r.points[live[1]]
         bestPos, bestCost = live[1], dist(s, p) + dist(p, b) - dist(s, b)
     end
@@ -230,7 +230,7 @@ function HR:ReviveSkipped(entry)
     r.removed = shiftFrom(r.removed, bestPos)
     if r.vstate then
         r.vstate = shiftFrom(r.vstate, bestPos)
-        r.vstate[bestPos] = {misses = 0, none = 0, nextAt = 0, confirmed = true}
+        r.vstate[bestPos] = {misses = 0, none = 0, nextAt = 0, confirmed = true, amb = entry.amb}
     end
     r.world = nil
     r.rev = (r.rev or 0) + 1
@@ -275,12 +275,27 @@ end
 function HR:RetargetNearest(r)
     r = r or self.route
     if not r or r.mode ~= "follow" or self.db.nearest == false or not self.PointGeometry or not r.vstate then return false end
-    local bestJ, bestD
+    local cands = {}
     for j = r.index, #r.points do
         local st = r.vstate[j]
         if st and st.confirmed and not r.removed[j] then
             local g = self.PointGeometry(r, j)
-            if g and g.inside and (not bestD or g.dist < bestD) then bestJ, bestD = j, g.dist end
+            if g and g.inside then cands[#cands + 1] = {j = j, d = g.dist, st = st} end
+        end
+    end
+    table.sort(cands, function(a, b)
+        if a.d ~= b.d then return a.d < b.d end
+        return a.j < b.j
+    end)
+    local bestJ, bestD
+    for _, c in ipairs(cands) do
+        local a = c.st.amb
+        if not a or a.state == "distinct" then
+            bestJ, bestD = c.j, c.d
+            break
+        elseif a.state == "pending" then
+            a.want = true
+            return false
         end
     end
     if not bestJ or bestJ == r.index then return false end

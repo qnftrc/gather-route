@@ -448,6 +448,15 @@ local function runZoneB(hidden, ox, oy)
             if hn and vn then
                 local cx, cy = ox + (hp - hn) / 2, oy + (vp - vn) / 2
                 add("ZONE CENTRE: (%.1f, %.1f) units from the minimap centre (captured point (%.1f, %.1f)).", cx, cy, ox, oy)
+                local wh, wv = hn + hp, vn + vp
+                local half = (wh + wv) / 4
+                local scale = Minimap:GetEffectiveScale()
+                if math.abs(wh - wv) <= 4 and half >= 3 and half <= 40 and scale and scale > 0 then
+                    HR.db.zone = {half = half, es = scale, build = tostring((select(2, GetBuildInfo())))}
+                    add("ZONE saved: half-width %.1f units at effective scale %.2f (used to tell apart positives that come from a neighbour).", half, scale)
+                else
+                    add("ZONE not saved: the two axes disagree or the size is out of range.")
+                end
                 for _, l in ipairs(databaseAround(cx, cy)) do add("%s", l) end
             else
                 add("ZONE CENTRE: not computed, an edge was not found.")
