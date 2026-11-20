@@ -299,8 +299,8 @@ assert(bw("hover"):find("standard tooltip is NOT shown", 1, true))
 worldAfter = false
 GameTooltip, GameTooltipTextLeft1, UIParent = nil, nil, nil
 assert(run("probe minimap"):find("tooltip: GameTooltip not available", 1, true))
--- /hr probe mask: a frame over a blip, with the cursor elsewhere in the zone
-zoneR = 30
+-- /hr probe zone: measures the response zone, then a frame over the blip with the cursor inside the zone
+zoneR = 7 -- pixels at scale 2: the zone reaches 3.5 units from the blip centre
 CreateFrame = function(kind, name, parent)
   if parent ~= Minimap then return realCF(kind, name, parent) end
   local f = {shown = false, size = 0, ox = 0, oy = 0}
@@ -317,16 +317,24 @@ CreateFrame = function(kind, name, parent)
 end
 worldAfter = true
 maskMode = "focus"
-local mk = bw("hover", "mask")
-assert(mk:find("CONTROL: a frame on the cursor blocks the reading", 1, true), mk)
-assert(mk:find("ZONE: lines still present with the cursor 14 units", 1, true), mk)
-assert(mk:find("does NOT hide it (0 of 3 cases)", 1, true), mk)
+local zt = bw("hover", "zone")
+assert(zt:find("Minimap: 140x140 units, zoom 1, view radius 70.0 yd, effective scale 2.00, 1.00 yd per unit.", 1, true), zt)
+assert(zt:find("ZONE cursor left of the blip: lines present up to 3 unit(s), absent from 4.", 1, true), zt)
+assert(zt:find("ZONE cursor above the blip: lines present up to 3 unit(s), absent from 4.", 1, true), zt)
+assert(zt:find("ZONE half-widths in units: left 3, right 3, below 3, above 3 (horizontal 6, vertical 6)", 1, true), zt)
+assert(zt:find("CONTROL: a frame on the cursor blocks the reading", 1, true), zt)
+assert(zt:find("frame on the blip: +1 frame present", 1, true), zt)
+assert(zt:find("a frame over the blip does NOT hide it", 1, true), zt)
 maskMode = "blip"
-mk = bw("hover", "mask hidden")
-assert(mk:find("HIDES it although the cursor is outside the frame (3 of 3 cases)", 1, true), mk)
+zt = bw("hover", "zone hidden")
+assert(zt:find("a frame over the blip HIDES it although the cursor is outside the frame", 1, true), zt)
 maskMode = "none"
-mk = bw("hover", "mask")
-assert(mk:find("did NOT block the reading", 1, true), mk)
+zt = bw("hover", "zone")
+assert(zt:find("did NOT block the reading", 1, true), zt)
+zoneR = 1 -- smaller than one unit: only the blip centre answers
+maskMode = "focus"
+zt = bw("hover", "zone")
+assert(zt:find("lines present up to 0 unit(s), absent from 1.", 1, true) and zt:find("the frame test did not run", 1, true), zt)
 for _, m in ipairs(masks) do assert(not m.shown, "a frame was left shown") end
 zoneR = 10; maskMode = "none"; CreateFrame = realCF; worldAfter = false
 io.write("PROBE TESTS OK\n")

@@ -16,6 +16,7 @@ local WORLD_WAIT = 5
 local SHIFT = 40 -- control shift of the minimap, in minimap units
 
 local lines
+local ZONE_YD
 
 local function add(fmt, ...)
     lines[#lines + 1] = select("#", ...) > 0 and fmt:format(...) or fmt
@@ -307,22 +308,19 @@ local function blinkWorld(hidden)
     C_Timer.After(WORLD_WAIT, function() runBlinkWorldB(hidden, ox, oy) end)
 end
 
--- /hr probe mask: does an invisible, mouse-enabled frame laid over a blip hide
--- that blip when the cursor is elsewhere in its response zone? Same set-up as
--- blink world (the minimap is moved under a resting cursor), but the blip
--- lands at a horizontal offset from the cursor, with and without a frame on
--- its centre. A frame on the cursor itself is the control (it should block).
-local MASK_STEPS = {
-    {key = "blip under the cursor", d = 0},
-    {key = "frame ON the cursor (control)", d = 0, mask = 6},
-    {key = "cursor 5 units from the blip", d = 5},
-    {key = "  same, frame 6 on the blip", d = 5, mask = 6},
-    {key = "cursor 8 units from the blip", d = 8},
-    {key = "  same, frame 6 on the blip", d = 8, mask = 6},
-    {key = "  same, frame 12 on the blip", d = 8, mask = 12},
-    {key = "cursor 11 units from the blip", d = 11},
-    {key = "cursor 14 units from the blip", d = 14},
+-- /hr probe zone: measures the response zone of a blip. The minimap is moved
+-- under a resting cursor so that the blip lies d units away from it (d = 0, 1,
+-- 2, ... in each of four directions, until the reading disappears). Then an
+-- invisible, mouse-enabled frame laid over the blip is tried with the cursor
+-- inside the zone: does it hide the blip? A frame on the cursor is the control
+-- (it should block the reading, as a pin does).
+local ZONE_DIRS = {
+    {name = "cursor left of the blip", dx = 1, dy = 0},
+    {name = "cursor right of the blip", dx = -1, dy = 0},
+    {name = "cursor below the blip", dx = 0, dy = 1},
+    {name = "cursor above the blip", dx = 0, dy = -1},
 }
+local ZONE_MAXD = 5
 
 local maskFrames = {}
 local function maskFrame(size, ox, oy)
@@ -342,9 +340,14 @@ local function maskFrame(size, ox, oy)
     return f
 end
 
-local function runMaskB(hidden, ox, oy)
-    local steps, finished = {}, false
+local function runZoneB(hidden, ox, oy)
+    local done, finished = {}, false
     local pts, alpha, shown
+    local reach = {}
+    for k = 1, #ZONE_DIRS do reach[k] = {present = 0} end
+    local star
+
+    local function any(st) return st.r1 or st.r3 or st.r6 end
 
     local function conclude(msg)
         if finished then return end
@@ -356,46 +359,41 @@ local function runMaskB(hidden, ox, oy)
             add("Minimap anchors and alpha restored.")
         end
         if msg then add("ABORTED: %s", msg) end
-        local function any(st) return st.r1 or st.r3 or st.r6 end
-        local done = 0
-        for _, st in ipairs(steps) do
-            if st.r6 ~= nil then
-                done = done + 1
-                add("  %s: +1 frame %s, +3 frames %s, +6 frames %s, back %s", st.key,
-                    st.r1 and "present" or "absent", st.r3 and "present" or "absent",
-                    st.r6 and "present" or "absent", st.back and "present" or "absent")
-            end
+        for _, st in ipairs(done) do
+            add("  %s: +1 frame %s, +3 frames %s, +6 frames %s, back %s", st.key,
+                st.r1 and "present" or "absent", st.r3 and "present" or "absent",
+                st.r6 and "present" or "absent", st.back and "present" or "absent")
         end
-        if done == #steps then
-            local hit, ctrl = steps[1], steps[2]
-            if not any(hit) then
-                add("RESULT: the blip is not detected with the minimap under the cursor: nothing to conclude.")
+        local hit, ctrl = done[1], done[2]
+        if hit and not any(hit) then
+            add("RESULT: the blip is not detected with the minimap under the cursor: nothing to conclude.")
+        elseif hit and ctrl and ctrl.r6 ~= nil then
+            local ydPerUnit = ZONE_YD
+            local function yd(n) return ydPerUnit and ("%.1f yd"):format(n * ydPerUnit) or "? yd" end
+            for k, dir in ipairs(ZONE_DIRS) do
+                local r = reach[k]
+                add("ZONE %s: lines present up to %d unit(s)%s.", dir.name, r.present,
+                    r.absentAt and (", absent from " .. r.absentAt) or (" (no end found within " .. ZONE_MAXD .. ")"))
+            end
+            add("ZONE half-widths in units: left %d, right %d, below %d, above %d (horizontal %d, vertical %d); one unit = %s.",
+                reach[1].present, reach[2].present, reach[3].present, reach[4].present,
+                reach[1].present + reach[2].present, reach[3].present + reach[4].present, yd(1))
+            if any(ctrl) then
+                add("CONTROL: a frame on the cursor did NOT block the reading: the frame does not take the mouse here, the frame test is not valid.")
             else
-                if any(ctrl) then
-                    add("CONTROL: a frame on the cursor did NOT block the reading: the frame does not take the mouse here, the test below is not valid.")
+                add("CONTROL: a frame on the cursor blocks the reading (as with a pin).")
+            end
+            local plain, masked = done[#done - 1], done[#done]
+            if star and plain and masked and masked.mask and masked.r6 ~= nil then
+                if not any(plain) then
+                    add("RESULT: inconclusive, the blip was no longer read at the test offset without a frame.")
+                elseif not any(masked) then
+                    add("RESULT: a frame over the blip HIDES it although the cursor is outside the frame: masking a neighbouring blip is possible.")
                 else
-                    add("CONTROL: a frame on the cursor blocks the reading (as with a pin).")
+                    add("RESULT: a frame over the blip does NOT hide it: masking a neighbouring blip cannot work.")
                 end
-                local zone = 0
-                for _, st in ipairs(steps) do
-                    if st.d > 0 and not st.mask and any(st) and st.d > zone then zone = st.d end
-                end
-                add("ZONE: lines still present with the cursor %d units from the blip centre (horizontal); beyond that, none.", zone)
-                local tested, hides = 0, 0
-                for i = 4, 7, 1 do
-                    local st = steps[i]
-                    if st.mask and any(steps[st.plain]) then
-                        tested = tested + 1
-                        if not any(st) then hides = hides + 1 end
-                    end
-                end
-                if tested == 0 then
-                    add("RESULT: inconclusive, the cursor was outside the response zone in every masked case.")
-                elseif hides > 0 then
-                    add("RESULT: a frame over the blip HIDES it although the cursor is outside the frame (%d of %d cases): masking a neighbouring blip is possible.", hides, tested)
-                else
-                    add("RESULT: a frame over the blip does NOT hide it (0 of %d cases): masking a neighbouring blip cannot work.", tested)
-                end
+            else
+                add("RESULT: zone measured; the frame test did not run (the zone is smaller than one unit or the run was interrupted).")
             end
         elseif not msg then
             add("RESULT: inconclusive (not enough steps completed).")
@@ -414,20 +412,12 @@ local function runMaskB(hidden, ox, oy)
     local halfW = Minimap:GetWidth() / 2
     local hx, hy = (sx / es - ox) - cx0, (sy / es - oy) - cy0
     if math.abs(hx) > 3000 or math.abs(hy) > 3000 then return conclude("the shift needed is too large") end
-
-    for i, def in ipairs(MASK_STEPS) do
-        local st = {key = def.key, d = def.d, mask = def.mask, dx = hx + def.d, dy = hy}
-        if def.mask and def.d > 0 then st.plain = i - 1 end
-        if i == 7 then st.plain = 5 end
-        local rx, ry = ox - def.d, oy
-        if rx * rx + ry * ry > (0.85 * halfW) ^ 2 then
-            return conclude("the blip is too close to the edge of the minimap for the offset steps: capture a blip nearer the centre")
-        end
-        steps[i] = st
+    if (math.abs(ox) + ZONE_MAXD) ^ 2 + (math.abs(oy) + ZONE_MAXD) ^ 2 > (0.85 * halfW) ^ 2 then
+        return conclude("the blip is too close to the edge of the minimap: capture a blip nearer the centre")
     end
 
     pts, alpha = savePoints(), Minimap:GetAlpha()
-    C_Timer.After(60, function() conclude("timeout") end)
+    C_Timer.After(120, function() conclude("timeout") end)
 
     local function stillOk()
         if InCombatLockdown and InCombatLockdown() then conclude("combat started") return false end
@@ -437,16 +427,59 @@ local function runMaskB(hidden, ox, oy)
         return true
     end
 
-    local i = 0
-    local function nextStep()
+    -- Next step to run, chosen from the readings so far; nil when finished.
+    local stage, dirK, dist = 1, 1, 1
+    local function nextDef(last)
+        if stage == 1 then stage = 2 return {key = "blip under the cursor", ddx = 0, ddy = 0} end
+        if stage == 2 then
+            stage, dirK, dist = 3, 1, 1
+            return {key = "frame ON the cursor (control)", ddx = 0, ddy = 0, mask = 6}
+        end
+        if stage == 3 then
+            if last and last.zoneDir then
+                local r = reach[last.zoneDir]
+                if any(last) then r.present = last.zoneDist else r.absentAt = last.zoneDist end
+                if any(last) and last.zoneDist < ZONE_MAXD then
+                    dist = last.zoneDist + 1
+                else
+                    dirK, dist = last.zoneDir + 1, 1
+                end
+            end
+            if dirK <= #ZONE_DIRS then
+                local dir = ZONE_DIRS[dirK]
+                return {key = ("%s, %d unit(s)"):format(dir.name, dist), ddx = dir.dx * dist, ddy = dir.dy * dist,
+                    zoneDir = dirK, zoneDist = dist}
+            end
+            local bestK, bestD = nil, 0
+            for k, r in ipairs(reach) do
+                if r.present > bestD then bestK, bestD = k, r.present end
+            end
+            stage = 4
+            if bestK then
+                star = {k = bestK, d = bestD}
+                local dir = ZONE_DIRS[bestK]
+                return {key = ("%s, %d unit(s), no frame"):format(dir.name, bestD), ddx = dir.dx * bestD, ddy = dir.dy * bestD}
+            end
+            return nil
+        end
+        if stage == 4 then
+            stage = 5
+            local dir = ZONE_DIRS[star.k]
+            return {key = ("%s, %d unit(s), frame on the blip"):format(dir.name, star.d), ddx = dir.dx * star.d,
+                ddy = dir.dy * star.d, mask = math.max(1, 2 * star.d - 1), onBlip = true}
+        end
+    end
+
+    local function runStep(def)
         if finished then return end
-        i = i + 1
-        local st = steps[i]
-        if not st then return conclude() end
         if not stillOk() then return end
-        placeMinimap(pts, st.dx, st.dy)
+        local st = {key = def.key, mask = def.mask, zoneDir = def.zoneDir, zoneDist = def.zoneDist}
+        done[#done + 1] = st
+        placeMinimap(pts, hx + def.ddx, hy + def.ddy)
         if hidden then Minimap:SetAlpha(0) end
-        if st.mask then shown = maskFrame(st.mask, ox, oy) end
+        if def.mask then
+            shown = def.onBlip and maskFrame(def.mask, ox, oy) or maskFrame(def.mask, ox, oy)
+        end
         waitFrames(1, function()
             if finished then return end
             st.r1 = present()
@@ -462,18 +495,27 @@ local function runMaskB(hidden, ox, oy)
                     waitFrames(3, function()
                         if finished then return end
                         st.back = present()
-                        nextStep()
+                        local def2 = nextDef(st)
+                        if def2 then return runStep(def2) end
+                        conclude()
                     end)
                 end)
             end)
         end)
     end
-    nextStep()
+    runStep(nextDef())
 end
 
-local function maskTest(hidden)
+local function zoneTest(hidden)
     lines = {}
-    add("HerbRoute probe mask%s %s", hidden and " (hidden)" or "", date("%Y-%m-%d %H:%M:%S"))
+    add("HerbRoute probe zone%s %s", hidden and " (hidden)" or "", date("%Y-%m-%d %H:%M:%S"))
+    local radius = viewRadius()
+    local okz, zoom = pcall(Minimap.GetZoom, Minimap)
+    local halfW = Minimap:GetWidth() / 2
+    ZONE_YD = radius and halfW > 0 and radius / halfW or nil
+    add("Minimap: %.0fx%.0f units, zoom %s, view radius %s yd, effective scale %.2f, %s yd per unit.",
+        Minimap:GetWidth(), Minimap:GetHeight(), okz and tostring(zoom) or "?", radius and ("%.1f"):format(radius) or "?",
+        Minimap:GetEffectiveScale() or 0, ZONE_YD and ("%.2f"):format(ZONE_YD) or "?")
     if not (Minimap.GetNumPoints and Minimap.GetPoint and Minimap.SetPoint and Minimap.ClearAllPoints) then
         add("ABORTED: the minimap anchors cannot be read")
         return finish()
@@ -491,7 +533,7 @@ local function maskTest(hidden)
     local ox, oy = sx / es - cx, sy / es - cy
     add("Phase A: blip under the cursor, offset from the minimap center (%.1f, %.1f) units.", ox, oy)
     HR:Print(("Blip captured. Move the mouse into the world (not over the minimap or a window) and keep it still: test in %d s."):format(WORLD_WAIT))
-    C_Timer.After(WORLD_WAIT, function() runMaskB(hidden, ox, oy) end)
+    C_Timer.After(WORLD_WAIT, function() runZoneB(hidden, ox, oy) end)
 end
 
 -- /hr probe watch: log how the real hover changes while the mouse is moved by
@@ -545,7 +587,7 @@ local function usage()
     HR:Print("/hr probe minimap - same after 3 s, with the mouse on the minimap")
     HR:Print("/hr probe watch - log how the real hover changes while you move the mouse")
     HR:Print("/hr probe blink world [hidden] - move the minimap under a resting cursor")
-    HR:Print("/hr probe mask [hidden] - does a frame laid over a blip hide it? (test of the invisible frame)")
+    HR:Print("/hr probe zone [hidden] - measure the response zone of a blip, then test an invisible frame over it")
     HR:Print("/hr probe copy - reopen the last report")
 end
 
@@ -562,9 +604,9 @@ function Probe:Run(arg)
     elseif arg == "blink world" or arg == "blink world hidden" then
         HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap and keep it still."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() blinkWorld(arg == "blink world hidden") end)
-    elseif arg == "mask" or arg == "mask hidden" then
+    elseif arg == "zone" or arg == "zone hidden" then
         HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap, near its centre, and keep it still."):format(COUNTDOWN))
-        C_Timer.After(COUNTDOWN, function() maskTest(arg == "mask hidden") end)
+        C_Timer.After(COUNTDOWN, function() zoneTest(arg == "zone hidden") end)
     elseif arg == "copy" then
         local saved = HR.db.probe
         if not saved then return HR:Print("No saved probe report.") end
