@@ -84,7 +84,7 @@ end
 local function finish()
     local text = table.concat(lines, "\n")
     HR.db.probe = {time = date("%Y-%m-%d %H:%M:%S"), text = text}
-    for _, l in ipairs(lines) do HR:Print(l) end
+    for _, l in ipairs(lines) do HR:Say(l) end
     Probe:ShowReport(text)
 end
 
@@ -102,7 +102,7 @@ local function runMain(expected)
     local inside = cursorInside()
     add("Cursor: MouseIsOver(Minimap)=%s, inside the minimap disc=%s",
         tostring(MouseIsOver and MouseIsOver(Minimap) or false), tostring(inside))
-    if expected == "minimap" and inside == false then HR:Print("The cursor is not inside the minimap.") end
+    if expected == "minimap" and inside == false then HR:Say("The cursor is not inside the minimap.") end
 
     local tracking, ok = trackingList()
     if not ok then
@@ -304,7 +304,7 @@ local function blinkWorld(hidden)
     local ox, oy = sx / es - cx, sy / es - cy
     add("Phase A: blip under the cursor, offset from the minimap center (%.1f, %.1f) units.", ox, oy)
     add("  tooltip: %s", tipText(MM.tooltipInfo()))
-    HR:Print(("Blip captured. Move the mouse into the world (not over the minimap or a window) and keep it still: test in %d s."):format(WORLD_WAIT))
+    HR:Say(("Blip captured. Move the mouse into the world (not over the minimap or a window) and keep it still: test in %d s."):format(WORLD_WAIT))
     C_Timer.After(WORLD_WAIT, function() runBlinkWorldB(hidden, ox, oy) end)
 end
 
@@ -590,7 +590,7 @@ local function zoneTest(hidden)
     local es = Minimap:GetEffectiveScale()
     local ox, oy = sx / es - cx, sy / es - cy
     add("Phase A: blip under the cursor, offset from the minimap center (%.1f, %.1f) units.", ox, oy)
-    HR:Print(("Blip captured. Move the mouse into the world (not over the minimap or a window) and keep it still: test in %d s."):format(WORLD_WAIT))
+    HR:Say(("Blip captured. Move the mouse into the world (not over the minimap or a window) and keep it still: test in %d s."):format(WORLD_WAIT))
     C_Timer.After(WORLD_WAIT, function() runZoneB(hidden, ox, oy) end)
 end
 
@@ -608,7 +608,7 @@ local function runWatch()
         add("Tracking active: %s", #active > 0 and table.concat(active, ", ") or "none")
     end
     add("Zoom %s, view radius %s yd", tostring(Minimap:GetZoom()), viewRadius() and ("%.1f"):format(viewRadius()) or "n/a")
-    HR:Print(("Move the mouse slowly over the minimap for %d s: empty ground, herb dots, then outside."):format(WATCH_SECONDS))
+    HR:Say(("Move the mouse slowly over the minimap for %d s: empty ground, herb dots, then outside."):format(WATCH_SECONDS))
     local elapsed, samples, events, last = 0, 0, 0, nil
     local function tick()
         if elapsed >= WATCH_SECONDS then
@@ -641,12 +641,12 @@ local function runWatch()
 end
 
 local function usage()
-    HR:Print("/hr probe - environment, functions, read of the real mouse hover")
-    HR:Print("/hr probe minimap - same after 3 s, with the mouse on the minimap")
-    HR:Print("/hr probe watch - log how the real hover changes while you move the mouse")
-    HR:Print("/hr probe blink world [hidden] - move the minimap under a resting cursor")
-    HR:Print("/hr probe zone [hidden] - measure the width and centre of the response zone of a blip")
-    HR:Print("/hr probe copy - reopen the last report")
+    HR:Say("/hr probe - environment, functions, read of the real mouse hover")
+    HR:Say("/hr probe minimap - same after 3 s, with the mouse on the minimap")
+    HR:Say("/hr probe watch - log how the real hover changes while you move the mouse")
+    HR:Say("/hr probe blink world [hidden] - move the minimap under a resting cursor")
+    HR:Say("/hr probe zone [hidden] - measure the width and centre of the response zone of a blip")
+    HR:Say("/hr probe copy - reopen the last report")
 end
 
 function Probe:Run(arg)
@@ -654,20 +654,20 @@ function Probe:Run(arg)
     if arg == "" then
         runMain()
     elseif arg == "minimap" then
-        HR:Print(("Probe in %d s: put the mouse over the minimap."):format(COUNTDOWN))
+        HR:Say(("Probe in %d s: put the mouse over the minimap."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() runMain("minimap") end)
     elseif arg == "watch" then
-        HR:Print(("Watch in %d s: put the mouse over the minimap."):format(COUNTDOWN))
+        HR:Say(("Watch in %d s: put the mouse over the minimap."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, runWatch)
     elseif arg == "blink world" or arg == "blink world hidden" then
-        HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap and keep it still."):format(COUNTDOWN))
+        HR:Say(("Phase A in %d s: put the mouse ON a herb blip of the minimap and keep it still."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() blinkWorld(arg == "blink world hidden") end)
     elseif arg == "zone" or arg == "zone hidden" then
-        HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap, near its centre, and keep it still."):format(COUNTDOWN))
+        HR:Say(("Phase A in %d s: put the mouse ON a herb blip of the minimap, near its centre, and keep it still."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() zoneTest(arg == "zone hidden") end)
     elseif arg == "copy" then
         local saved = HR.db.probe
-        if not saved then return HR:Print("No saved probe report.") end
+        if not saved then return HR:Say("No saved probe report.") end
         self:ShowReport(saved.text)
     else
         usage()

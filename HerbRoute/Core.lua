@@ -19,6 +19,7 @@ local defaults = {
     ambiguity = true,
     verifyCombat = false,
     gatherDebug = false,
+    chat = true,
     skipButton = {shown = false},
     overrides = {},
 }
@@ -28,8 +29,16 @@ BINDING_NAME_HERBROUTE_SKIP = "Skip the current point"
 BINDING_NAME_HERBROUTE_STOP = "Stop the route"
 BINDING_NAME_HERBROUTE_WINDOW = "Open or close the window"
 
-function HR:Print(msg)
+-- Say always prints: replies to a command and the diagnostics you started.
+function HR:Say(msg)
     print("|cff33ff99HerbRoute|r: " .. tostring(msg))
+end
+
+-- Print is for what the addon says by itself (route events, verification,
+-- gathering...): it is silent when the chat messages are switched off.
+function HR:Print(msg)
+    if HR.db and HR.db.chat == false and not HR.replying then return end
+    HR:Say(msg)
 end
 
 local function copy(v)
@@ -94,6 +103,7 @@ local function usage()
     HR:Print("/hr <herb>[, <herb>] - route in the current region (or 'all')")
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
+    HR:Print("/hr chat [on|off] - show or hide the messages HerbRoute writes by itself (replies to commands and diagnostics are always shown)")
     HR:Print("/hr gather [debug on|off] - a gathering starts: every point that may have respawned is probed again, during the channel (debug prints the spell events)")
     HR:Print("/hr ambiguity [on|off] - tell apart a positive read that comes from a neighbouring point (on by default)")
     HR:Print("/hr nearest [on|off] - the filled point nearest to you becomes the target, the route is recomputed on arrival (on by default)")
@@ -126,6 +136,10 @@ local function handleSlash(msg)
         if arg == "on" or arg == "off" then HR.db.reroute = arg == "on" end
         if arg == "now" then return HR:Reroute() end
         HR:Print("Reroute after removals: " .. (HR.db.reroute == true and "on" or "off") .. " (/hr reroute on|off|now): reorders the points ahead from the current one; the database is never changed.")
+    elseif cmd == "chat" then
+        local arg = rest:lower()
+        if arg == "on" or arg == "off" then HR.db.chat = arg == "on" end
+        HR:Print("HerbRoute messages in the chat: " .. (HR.db.chat == false and "off" or "on") .. " (/hr chat on|off, or the box of the window). Replies to commands and diagnostics are always shown.")
     elseif cmd == "gather" then
         local arg = rest:lower()
         local val = arg:match("^debug%s+(%a+)$")
@@ -247,7 +261,12 @@ end
 
 SLASH_HERBROUTE1 = "/herbroute"
 SLASH_HERBROUTE2 = "/hr"
-SlashCmdList["HERBROUTE"] = handleSlash
+SlashCmdList["HERBROUTE"] = function(msg)
+    HR.replying = true
+    local ok, err = pcall(handleSlash, msg)
+    HR.replying = false
+    if not ok then error(err, 0) end
+end
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")

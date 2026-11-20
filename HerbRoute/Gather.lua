@@ -35,7 +35,7 @@ local function safe(v)
 end
 
 local function trace(fmt, ...)
-    if HR.db and HR.db.gatherDebug == true then HR:Print("Gather: " .. fmt:format(...)) end
+    if HR.db and HR.db.gatherDebug == true then HR:Say("Gather: " .. fmt:format(...)) end
 end
 
 local function spellName(id)

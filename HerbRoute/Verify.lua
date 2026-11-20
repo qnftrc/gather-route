@@ -504,7 +504,7 @@ end
 -- Trace of the probes made during a gathering (/hr gather debug on).
 local function gTrace(kind, result, cause)
     if HR.db.gatherDebug == true and HR.gatheringUntil and GetTime() < HR.gatheringUntil then
-        HR:Print(("Gather: probe during the gathering (%s): %s%s"):format(kind, result, cause and (" - " .. cause) or ""))
+        HR:Say(("Gather: probe during the gathering (%s): %s%s"):format(kind, result, cause and (" - " .. cause) or ""))
     end
 end
 
@@ -908,10 +908,10 @@ end
 -- offset from the minimap center (units, y up), or nil after saying why.
 local function captureDot(name)
     if probing then return end
-    if MM.combatBlocked() then return HR:Print(name .. ": not in combat (or tick \"Probe the minimap during combat\").") end
+    if MM.combatBlocked() then return HR:Say(name .. ": not in combat (or tick \"Probe the minimap during combat\").") end
     local has = MM.reading()
     if MM.cursorInside() ~= true or not has then
-        return HR:Print(name .. ": no tooltip line under the cursor. Rest the mouse on a yellow dot and retry.")
+        return HR:Say(name .. ": no tooltip line under the cursor. Rest the mouse on a yellow dot and retry.")
     end
     local sx, sy = GetCursorPosition()
     local es = Minimap:GetEffectiveScale()
@@ -927,15 +927,15 @@ end
 
 function HR:VerifyCalibrate(arg)
     self.verifyCategory = categoryOf(arg)
-    self:Print(("Calibration, phase A in 3 s: put the mouse ON a yellow %s dot of the minimap and keep it still."):format(self.verifyCategory == "ores" and "ore" or "herb"))
+    self:Say(("Calibration, phase A in 3 s: put the mouse ON a yellow %s dot of the minimap and keep it still."):format(self.verifyCategory == "ores" and "ore" or "herb"))
     C_Timer.After(3, function()
         local ox, oy = captureDot("Calibration")
         if not ox then return end
-        HR:Print(("Calibration: dot captured at (%.1f, %.1f) units. Phase B in 5 s: move the mouse into the world, away from any window, and keep it still."):format(ox, oy))
+        HR:Say(("Calibration: dot captured at (%.1f, %.1f) units. Phase B in 5 s: move the mouse into the world, away from any window, and keep it still."):format(ox, oy))
         C_Timer.After(5, function()
             if probing then return end
             local why = blocked(true, true)
-            if why then return HR:Print("Calibration not run: " .. why .. ".") end
+            if why then return HR:Say("Calibration not run: " .. why .. ".") end
             local halfW = Minimap:GetWidth() / 2
             local control
             for _, c in ipairs({{40, 0}, {-40, 0}, {0, 40}, {0, -40}}) do
@@ -943,7 +943,7 @@ function HR:VerifyCalibrate(arg)
                 if x * x + y * y <= (0.8 * halfW) ^ 2 then control = {x, y} break end
             end
             if not control then
-                return HR:Print("Calibration: the dot is too close to the minimap edge for a control; pick a dot nearer the center.")
+                return HR:Say("Calibration: the dot is too close to the minimap edge for a control; pick a dot nearer the center.")
             end
             local results = {}
             local function conclude()
@@ -956,11 +956,11 @@ function HR:VerifyCalibrate(arg)
                 end
                 if best then
                     HR.db.recipe, HR.db.recipeBuild = best.v.name, currentBuild()
-                    HR:Print(("Calibration done: method '%s' stored for build %s. Automatic verification is enabled."):format(
+                    HR:Say(("Calibration done: method '%s' stored for build %s. Automatic verification is enabled."):format(
                         best.v.name, currentBuild()))
                 else
                     HR.db.recipe, HR.db.recipeBuild = nil, nil
-                    HR:Print("Calibration failed: no method detects the dot. Automatic verification stays off on this build.")
+                    HR:Say("Calibration failed: no method detects the dot. Automatic verification stays off on this build.")
                 end
             end
             local function run(k)
@@ -969,7 +969,7 @@ function HR:VerifyCalibrate(arg)
                 probe(ox, oy, function(hit, hitCause)
                     probe(control[1], control[2], function(ctl)
                         results[#results + 1] = {v = v, hit = hit, control = ctl}
-                        HR:Print(("  [%s] on the dot: %s%s; control: %s"):format(
+                        HR:Say(("  [%s] on the dot: %s%s; control: %s"):format(
                             v.name, hit, hitCause and (" (" .. hitCause .. ")") or "", ctl))
                         run(k + 1)
                     end, nil, v.opts)
@@ -987,7 +987,7 @@ local ARMING_TIMES = {6, 10, 15, 20, 30, 45, 60}
 
 function HR:VerifyArming(arg)
     self.verifyCategory = categoryOf(arg)
-    self:Print("Arming test, phase A in 3 s: put the mouse ON a yellow " .. (self.verifyCategory == "ores" and "ore" or "herb") .. " dot of the minimap, then move it into the world within 4 s and keep it still for about a minute. The minimap blinks briefly at each check.")
+    self:Say("Arming test, phase A in 3 s: put the mouse ON a yellow " .. (self.verifyCategory == "ores" and "ore" or "herb") .. " dot of the minimap, then move it into the world within 4 s and keep it still for about a minute. The minimap blinks briefly at each check.")
     C_Timer.After(3, function()
         local ox, oy = captureDot("Arming test")
         if not ox then return end
@@ -998,20 +998,20 @@ function HR:VerifyArming(arg)
             local x, y = ox + c[1], oy + c[2]
             if x * x + y * y <= (0.8 * halfW) ^ 2 then control = {x, y} break end
         end
-        if not control then return HR:Print("Arming test: the dot is too close to the minimap edge; pick a dot nearer the center.") end
-        HR:Print(("Arming test: dot captured at (%.1f, %.1f) units; checks at %s s."):format(ox, oy, table.concat(ARMING_TIMES, ", ")))
+        if not control then return HR:Say("Arming test: the dot is too close to the minimap edge; pick a dot nearer the center.") end
+        HR:Say(("Arming test: dot captured at (%.1f, %.1f) units; checks at %s s."):format(ox, oy, table.concat(ARMING_TIMES, ", ")))
         local function runAt(k)
             local when = ARMING_TIMES[k]
-            if not when then return HR:Print("Arming test finished.") end
+            if not when then return HR:Say("Arming test finished.") end
             C_Timer.After(math.max(0, t0 + when - GetTime()), function()
                 local why = blocked(true, true)
                 if why then
-                    HR:Print(("  t=%ds: skipped (%s)"):format(when, why))
+                    HR:Say(("  t=%ds: skipped (%s)"):format(when, why))
                     return runAt(k + 1)
                 end
                 probe(ox, oy, function(hit)
                     probe(control[1], control[2], function(ctl)
-                        HR:Print(("  t=%ds after the dot: dot %s, control %s"):format(when, hit, ctl))
+                        HR:Say(("  t=%ds after the dot: dot %s, control %s"):format(when, hit, ctl))
                         runAt(k + 1)
                     end, nil, {})
                 end, nil, {})
@@ -1025,8 +1025,8 @@ end
 -- (plain when not calibrated), with everything measured.
 function HR:VerifyProbeNow()
     local r = self.route
-    if not r or r.mode ~= "follow" then return self:Print("Start a route in follow mode first.") end
-    self:Print("Verify probe in 3 s: MOVE the mouse a little in the world, then keep it still.")
+    if not r or r.mode ~= "follow" then return self:Say("Start a route in follow mode first.") end
+    self:Say("Verify probe in 3 s: MOVE the mouse a little in the world, then keep it still.")
     local x0, y0 = GetCursorPosition()
     local movedDuring = false
     local function watch(t)
@@ -1039,21 +1039,21 @@ function HR:VerifyProbeNow()
         if HR.route ~= r or probing then return end
         local i = r.index
         local g = geometry(r, i)
-        if not g then return HR:Print("Verify probe: no position data (HereBeDragons or the route overlay is missing).") end
-        HR:Print(("Verify probe: point %d/%d (%s), %.0f yd away, projected offset (%.0f, %.0f) units, %s the probe disc; mouse moved during the countdown: %s; method: %s."):format(
+        if not g then return HR:Say("Verify probe: no position data (HereBeDragons or the route overlay is missing).") end
+        HR:Say(("Verify probe: point %d/%d (%s), %.0f yd away, projected offset (%.0f, %.0f) units, %s the probe disc; mouse moved during the countdown: %s; method: %s."):format(
             i, #r.points, r.points[i].herb, g.dist, g.ox, g.oy, g.inside and "inside" or "outside",
             movedDuring and "yes" or "NO", recipeOpts() and HR.db.recipe or "plain (not calibrated)"))
         local why = blocked(true, true)
-        if why then return HR:Print("Verify probe: not run: " .. why .. ".") end
+        if why then return HR:Say("Verify probe: not run: " .. why .. ".") end
         local d = {}
         probe(g.ox, g.oy, function(result, cause)
-            HR:Print(("  cursor (%.0f, %.0f) px, minimap center (%.1f, %.1f), shift (%.1f, %.1f)"):format(
+            HR:Say(("  cursor (%.0f, %.0f) px, minimap center (%.1f, %.1f), shift (%.1f, %.1f)"):format(
                 d.sx or 0, d.sy or 0, d.cx or 0, d.cy or 0, d.hx or 0, d.hy or 0))
             for _, rd in ipairs(d.reads or {}) do
-                HR:Print(("  +%d: moved=%s onMinimap=%s focus=%s lines=%s data=%s %s"):format(
+                HR:Say(("  +%d: moved=%s onMinimap=%s focus=%s lines=%s data=%s %s"):format(
                     rd.frame, tostring(rd.applied), tostring(rd.inside), tostring(rd.focus), tostring(rd.has), tostring(rd.anyData), tostring(rd.sig)))
             end
-            HR:Print(("  result: %s%s; minimap back home: %s"):format(result, cause and (" (" .. cause .. ")") or "", tostring(d.homeOk)))
+            HR:Say(("  result: %s%s; minimap back home: %s"):format(result, cause and (" (" .. cause .. ")") or "", tostring(d.homeOk)))
         end, d, recipeOpts() or {})
     end)
 end
@@ -1108,7 +1108,7 @@ local function finishScan(r, cells, counts, R)
     local function say(fmt, ...)
         local line = select("#", ...) > 0 and fmt:format(...) or fmt
         report[#report + 1] = line
-        HR:Print(line)
+        HR:Say(line)
     end
     say("Scan: %d cells probed, %d with lines, %d empty, %d inconclusive.", counts.cells, #hits, counts.empty, counts.none)
 
@@ -1192,12 +1192,12 @@ end
 
 function HR:VerifyScan()
     local r = self.route
-    if not r or r.mode ~= "follow" then return self:Print("Start a route in follow mode first.") end
-    self:Print("Verify scan in 3 s: MOVE the mouse a little in the world, keep it still and do not touch it for about 10 s. The minimap will jump around.")
+    if not r or r.mode ~= "follow" then return self:Say("Start a route in follow mode first.") end
+    self:Say("Verify scan in 3 s: MOVE the mouse a little in the world, keep it still and do not touch it for about 10 s. The minimap will jump around.")
     C_Timer.After(3, function()
         if HR.route ~= r or probing then return end
         local why = blocked(true)
-        if why then return HR:Print("Verify scan: not run: " .. why .. ".") end
+        if why then return HR:Say("Verify scan: not run: " .. why .. ".") end
         local opts = recipeOpts()
         local R = 0.9 * Minimap:GetWidth() / 2
         local cells = {}
@@ -1217,7 +1217,7 @@ function HR:VerifyScan()
             if not c then return finishScan(r, cells, counts, R) end
             if HR.route ~= r then return end
             local stop = MM.combatBlocked() and "combat" or (MM.buttonDown() and "a mouse button was pressed")
-            if stop then return HR:Print("Verify scan stopped: " .. stop .. ".") end
+            if stop then return HR:Say("Verify scan stopped: " .. stop .. ".") end
             probe(c.x, c.y, function(result, cause)
                 counts.cells = counts.cells + 1
                 c.res = result
@@ -1226,7 +1226,7 @@ function HR:VerifyScan()
                 elseif result == "none" then
                     counts.none = counts.none + 1
                     if counts.none >= 8 and counts.none * 3 > counts.cells then
-                        return HR:Print("Verify scan stopped: too many inconclusive probes (" .. tostring(cause) .. ").")
+                        return HR:Say("Verify scan stopped: too many inconclusive probes (" .. tostring(cause) .. ").")
                     end
                 end
                 nextCell()

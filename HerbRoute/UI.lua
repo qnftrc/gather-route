@@ -204,7 +204,7 @@ end
 
 local function build()
     ui = CreateFrame("Frame", "HerbRouteFrame", UIParent, "BasicFrameTemplateWithInset")
-    ui:SetSize(360, 648)
+    ui:SetSize(360, 672)
     ui:SetPoint("CENTER")
     ui:SetMovable(true)
     ui:EnableMouse(true)
@@ -304,9 +304,13 @@ local function build()
         HR.db.verifyCombat = self:GetChecked() and true or false
     end)
 
-    ui.radiusText = label(ui, "", "TOPLEFT", 16, -550)
+    ui.chat = check(ui, "Show HerbRoute messages in the chat", 12, -538, function(self)
+        HR.db.chat = self:GetChecked() and true or false
+    end)
+
+    ui.radiusText = label(ui, "", "TOPLEFT", 16, -574)
     local slider = CreateFrame("Slider", nil, ui, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -552)
+    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -576)
     slider:SetSize(190, 16)
     slider:SetMinMaxValues(5, 40)
     slider:SetValueStep(1)
@@ -348,6 +352,7 @@ local function build()
         ui.revive:SetChecked(HR.db.revive ~= false)
         ui.nearest:SetChecked(HR.db.nearest ~= false)
         ui.combat:SetChecked(HR.db.verifyCombat == true)
+        ui.chat:SetChecked(HR.db.chat ~= false)
         ui.slider:SetValue(HR.db.radius)
         if not dirty then fillPosition() end
         HR:UpdateUI()

@@ -1488,6 +1488,23 @@ go("gather debug off"); assert(HR.db.gatherDebug == false)
 gaTeardown()
 UnitChannelInfo, GetSpellInfo = noChannel, nil
 
+-- 21. chat messages: what the addon says by itself can be switched off, replies and diagnostics stay
+reset(); HR.db.verify = "report"; HR.verifyHits = 2; HR.db.chat = false
+go("peacebloom")
+assert(not msgs():find("has no node", 1, true), "automatic messages are silent when the chat is off: " .. msgs())
+printed = {}; HR:Print("silent"); assert(#printed == 0, "Print is silent")
+HR:Say("heard"); assert(#printed == 1 and printed[1]:find("heard", 1, true), "Say always prints")
+go("verify"); assert(msgs():find("Verify:", 1, true), "a status reply stays")
+go("chat"); assert(msgs():find("HerbRoute messages in the chat: off", 1, true), msgs())
+go("chat on"); assert(HR.db.chat == true and msgs():find("chat: on", 1, true), msgs())
+go("stop")
+reset(); HR.db.verify = "report"; HR.verifyHits = 2
+go("peacebloom")
+assert(msgs():find("has no node", 1, true), "automatic messages are shown when the chat is on")
+go("chat off"); assert(HR.db.chat == false)
+HR.db.chat = true
+go("stop")
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)
