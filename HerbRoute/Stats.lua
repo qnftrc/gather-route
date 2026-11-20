@@ -4,6 +4,7 @@ local GRACE = 8       -- seconds after the end of a gathering during which loot 
 local GATHER_MAX = 30 -- safety: a gathering window never stays open longer than this
 local LINE_H = 13
 local VISIBLE = 8
+local NAME_W = 84
 
 local ITEMS = {
     [2447] = "Peacebloom", [765] = "Silverleaf", [2449] = "Earthroot", [785] = "Mageroyal",
@@ -291,10 +292,10 @@ function HR.StatsLoot(message)
 end
 
 local function lines()
-    local out = {}
+    local out, names, values = {}, {}, {}
     if not s then
         out[1] = "No route yet."
-        return out, 0
+        return out, 0, {"No route yet."}, {""}
     end
     local list = {}
     for id, e in pairs(s.items) do
@@ -305,19 +306,23 @@ local function lines()
     for i, it in ipairs(list) do
         out[#out + 1] = ("%s x%d  %s%s"):format(it.e.name, it.e.count,
             it.src and HR.Money(it.v) or "no price", it.src == "vendor" and " (vendor)" or "")
+        names[#names + 1] = ("%s x%d"):format(it.e.name, it.e.count)
+        values[#values + 1] = (it.src and HR.Money(it.v) or "no price") .. (it.src == "vendor" and "*" or "")
     end
-    if #list == 0 then out[1] = "Nothing gathered yet." end
-    return out, #list
+    if #list == 0 then out[1] = "Nothing gathered yet." names[1], values[1] = out[1], "" end
+    return out, #list, names, values
 end
 
 function HR.StatsText()
-    local body = lines()
+    local body, _, names, values = lines()
     local total, unpriced = HR.StatsTotal()
     local el = HR.StatsElapsed()
     local perHour = el >= 60 and HR.Money(total / el * 3600) .. "/h" or "..."
     return {
         duration = "Route time: " .. clock(el) .. (s and s.stoppedAt and " (stopped)" or ""),
         body = table.concat(body, "\n"),
+        names = table.concat(names, "\n"),
+        values = table.concat(values, "\n"),
         total = "Total: " .. HR.Money(total) .. (unpriced > 0 and (" (" .. unpriced .. " unpriced)") or ""),
         perHour = "Per hour: " .. perHour,
         count = math.max(1, #body),
@@ -363,10 +368,17 @@ local function build()
     win.scroll:SetScrollChild(win.child)
     win.body = win.child:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     win.body:SetPoint("TOPLEFT", win.child, "TOPLEFT", 2, 0)
+    win.body:SetWidth(NAME_W)
     win.body:SetJustifyH("LEFT")
     win.body:SetJustifyV("TOP")
     win.body:SetWordWrap(false)
     win.body:SetSpacing(0)
+    win.values = win.child:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    win.values:SetPoint("TOPRIGHT", win.child, "TOPRIGHT", -2, 0)
+    win.values:SetJustifyH("RIGHT")
+    win.values:SetJustifyV("TOP")
+    win.values:SetWordWrap(false)
+    win.values:SetSpacing(0)
     win.total = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     win.total:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -50 - LINE_H * VISIBLE - 8)
     win.perHour = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
@@ -388,11 +400,13 @@ function HR:UpdateStats()
     if not win or not settings().shown then return end
     local t = HR.StatsText()
     win.duration:SetText(t.duration)
-    win.body:SetText(t.body)
+    win.body:SetText(t.names)
+    win.values:SetText(t.values)
     win.total:SetText(t.total)
     win.perHour:SetText(t.perHour)
     win.child:SetHeight(math.max(LINE_H * VISIBLE, LINE_H * t.count))
     win.body:SetHeight(LINE_H * t.count)
+    win.values:SetHeight(LINE_H * t.count)
 end
 
 function HR:ToggleStats(show)

@@ -1580,6 +1580,12 @@ assert(HR.StatsTotal() == 3 * 5000 + 5, HR.StatsTotal())
 assert(HR.StatsText().body:find("Blindweed x3  " .. HR.Money(15000) .. "\n", 1, true), HR.StatsText().body)
 Advance(3600)
 assert(HR.StatsText().duration:find("1:", 1, true), HR.StatsText().duration)
+do
+  local t = HR.StatsText()
+  local function count(x) local n = 1 for _ in x:gmatch("\n") do n = n + 1 end return n end
+  assert(count(t.names) == count(t.values) and count(t.names) == t.count, "names and values have one line per item")
+  assert(t.names:find("Blindweed x3", 1, true) and not t.names:find(HR.Money(15000), 1, true) and t.values:find(HR.Money(15000), 1, true))
+end
 -- an item that is not in the herb and ore table gets its Auctionator price as soon as it is counted
 local vine = "|cff1eff00|Hitem:77001::::::::60:::::|h[Stranglevine]|h|r"
 Auctionator.API.v1.GetAuctionPriceByItemID = function(_, id) if id == 8839 then return 5000 elseif id == 77001 then return 9000 end end
