@@ -303,7 +303,8 @@ function HR.StatsText()
     return {
         duration = "Route time: " .. clock(el) .. (s and s.stoppedAt and " (stopped)" or ""),
         body = table.concat(body, "\n"),
-        total = "Total: " .. HR.Money(total) .. "   Per hour: " .. perHour .. (unpriced > 0 and (" (" .. unpriced .. " unpriced)") or ""),
+        total = "Total: " .. HR.Money(total) .. (unpriced > 0 and (" (" .. unpriced .. " unpriced)") or ""),
+        perHour = "Per hour: " .. perHour,
         source = src,
     }
 end
@@ -315,7 +316,7 @@ end
 
 local function build()
     win = CreateFrame("Frame", "HerbRouteStatsFrame", UIParent, "BasicFrameTemplateWithInset")
-    win:SetSize(270, 330)
+    win:SetSize(270, 346)
     win:SetFrameStrata("MEDIUM")
     win:SetClampedToScreen(true)
     win:SetMovable(true)
@@ -338,7 +339,9 @@ local function build()
     win.body:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -54)
     win.body:SetJustifyH("LEFT")
     win.total = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    win.total:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 52)
+    win.total:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 68)
+    win.perHour = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    win.perHour:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 52)
     win.source = win:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     win.source:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 36)
     local b = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
@@ -365,6 +368,7 @@ function HR:UpdateStats()
     win.duration:SetText(t.duration)
     win.body:SetText(t.body)
     win.total:SetText(t.total)
+    win.perHour:SetText(t.perHour)
     win.source:SetText(t.source)
 end
 
