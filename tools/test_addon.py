@@ -60,7 +60,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
+for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -1297,6 +1297,118 @@ go("stop")
 go("verify combat on"); assert(HR.db.verifyCombat == true and msgs():find("during combat: on", 1, true), msgs())
 go("verify combat off"); assert(HR.db.verifyCombat == false)
 
+-- 20. gathering: the node is named by the position, the end of the gathering probes everything again
+local ELW5 = HerbRoute_Data["Elwynn Forest"]
+local gaChannel = function() return "Herb Gathering", "", "", (Now() - 4) * 1000, (Now() - 1) * 1000 end -- a channel that has just ended
+local noChannel = function() return nil end
+UnitChannelInfo = noChannel
+GetSpellInfo = function(id) if id == 2366 then return "Herb Gathering" elseif id == 1459 then return "Arcane Intellect" end end
+local function gaSetup()
+  reset()
+  ELW5["TestNb"] = {{8, 12}, {8, 35}, {14, 12}}; HR.categories.herbs.merged = nil
+  HR.db.verify = "off"; HR.db.verifyAhead = false; HR.db.revive = true; HR.db.nearest = false
+  HR.db.ambiguity = false; HR.db.gatherDebug = false; HR.verifyHits = 3
+  ppx, ppy = 1332, 988; nodes = {}; hitR = 6
+  printed = {}; SlashCmdList.HERBROUTE("testnb")
+  local rt = HR.route
+  RunTimers()
+  return rt
+end
+local function gaTeardown() go("stop"); ELW5["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.db.gatherDebug = false end
+local function standAt(x, y) ppx, ppy = 1000 - x - 1, 1000 - y end -- 1 yd from the point, 5 yd from its neighbour
+local function indexOf(rt, x, y) for i, q in ipairs(rt.points) do if q.x == x and q.y == y then return i end end end
+local function gather(spell, endEvent, startEvent, info)
+  UnitChannelInfo = info or gaChannel
+  HR.GatherEvent(startEvent or "UNIT_SPELLCAST_CHANNEL_START", "player", "guid", spell)
+  HR.GatherEvent(endEvent or "UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", spell)
+  UnitChannelInfo = noChannel
+end
+
+-- success on a point ahead: it leaves the route as reached, a wave starts
+local rg = gaSetup()
+local k = indexOf(rg, 14, 12)
+assert(k and k > rg.index, "the point must be ahead")
+local keyK = HR.PointKey(rg.points[k])
+standAt(14, 12)
+printed = {}; gather(2366)
+assert(rg.removed[k] and rg.cause[keyK].cause == "reached" and rg.harvestedCount == 1 and (rg.removedCount or 0) == 0, "the gathered point leaves the route as reached")
+assert(rg.vstats.waves == 1, "one wave")
+gaTeardown()
+
+-- success on the current point: the route moves on
+rg = gaSetup()
+local cur = rg.points[rg.index]
+standAt(cur.x, cur.y)
+local idx0 = rg.index
+gather(2366)
+assert(rg.index > idx0 and rg.vstats.waves == 1, "the route advances on the current point")
+gaTeardown()
+
+-- failure: nothing leaves the route, but the wave starts and a point that was waiting is probed at once
+rg = gaSetup()
+HR:SkipPoint()
+local skippedGa
+for _, e in ipairs(HR.RevivePool(rg)) do if rg.cause[e.key] and rg.cause[e.key].cause == "skip" then skippedGa = e end end
+assert(skippedGa, "a skipped candidate")
+skippedGa.nextAt = Now() + 500
+local near = rg.points[rg.index]
+standAt(near.x, near.y)
+nodes = {{skippedGa.p.x, skippedGa.p.y}}
+gather(2366, "UNIT_SPELLCAST_INTERRUPTED")
+assert(not rg.removed[rg.index] and (rg.harvestedCount or 0) == 0, "a failed gathering removes nothing")
+assert(rg.vstats.waves == 1 and skippedGa.nextAt == 0, "the wave must reset the waiting time of the candidates")
+ppx, ppy = 1000 - skippedGa.p.x + 25, 1000 - skippedGa.p.y -- the candidate is inside the minimap, away from any other point
+printed = {}; RunTimers()
+assert((rg.revivedCount or 0) == 1 and msgs():find("Revive:", 1, true), "the candidate must be probed right after the wave: " .. msgs())
+gaTeardown()
+
+-- a channel stopped before its end counts as a failure
+rg = gaSetup()
+local keyB = HR.PointKey(rg.points[indexOf(rg, 14, 12)])
+standAt(14, 12)
+gather(2366, nil, nil, function() return "Herb Gathering", "", "", Now() * 1000, (Now() + 3) * 1000 end)
+assert(not rg.removed[indexOf(rg, 14, 12)] and rg.vstats.waves == 1, "stopped early")
+gaTeardown()
+
+-- other spells and other units are ignored; an unreadable spell next to a point counts
+rg = gaSetup()
+standAt(14, 12)
+gather(1459)
+assert((rg.vstats.waves or 0) == 0 and (rg.harvestedCount or 0) == 0, "an Arcane Intellect cast is not a gathering")
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "target", "guid", 2366)
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "target", "guid", 2366)
+assert((rg.vstats.waves or 0) == 0, "only the player counts")
+gather(nil)
+assert(rg.removed[indexOf(rg, 14, 12)] and rg.vstats.waves == 1, "an unreadable spell with a point at hand counts as a gathering")
+gaTeardown()
+
+-- no point in range: nothing leaves the route, the wave still starts
+rg = gaSetup()
+ppx, ppy = 1332, 988
+gather(2366)
+assert((rg.harvestedCount or 0) == 0 and rg.vstats.waves == 1, "node not in the database")
+gaTeardown()
+
+-- a cast (not a channel) ends with SUCCEEDED
+rg = gaSetup()
+standAt(14, 12)
+gather(2366, "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_START")
+assert(rg.removed[indexOf(rg, 14, 12)] and rg.vstats.waves == 1, "cast gathering")
+HR.GatherEvent("UNIT_SPELLCAST_STOP", "player", "guid", 2366)
+assert(rg.vstats.waves == 1, "the STOP that follows a success does not start a second wave")
+gaTeardown()
+
+-- trace
+rg = gaSetup()
+standAt(14, 12)
+go("gather debug on")
+assert(HR.db.gatherDebug == true and msgs():find("Debug on", 1, true), msgs())
+printed = {}; gather(2366)
+assert(msgs():find("Gather: UNIT_SPELLCAST_CHANNEL_START spell=2366", 1, true) and msgs():find("gathering succeeded", 1, true), msgs())
+go("gather debug off"); assert(HR.db.gatherDebug == false)
+gaTeardown()
+UnitChannelInfo, GetSpellInfo = noChannel, nil
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)
@@ -1446,7 +1558,7 @@ assert(list() == "Find Herbs,Flight Master", list())
 -- the window opens on the saved category without error
 HR.db.category = "ores"
 local ns2 = {}
-for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","UI"}) do
+for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns2)
 end

@@ -199,6 +199,24 @@ function HR:DropPoint(i)
     self:RouteChanged()
 end
 
+-- The gathering of a point ahead in the route ends: it leaves the route as reached.
+function HR:HarvestPoint(i)
+    local r = self.route
+    if not r or r.removed[i] or not r.points[i] then return end
+    noteCause(r, r.points[i], "reached")
+    r.removed[i] = true
+    r.rev = (r.rev or 0) + 1
+    r.harvestedCount = (r.harvestedCount or 0) + 1
+    self:ScheduleReroute()
+    if i == r.index then self:Advance() end
+    self:RouteChanged()
+end
+
+function HR:MarkReached(p)
+    local r = self.route
+    if r and p then noteCause(r, p, "reached") end
+end
+
 local function shiftFrom(t, pos)
     local out = {}
     for j, v in pairs(t) do out[j >= pos and j + 1 or j] = v end

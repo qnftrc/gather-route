@@ -799,6 +799,21 @@ function HR:StartVerify()
     tick()
 end
 
+-- After a gathering: every point that may have respawned is probed again at once,
+-- without waiting for its REVIVE_GAP; the usual order applies (nearest first).
+function HR.StartWave(r)
+    if not r or not r.vstate then return end
+    local pool = poolOf(r)
+    if pool then
+        for _, e in ipairs(pool) do e.nextAt = 0 end
+    end
+    for j = r.index, #r.points do
+        local st = r.vstate[j]
+        if st and st.final and not r.removed[j] then st.nextAt = 0 end
+    end
+    r.vstats.waves = (r.vstats.waves or 0) + 1
+end
+
 function HR:VerifyAhead(arg)
     if arg == "on" or arg == "off" then
         self.db.verifyAhead = arg == "on"
@@ -841,8 +856,8 @@ function HR:VerifyStatus()
                 if g and g.inside then empty = empty + 1 end
             end
         end
-        self:Print(("  Watch: %d point(s) outside the route and %d empty point(s) ahead are inside the minimap, each probed again every %d s"):format(
-            outside, empty, REVIVE_GAP))
+        self:Print(("  Watch: %d point(s) outside the route and %d empty point(s) ahead are inside the minimap, each probed again every %d s; %d gathering wave(s), %d gathered point(s)"):format(
+            outside, empty, REVIVE_GAP, r.vstats and r.vstats.waves or 0, r.harvestedCount or 0))
     end
     if r and r.vstats and r.vstats.amb then
         local a = r.vstats.amb
