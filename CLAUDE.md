@@ -40,10 +40,12 @@ HerbRoute/
   MinimapUtil.lua    helpers partagés : lecture du survol de la minimap, curseur, déplacement de la minimap
   Probe.lua          /hr probe : diagnostic de la lecture de la minimap
   Verify.lua         vérification du prochain waypoint sur la minimap (/hr verify)
+  Gather.lua         événements de cueillette : vague de ressondage, point cueilli (/hr gather)
+  Stats.lua          fenêtre de stats : durée, butin des cueillettes, or, prix d'Auctionator (/hr stats)
   UI.lua             fenêtre (région, herbes, départ, mode, rayon, boutons)
 tools/               génération des données et tests (voir tools/README.md)
 ```
-Ordre de chargement (toc) : Data (HerbData, HerbDataGatherMate, OreDataGatherMate puis OreDataWowhead), Core, Tracking, Resolver, MinimapUtil, RouteMath, Runner, Overlay, Probe, Verify, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
+Ordre de chargement (toc) : Data (HerbData, HerbDataGatherMate, OreDataGatherMate puis OreDataWowhead), Core, Tracking, Resolver, MinimapUtil, RouteMath, Runner, Overlay, Probe, Verify, Gather, Stats, UI. Le namespace partagé est la table `HR` (2e valeur de `...`), exposée aussi en global `HerbRoute`.
 
 ## Vérification
 Voir `tools/README.md`. Résumé : `tools/test_math.py` compare `RouteMath.lua` au JS du planner (4 cas, identiques) ; `tools/test_addon.py` exécute Core/Resolver/Runner/Overlay/UI sur un faux environnement WoW/TomTom (lupa).

@@ -26,7 +26,7 @@ Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en
 | Tranche | Histoires |
 |---|---|
 | **Essentiel** | 🟦 Mode Suivi : un waypoint à la fois, arrivée automatique (F6) · 🟦 Skip, Stop, retrait externe (F8) |
-| **Confort** | 🟦 Touches clavier et bouton Skip à l'écran (F53) · 🟦 Case pour couper les messages de l'add-on dans le chat, `/hr chat` (F69) · 🟦 Distance d'arrivée réglable (F10) |
+| **Confort** | 🟦 Touches clavier et bouton Skip à l'écran (F53) · 🟦 Case pour couper les messages de l'add-on dans le chat, `/hr chat` (F69) · 🟦 Distance d'arrivée réglable (F10) · 🟦 Fenêtre de stats : durée de la route, butin des cueillettes, estimation en or avec les prix d'Auctionator mémorisés, `/hr stats` (F72) |
 
 ### 4. Voir la route
 | Tranche | Histoires |
@@ -44,7 +44,7 @@ Lecture : de gauche à droite, le parcours d'un joueur qui récolte ; de haut en
 ### 6. Ajuster en route
 | Tranche | Histoires |
 |---|---|
-| **Confort** | 🟦 Réordonnancement des points restants depuis ma position, option `/hr reroute` (F55) · 🟦 Surveillance des points de la base hors route (atteints, skippés, retirés) qui réapparaissent dans ma minimap : sondage caché à chaque 60 yd parcourus, réinsertion et route recalculée, `/hr revive` (F60) · 🟦 Cueillette : vague de ressondage au début, pendant la canalisation, `/hr gather` (F68) · 🟦 Cible = point rempli le plus proche après une sonde, route recalculée à l'arrivée, `/hr nearest` (F61) · 🟦 Faux positifs : positifs ambigus levés par un sondage décalé, rejeté traité comme absent, `/hr ambiguity` (F63) |
+| **Confort** | 🟦 Réordonnancement des points restants depuis ma position, option `/hr reroute` (F55) · 🟦 Surveillance des points de la base hors route (atteints, skippés, retirés) qui réapparaissent dans ma minimap : sondage caché à chaque 60 yd parcourus, réinsertion et route recalculée, `/hr revive` (F60) · 🟦 Cueillette : vague de ressondage au début, pendant la canalisation, `/hr gather` (F68) · 🟦 Cible = point rempli le plus proche après une sonde, route recalculée à l'arrivée, `/hr nearest` (F61) · 🟦 Faux positifs : un ambigu est traité comme un point rempli ordinaire, sondage décalé en arrière-plan, rejeté traité comme absent, `/hr ambiguity` (F63) · 🟦 Croix rouges sur les spots ambigus en attente ou non résolus (F71) · 🟦 Un point qui répond est réinséré en tête de route, la règle du plus proche s'applique (F60, F61) |
 | **Plus tard** | 💡 `/hr restore` : remettre la route d'origine (F25) · 💡 Mémoire de récolte (F32) · 💡 Recalcul complet (F33, remplacé en partie par F55) · ✖ Mémoire des points visités, nouveaux nœuds par balayage, validation par le butin (F56 à F58, annulés) · ✖ Zoom d'arbitrage de 0 à 5 (F64, annulé) |
 
 ### 7. Entretenir les données
@@ -61,7 +61,7 @@ Archivée : voir [archives/STORY_MAP_DIAGNOSTIC.md](archives/STORY_MAP_DIAGNOSTI
 | Tranche | Contenu |
 |---|---|
 | **Validé en jeu** | Lecture et sondage par la minimap (F34, F36, F38), calibration herbes et minerais (F47), projection des points (F46), `/hr probe` (F20), diagnostic `/hr map`, tracé de la carte du monde (F11) |
-| **Livré, à tester en jeu** | Génération et suivi de route (F1 à F6, F8), fenêtre (F10), touches et bouton Skip (F53), tracé de la minimap (F12), vérification du point courant et en avance (F39, F49), retrait des minerais (F52), isolement du pistage (F21), `/hr reroute` (F55), `/hr revive` (F60), `/hr nearest` (F61), sondage par proximité (F62), positifs ambigus (F63), recontrôle à 110 yd (F66), sondes en combat (F67), cueillette (F68), messages (F69), recherche de région (F70), `/hr merge` (F54), bases de minerais (F16, F51) |
+| **Livré, à tester en jeu** | Génération et suivi de route (F1 à F6, F8), fenêtre (F10), touches et bouton Skip (F53), tracé de la minimap (F12), vérification du point courant et en avance (F39, F49), retrait des minerais (F52), isolement du pistage (F21), `/hr reroute` (F55), `/hr revive` (F60), `/hr nearest` (F61), sondage par proximité (F62), positifs ambigus (F63), recontrôle à 110 yd (F66), sondes en combat (F67), cueillette (F68), messages (F69), recherche de région (F70), croix rouges (F71), fenêtre de stats (F72), `/hr merge` (F54), bases de minerais (F16, F51) |
 | **Idées** | F25, F29, F31, F32, F33, F44 |
 | **Hors périmètre ou annulé** | F40, F41, F42, F43 · relief (B13) · F56, F57, F58 · F64 |
 
