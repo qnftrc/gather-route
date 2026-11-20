@@ -366,19 +366,7 @@ local function build()
     win.child = CreateFrame("Frame", nil, win.scroll)
     win.child:SetSize(166, LINE_H * VISIBLE)
     win.scroll:SetScrollChild(win.child)
-    win.body = win.child:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    win.body:SetPoint("TOPLEFT", win.child, "TOPLEFT", 2, 0)
-    win.body:SetWidth(NAME_W)
-    win.body:SetJustifyH("LEFT")
-    win.body:SetJustifyV("TOP")
-    win.body:SetWordWrap(false)
-    win.body:SetSpacing(0)
-    win.values = win.child:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    win.values:SetPoint("TOPRIGHT", win.child, "TOPRIGHT", -2, 0)
-    win.values:SetJustifyH("RIGHT")
-    win.values:SetJustifyV("TOP")
-    win.values:SetWordWrap(false)
-    win.values:SetSpacing(0)
+    win.rows = {}
     win.total = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     win.total:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -50 - LINE_H * VISIBLE - 8)
     win.perHour = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
@@ -400,13 +388,40 @@ function HR:UpdateStats()
     if not win or not settings().shown then return end
     local t = HR.StatsText()
     win.duration:SetText(t.duration)
-    win.body:SetText(t.names)
-    win.values:SetText(t.values)
     win.total:SetText(t.total)
     win.perHour:SetText(t.perHour)
     win.child:SetHeight(math.max(LINE_H * VISIBLE, LINE_H * t.count))
-    win.body:SetHeight(LINE_H * t.count)
-    win.values:SetHeight(LINE_H * t.count)
+    local names, values = {}, {}
+    for n in (t.names .. "\n"):gmatch("(.-)\n") do names[#names + 1] = n end
+    for v in (t.values .. "\n"):gmatch("(.-)\n") do values[#values + 1] = v end
+    for i = 1, math.max(#names, #win.rows) do
+        local row = win.rows[i]
+        if names[i] and not row then
+            row = {
+                name = win.child:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"),
+                value = win.child:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"),
+            }
+            row.name:SetPoint("TOPLEFT", win.child, "TOPLEFT", 2, -(i - 1) * LINE_H)
+            row.name:SetWidth(NAME_W)
+            row.name:SetJustifyH("LEFT")
+            row.name:SetWordWrap(false)
+            row.value:SetPoint("TOPRIGHT", win.child, "TOPRIGHT", -2, -(i - 1) * LINE_H)
+            row.value:SetJustifyH("RIGHT")
+            row.value:SetWordWrap(false)
+            win.rows[i] = row
+        end
+        if row then
+            if names[i] then
+                row.name:SetText(names[i])
+                row.value:SetText(values[i] or "")
+                row.name:Show()
+                row.value:Show()
+            else
+                row.name:Hide()
+                row.value:Hide()
+            end
+        end
+    end
 end
 
 function HR:ToggleStats(show)
@@ -459,4 +474,8 @@ function HR:InitStats()
         pcall(api.RegisterForDBUpdate, CALLER, function() HR:RefreshPrices() end)
     end
     if settings().shown then self:ToggleStats(true) end
+end
+
+function HR.StatsWin()
+    return win
 end

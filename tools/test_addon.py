@@ -1586,6 +1586,15 @@ do
   assert(count(t.names) == count(t.values) and count(t.names) == t.count, "names and values have one line per item")
   assert(t.names:find("Blindweed x3", 1, true) and not t.names:find(HR.Money(15000), 1, true) and t.values:find(HR.Money(15000), 1, true))
 end
+do
+  -- the window: one row per item, each row a name and a value
+  HR.db.statsWindow.shown = false
+  HR:ToggleStats(true)
+  local w = HR.StatsWin and HR.StatsWin()
+  assert(w and #w.rows == HR.StatsText().count, "one row per item: " .. tostring(w and #w.rows))
+  for _, row in ipairs(w.rows) do assert(row.name and row.value) end
+  HR:ToggleStats(false)
+end
 -- an item that is not in the herb and ore table gets its Auctionator price as soon as it is counted
 local vine = "|cff1eff00|Hitem:77001::::::::60:::::|h[Stranglevine]|h|r"
 Auctionator.API.v1.GetAuctionPriceByItemID = function(_, id) if id == 8839 then return 5000 elseif id == 77001 then return 9000 end end
