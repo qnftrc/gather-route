@@ -1159,23 +1159,40 @@ end
 r = ambRoute(nil)
 assert(HR:RetargetNearest(r) == true and r.points[1].y == 12, "a clean positive may be targeted")
 ambTeardown()
--- F60: a point that is back always goes to the head of the route, whatever its ambiguity, and the rest is recomputed from it
+-- F60: a point that is back goes to the head of the route, whatever its ambiguity, and the rest is recomputed from the head
 for _, state in ipairs({"unresolved", "pending", "distinct", false}) do
   r = ambSetup({}, {}, "off", {{8, 35}, {14, 12}, {14, 35}})
   HR.db.verify = "off"
   local before2 = #r.points
-  local entry = {p = {x = 40, y = 40, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0,
+  local entry = {p = {x = 8, y = 12, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0,
     amb = state and {state = state, tries = 0, nextAt = 0} or nil}
   printed = {}
   assert(HR:ReviveSkipped(entry), "revival")
-  assert(r.index == 1 and r.points[1].x == 40 and #r.points == before2 + 1, "at the head of the route (" .. tostring(state) .. ")")
+  assert(r.index == 1 and r.points[1].x == 8 and r.points[1].y == 12 and #r.points == before2 + 1, "at the head of the route (" .. tostring(state) .. ")")
   assert(#WP() == 1 and WP()[1].title:find("1/", 1, true), "a new waypoint points to it")
   assert(msgs():find("back at the head of the route, next target", 1, true), msgs())
   RunTimers()
-  assert(msgs():find("Reroute from the current point", 1, true), "the rest of the route is recomputed from that point: " .. msgs())
-  assert(r.points[1].x == 40, "it stays the head after the recalculation")
+  assert(msgs():find("Reroute from the current point", 1, true), "the rest of the route is recomputed from the head: " .. msgs())
+  assert(r.points[1].x == 8 and r.points[1].y == 12, "it stays the head after the recalculation")
   ambTeardown()
 end
+-- the nearest rule applies: another filled point nearer to the player takes the head
+HR.db.nearest = true
+r = ambSetup({}, {}, "off", {{8, 35}, {14, 12}, {14, 35}})
+HR.db.verify = "off"; HR.db.nearest = true
+local kNear
+for i, q in ipairs(r.points) do if q.x == 14 and q.y == 12 then kNear = i end end
+r.vstate[kNear] = {misses = 0, none = 0, nextAt = 0, confirmed = true}
+printed = {}
+HR:ReviveSkipped({p = {x = 14, y = 35, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0})
+assert(r.points[1].x == 14 and r.points[1].y == 12, "the nearer filled point is the target, not the revived one")
+local revivedStillThere
+for i, q in ipairs(r.points) do if q.x == 14 and q.y == 35 and i > 1 and not r.removed[i] then revivedStillThere = true end end
+assert(revivedStillThere, "the revived point stays in the route, behind the nearer one")
+assert(msgs():find("Nearest:", 1, true) and #WP() == 1 and WP()[1].title:find("1/", 1, true), msgs())
+RunTimers()
+assert(r.points[1].x == 14 and r.points[1].y == 12, "it stays the head after the recalculation")
+ambTeardown()
 -- red marks: the spots still in doubt (waiting or unresolved), nothing once the doubt is lifted
 r = ambRoute("pending")
 local spots = HR.AmbiguousSpots(r)

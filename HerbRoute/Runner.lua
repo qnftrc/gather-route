@@ -224,8 +224,9 @@ local function shiftFrom(t, pos)
 end
 
 -- Puts a point that is back (reached, skipped or removed earlier) at the head of
--- the route, as the new target, then recomputes the rest of the route from that
--- point. The database is never touched.
+-- the route, as the new target. The nearest-point rule then applies: if another
+-- filled point is nearer to the player, that one takes the head. The rest of the
+-- route is recomputed from the head. The database is never touched.
 function HR:ReviveSkipped(entry)
     local r = self.route
     if not r or r.mode ~= "follow" then return false end
@@ -251,6 +252,7 @@ function HR:ReviveSkipped(entry)
     self:Print(("Revive: %s is back inside the minimap (%s earlier): back at the head of the route, next target (%d points)."):format(
         np.herb, from[entry.cause] or "passed", #r.points))
     self:RouteChanged()
+    self:RetargetNearest(r)
     self:Reroute(true)
     return true
 end
