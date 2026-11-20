@@ -112,6 +112,7 @@ function HR.GatherEvent(event, unit, castGUID, spellId)
         if not gather then active = nil return end
         active = {kind = START[event], at = GetTime(), endsAt = endTime(START[event]), node = node}
         HR.gatheringUntil = GetTime() + SAFETY
+        if HR.StatsGatherStart then HR.StatsGatherStart() end
         trace("gathering started, node in range: %s", node and ("%s %.1f yd"):format(node.p.herb, d) or "none")
         if r and r.mode == "follow" then
             HR.StartWave(r)
@@ -127,6 +128,7 @@ function HR.GatherEvent(event, unit, castGUID, spellId)
     if a.kind == "cast" and event == "UNIT_SPELLCAST_CHANNEL_STOP" then return end
     active = nil
     HR.gatheringUntil = nil
+    if HR.StatsGatherEnd then HR.StatsGatherEnd() end
     local failed = event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_FAILED"
         or (a.kind == "cast" and event == "UNIT_SPELLCAST_STOP")
     if not failed and a.kind == "channel" and a.endsAt and GetTime() < a.endsAt - 0.4 then failed = true end

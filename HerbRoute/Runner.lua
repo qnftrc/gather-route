@@ -342,6 +342,7 @@ function HR:StopRoute(silent, keepTracking)
         return
     end
     self.route = nil
+    if self.StatsStop then self:StatsStop() end
     removeUID(r.current)
     if not keepTracking then self:RestoreTracking() end
     if not silent then self:Print("Route stopped.") end
@@ -364,6 +365,7 @@ function HR:StartRoute(region, mapID, points, start, length, category)
     r.herbSet = {}
     for _, p in ipairs(points) do r.herbSet[p.herb] = true end
     self.route = r
+    if self.StatsStart then self:StatsStart() end
     self:IsolateTracking(r.category)
     showCurrent(r)
     self:StartVerify()

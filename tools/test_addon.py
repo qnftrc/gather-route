@@ -6,6 +6,7 @@ local timers, now, seq = {}, 0, 0
 C_Timer = {After = function(d, f) seq = seq + 1; timers[#timers+1] = {t = now + (d or 0), s = seq, f = f} end}
 function Now() return now end
 function GetTime() return now end
+function Advance(d) now = now + d end
 function RunTimers()
   local n, limit = 0, now + 100
   while #timers > 0 do
@@ -36,7 +37,7 @@ end
 CreateFrame = function() return widget() end
 C_Map = {GetMapInfo = function(id) return {parentMapID = 0} end}
 GetCVar = function() return "0" end
-date = os.date; debugprofilestop = function() return os.clock() * 1000 end
+date = os.date; time = os.time; debugprofilestop = function() return os.clock() * 1000 end
 GetBuildInfo = function() return "12.1.5", "70999", "Nov 1 2026", 120105 end
 GetLocale = function() return "enUS" end
 MouseIsOver = function() return false end
@@ -60,7 +61,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","UI"}) do
+for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","Stats","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -1540,6 +1541,69 @@ go("chat off"); assert(HR.db.chat == false)
 HR.db.chat = true
 go("stop")
 
+-- 22. stats window: loot counted only during a gathering, prices, duration
+HR.db.prices = {}; HR.db.statsWindow = {}
+LOOT_ITEM_SELF = "You receive loot: %s."; LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d."
+LOOT_ITEM_PUSHED_SELF = "You receive item: %s."; LOOT_ITEM_PUSHED_SELF_MULTIPLE = "You receive item: %sx%d."
+local blind = "|cff1eff00|Hitem:8839::::::::60:::::|h[Blindweed]|h|r"
+local stone = "|cffffffff|Hitem:2835::::::::60:::::|h[Rough Stone]|h|r"
+local itemSell = {[8839] = 20, [2835] = 5}
+GetItemInfo = function(id) if id == 8839 then return "Blindweed", nil, nil, nil, nil, nil, nil, nil, nil, nil, itemSell[id] end if id == 2835 then return "Rough Stone", nil, nil, nil, nil, nil, nil, nil, nil, nil, 5 end end
+rg = gaSetup()
+standAt(14, 12)
+assert(HR.StatsText().body:find("Nothing gathered yet", 1, true), HR.StatsText().body)
+HR.StatsLoot("You receive loot: " .. blind .. ".")
+assert(not HR.StatsText().body:find("Blindweed", 1, true), "loot outside a gathering is not counted")
+UnitChannelInfo = gaActive or noChannel
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+HR.StatsLoot("You receive loot: " .. blind .. "x2.")
+HR.StatsLoot("Bob receives loot: " .. blind .. ".")
+HR.StatsLoot("You receive item: " .. stone .. ".")
+UnitChannelInfo = noChannel
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+HR.StatsLoot("You receive loot: " .. blind .. ".")
+local t = HR.StatsText()
+assert(t.body:find("Blindweed x3", 1, true) and t.body:find("Rough Stone x1", 1, true), t.body)
+assert(t.body:find("(vendor)", 1, true), t.body)
+RunTimers()
+HR.StatsLoot("You receive loot: " .. blind .. ".")
+assert(HR.StatsText().body:find("Blindweed x3", 1, true), "the window is closed after the grace period")
+local total = HR.StatsTotal()
+assert(total == 3 * 20 + 5, total)
+assert(HR.Money(123456) == "12g 34s" and HR.Money(250) == "2s 50c" and HR.Money(7) == "7c", HR.Money(123456))
+Auctionator = {API = {v1 = {GetAuctionPriceByItemID = function(_, id) if id == 8839 then return 5000 end end,
+  RegisterForDBUpdate = function() end}}}
+assert(HR:RefreshPrices() == 1 and HR.db.prices[8839].c == 5000)
+assert(HR.StatsTotal() == 3 * 5000 + 5, HR.StatsTotal())
+assert(HR.StatsText().body:find("Blindweed x3  1g 50s\n", 1, true), HR.StatsText().body)
+assert(HR.StatsText().source:find("Auctionator", 1, true))
+Advance(3600)
+assert(HR.StatsText().duration:find("1:", 1, true), HR.StatsText().duration)
+go("stats probe"); assert(msgs():find("Blindweed (8839) price from Auctionator: 50s", 1, true), msgs()); assert(msgs():find("price function present", 1, true), msgs())
+go("stats"); assert(HR.db.statsWindow.shown == true, tostring(HR.db.statsWindow.shown))
+go("stats"); assert(HR.db.statsWindow.shown == false)
+go("stats reset"); assert(HR.StatsText().body:find("Nothing gathered yet", 1, true))
+HR:StopRoute(true)
+local frozen = HR.StatsText().duration
+Advance(500)
+assert(HR.StatsText().duration == frozen and frozen:find("stopped", 1, true), "duration frozen when the route stops")
+HR.StatsLoot("You receive loot: " .. blind .. ".")
+assert(HR.StatsText().body:find("Nothing gathered yet", 1, true))
+-- unreadable loot message: bag counts are compared
+rg = gaSetup(); standAt(14, 12)
+local bag = 4
+GetItemCount = function(id) if id == 8839 then return bag end return 0 end
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+issecretvalue = function(v) return v == "secret" end
+HR.StatsLoot("secret")
+issecretvalue = nil
+bag = 6
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+RunTimers()
+assert(HR.StatsText().body:find("Blindweed x2", 1, true), HR.StatsText().body)
+gaTeardown()
+Auctionator, GetItemCount, GetItemInfo = nil, nil, nil
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)
@@ -1689,7 +1753,7 @@ assert(list() == "Find Herbs,Flight Master", list())
 -- the window opens on the saved category without error
 HR.db.category = "ores"
 local ns2 = {}
-for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","UI"}) do
+for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","Stats","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns2)
 end

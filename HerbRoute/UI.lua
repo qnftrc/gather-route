@@ -337,6 +337,7 @@ local function build()
         end
         HR:GenerateRoute(ui.region, herbs, start, ui.category)
     end)
+    button(ui, "Stats", 60, "TOPRIGHT", -34, -3, function() HR:ToggleStats() end)
     ui.skip = button(ui, "Skip", 100, "BOTTOM", 0, 40, function() HR:SkipPoint() end)
     ui.stop = button(ui, "Stop", 100, "BOTTOMRIGHT", -16, 40, function() HR:StopRoute() end)
 

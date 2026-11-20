@@ -22,6 +22,8 @@ local defaults = {
     ambiguityMarks = true,
     chat = true,
     skipButton = {shown = false},
+    prices = {},
+    statsWindow = {},
     overrides = {},
 }
 
@@ -105,6 +107,7 @@ local function usage()
     HR:Print("/hr <region>: <herb>[, <herb>] - route in another region")
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
     HR:Print("/hr chat [on|off] - show or hide the messages HerbRoute writes by itself (replies to commands and diagnostics are always shown)")
+    HR:Print("/hr stats [reset|probe] - show or hide the stats window: route time, what you gathered, gold estimate (Auctionator prices are remembered)")
     HR:Print("/hr gather [debug on|off] - a gathering starts: every point that may have respawned is probed again, during the channel (debug prints the spell events)")
     HR:Print("/hr ambiguity [on|off|marks on|marks off] - tell apart a positive read that comes from a neighbouring point; the spots still in doubt are marked in red on the map and the minimap (both on by default)")
     HR:Print("/hr nearest [on|off] - the filled point nearest to you becomes the target, the route is recomputed on arrival (on by default)")
@@ -141,6 +144,11 @@ local function handleSlash(msg)
         local arg = rest:lower()
         if arg == "on" or arg == "off" then HR.db.chat = arg == "on" end
         HR:Print("HerbRoute messages in the chat: " .. (HR.db.chat == false and "off" or "on") .. " (/hr chat on|off, or the box of the window). Replies to commands and diagnostics are always shown.")
+    elseif cmd == "stats" then
+        local arg = rest:lower()
+        if arg == "reset" then HR.StatsReset() HR:Print("Stats reset.")
+        elseif arg == "probe" then HR:StatsProbe()
+        else HR:ToggleStats() end
     elseif cmd == "gather" then
         local arg = rest:lower()
         local val = arg:match("^debug%s+(%a+)$")
@@ -293,4 +301,5 @@ function HR:OnLoaded()
     self:InitOverlay()
     self:InitSkipButton()
     self:InitGather()
+    self:InitStats()
 end
