@@ -2,7 +2,7 @@ local addonName, HR = ...
 
 local GRACE = 8       -- seconds after the end of a gathering during which loot still counts
 local GATHER_MAX = 30 -- safety: a gathering window never stays open longer than this
-local LINE_H = 12
+local LINE_H = 13
 local VISIBLE = 8
 
 local ITEMS = {
@@ -331,7 +331,7 @@ end
 
 local function build()
     win = CreateFrame("Frame", "HerbRouteStatsFrame", UIParent, "BasicFrameTemplateWithInset")
-    win:SetSize(270, 173)
+    win:SetSize(210, 210)
     win:SetFrameStrata("MEDIUM")
     win:SetClampedToScreen(true)
     win:SetMovable(true)
@@ -348,18 +348,18 @@ local function build()
     local pos = settings().pos
     if pos then win:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else win:SetPoint("CENTER", UIParent, "CENTER", 320, 0) end
 
-    win.duration = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    win.duration:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -30)
+    win.duration = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    win.duration:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -31)
     local b = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
-    b:SetSize(52, 18)
-    b:SetPoint("TOPRIGHT", win, "TOPRIGHT", -12, -29)
+    b:SetSize(44, 17)
+    b:SetPoint("TOPRIGHT", win, "TOPRIGHT", -10, -28)
     b:SetText("Reset")
     b:SetScript("OnClick", function() HR.StatsReset() end)
     win.scroll = CreateFrame("ScrollFrame", nil, win, "UIPanelScrollFrameTemplate")
-    win.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -48)
-    win.scroll:SetSize(226, LINE_H * VISIBLE)
+    win.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", 10, -50)
+    win.scroll:SetSize(166, LINE_H * VISIBLE)
     win.child = CreateFrame("Frame", nil, win.scroll)
-    win.child:SetSize(226, LINE_H * VISIBLE)
+    win.child:SetSize(166, LINE_H * VISIBLE)
     win.scroll:SetScrollChild(win.child)
     win.body = win.child:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     win.body:SetPoint("TOPLEFT", win.child, "TOPLEFT", 2, 0)
@@ -367,10 +367,10 @@ local function build()
     win.body:SetJustifyV("TOP")
     win.body:SetWordWrap(false)
     win.body:SetSpacing(0)
-    win.total = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    win.total:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -48 - LINE_H * VISIBLE - 4)
-    win.perHour = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    win.perHour:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -48 - LINE_H * VISIBLE - 18)
+    win.total = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    win.total:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -50 - LINE_H * VISIBLE - 8)
+    win.perHour = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    win.perHour:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -50 - LINE_H * VISIBLE - 26)
 end
 
 local function tick()
