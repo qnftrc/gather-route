@@ -111,6 +111,8 @@ local sx, sy, alphaV, soft = 0, 0, 1, false
 local curx, cury, mouseDown, inCombat, t0 = (cxm + 20) * es, (cym + 10) * es, false, false, 0
 local worldAfter, worldCursor, foci = false, {100, 100}, nil
 local bl, mode, neighbour = {20, 10}, "hover", false
+local zoneR, maskMode, masks = 10, "none", {}
+local realCF = CreateFrame
 UIParent = {}
 WorldFrame = {}
 GetMouseFoci = function() return foci or {WorldFrame} end
@@ -136,10 +138,16 @@ C_Minimap = {GetViewRadius = function() return 70 end, GetNumTrackingTypes = fun
 local function geometry()
   local bx, by = (cxm + sx + bl[1]) * es, (cym + sy + bl[2]) * es
   local cu, cv = GetCursorPosition()
-  if (bx - cu) ^ 2 + (by - cv) ^ 2 <= 100 then return true end
+  if (bx - cu) ^ 2 + (by - cv) ^ 2 <= zoneR ^ 2 then return true end
   if neighbour then
     local nx = (cxm + sx + bl[1] - 40) * es
-    return (nx - cu) ^ 2 + (by - cv) ^ 2 <= 100
+    return (nx - cu) ^ 2 + (by - cv) ^ 2 <= zoneR ^ 2
+  end
+  return false
+end
+local function maskCovers(px, py)
+  for _, m in ipairs(masks) do
+    if m.shown and math.abs(px - m.ox) <= m.size / 2 and math.abs(py - m.oy) <= m.size / 2 then return true end
   end
   return false
 end
@@ -151,6 +159,8 @@ C_TooltipInfo = {GetMinimapMouseover = function()
   local cu, cv = GetCursorPosition()
   local dx, dy = cu / es - (cxm + sx), cv / es - (cym + sy)
   if dx * dx + dy * dy > 70 ^ 2 then return nil end
+  if maskMode ~= "none" and maskCovers(dx, dy) then return nil end
+  if maskMode == "blip" and maskCovers(bl[1], bl[2]) then return {type = 21, dataInstanceID = 1, lines = {}} end
   return geometry() and hit or {type = 21, dataInstanceID = 1, lines = {}}
 end}
 LibStub = function() return nil end
@@ -289,6 +299,36 @@ assert(bw("hover"):find("standard tooltip is NOT shown", 1, true))
 worldAfter = false
 GameTooltip, GameTooltipTextLeft1, UIParent = nil, nil, nil
 assert(run("probe minimap"):find("tooltip: GameTooltip not available", 1, true))
+-- /hr probe mask: a frame over a blip, with the cursor elsewhere in the zone
+zoneR = 30
+CreateFrame = function(kind, name, parent)
+  if parent ~= Minimap then return realCF(kind, name, parent) end
+  local f = {shown = false, size = 0, ox = 0, oy = 0}
+  function f:SetFrameStrata() end
+  function f:EnableMouse() end
+  function f:SetFrameLevel() end
+  function f:SetSize(w) self.size = w end
+  function f:ClearAllPoints() end
+  function f:SetPoint(_, _, _, x, y) self.ox, self.oy = x, y end
+  function f:Show() self.shown = true end
+  function f:Hide() self.shown = false end
+  masks[#masks + 1] = f
+  return f
+end
+worldAfter = true
+maskMode = "focus"
+local mk = bw("hover", "mask")
+assert(mk:find("CONTROL: a frame on the cursor blocks the reading", 1, true), mk)
+assert(mk:find("ZONE: lines still present with the cursor 14 units", 1, true), mk)
+assert(mk:find("does NOT hide it (0 of 3 cases)", 1, true), mk)
+maskMode = "blip"
+mk = bw("hover", "mask hidden")
+assert(mk:find("HIDES it although the cursor is outside the frame (3 of 3 cases)", 1, true), mk)
+maskMode = "none"
+mk = bw("hover", "mask")
+assert(mk:find("did NOT block the reading", 1, true), mk)
+for _, m in ipairs(masks) do assert(not m.shown, "a frame was left shown") end
+zoneR = 10; maskMode = "none"; CreateFrame = realCF; worldAfter = false
 io.write("PROBE TESTS OK\n")
 ''')
 

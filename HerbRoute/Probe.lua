@@ -307,6 +307,193 @@ local function blinkWorld(hidden)
     C_Timer.After(WORLD_WAIT, function() runBlinkWorldB(hidden, ox, oy) end)
 end
 
+-- /hr probe mask: does an invisible, mouse-enabled frame laid over a blip hide
+-- that blip when the cursor is elsewhere in its response zone? Same set-up as
+-- blink world (the minimap is moved under a resting cursor), but the blip
+-- lands at a horizontal offset from the cursor, with and without a frame on
+-- its centre. A frame on the cursor itself is the control (it should block).
+local MASK_STEPS = {
+    {key = "blip under the cursor", d = 0},
+    {key = "frame ON the cursor (control)", d = 0, mask = 6},
+    {key = "cursor 5 units from the blip", d = 5},
+    {key = "  same, frame 6 on the blip", d = 5, mask = 6},
+    {key = "cursor 8 units from the blip", d = 8},
+    {key = "  same, frame 6 on the blip", d = 8, mask = 6},
+    {key = "  same, frame 12 on the blip", d = 8, mask = 12},
+    {key = "cursor 11 units from the blip", d = 11},
+    {key = "cursor 14 units from the blip", d = 14},
+}
+
+local maskFrames = {}
+local function maskFrame(size, ox, oy)
+    local f = maskFrames[size]
+    if not f then
+        f = CreateFrame("Frame", nil, Minimap)
+        f:SetFrameStrata("HIGH")
+        f:EnableMouse(true)
+        maskFrames[size] = f
+    end
+    f:SetSize(size, size)
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", Minimap, "CENTER", ox, oy)
+    local ok, lvl = pcall(Minimap.GetFrameLevel, Minimap)
+    f:SetFrameLevel((ok and type(lvl) == "number" and lvl or 1) + 20)
+    f:Show()
+    return f
+end
+
+local function runMaskB(hidden, ox, oy)
+    local steps, finished = {}, false
+    local pts, alpha, shown
+
+    local function conclude(msg)
+        if finished then return end
+        finished = true
+        if shown then shown:Hide() end
+        if pts then
+            pcall(placeMinimap, pts, 0, 0)
+            pcall(Minimap.SetAlpha, Minimap, alpha)
+            add("Minimap anchors and alpha restored.")
+        end
+        if msg then add("ABORTED: %s", msg) end
+        local function any(st) return st.r1 or st.r3 or st.r6 end
+        local done = 0
+        for _, st in ipairs(steps) do
+            if st.r6 ~= nil then
+                done = done + 1
+                add("  %s: +1 frame %s, +3 frames %s, +6 frames %s, back %s", st.key,
+                    st.r1 and "present" or "absent", st.r3 and "present" or "absent",
+                    st.r6 and "present" or "absent", st.back and "present" or "absent")
+            end
+        end
+        if done == #steps then
+            local hit, ctrl = steps[1], steps[2]
+            if not any(hit) then
+                add("RESULT: the blip is not detected with the minimap under the cursor: nothing to conclude.")
+            else
+                if any(ctrl) then
+                    add("CONTROL: a frame on the cursor did NOT block the reading: the frame does not take the mouse here, the test below is not valid.")
+                else
+                    add("CONTROL: a frame on the cursor blocks the reading (as with a pin).")
+                end
+                local zone = 0
+                for _, st in ipairs(steps) do
+                    if st.d > 0 and not st.mask and any(st) and st.d > zone then zone = st.d end
+                end
+                add("ZONE: lines still present with the cursor %d units from the blip centre (horizontal); beyond that, none.", zone)
+                local tested, hides = 0, 0
+                for i = 4, 7, 1 do
+                    local st = steps[i]
+                    if st.mask and any(steps[st.plain]) then
+                        tested = tested + 1
+                        if not any(st) then hides = hides + 1 end
+                    end
+                end
+                if tested == 0 then
+                    add("RESULT: inconclusive, the cursor was outside the response zone in every masked case.")
+                elseif hides > 0 then
+                    add("RESULT: a frame over the blip HIDES it although the cursor is outside the frame (%d of %d cases): masking a neighbouring blip is possible.", hides, tested)
+                else
+                    add("RESULT: a frame over the blip does NOT hide it (0 of %d cases): masking a neighbouring blip cannot work.", tested)
+                end
+            end
+        elseif not msg then
+            add("RESULT: inconclusive (not enough steps completed).")
+        end
+        finish()
+    end
+
+    if InCombatLockdown and InCombatLockdown() then return conclude("in combat") end
+    if buttonDown() then return conclude("a mouse button is held") end
+    if not GetCursorPosition or cursorInside() ~= false then return conclude("the cursor must rest in the world, outside the minimap") end
+    if not mouseOverWorld() then return conclude("the mouse is over a UI element, not the world") end
+
+    local sx, sy = GetCursorPosition()
+    local es = Minimap:GetEffectiveScale()
+    local cx0, cy0 = Minimap:GetCenter()
+    local halfW = Minimap:GetWidth() / 2
+    local hx, hy = (sx / es - ox) - cx0, (sy / es - oy) - cy0
+    if math.abs(hx) > 3000 or math.abs(hy) > 3000 then return conclude("the shift needed is too large") end
+
+    for i, def in ipairs(MASK_STEPS) do
+        local st = {key = def.key, d = def.d, mask = def.mask, dx = hx + def.d, dy = hy}
+        if def.mask and def.d > 0 then st.plain = i - 1 end
+        if i == 7 then st.plain = 5 end
+        local rx, ry = ox - def.d, oy
+        if rx * rx + ry * ry > (0.85 * halfW) ^ 2 then
+            return conclude("the blip is too close to the edge of the minimap for the offset steps: capture a blip nearer the centre")
+        end
+        steps[i] = st
+    end
+
+    pts, alpha = savePoints(), Minimap:GetAlpha()
+    C_Timer.After(60, function() conclude("timeout") end)
+
+    local function stillOk()
+        if InCombatLockdown and InCombatLockdown() then conclude("combat started") return false end
+        if buttonDown() then conclude("a mouse button was pressed") return false end
+        local x, y = GetCursorPosition()
+        if math.abs(x - sx) > 3 or math.abs(y - sy) > 3 then conclude("the mouse moved") return false end
+        return true
+    end
+
+    local i = 0
+    local function nextStep()
+        if finished then return end
+        i = i + 1
+        local st = steps[i]
+        if not st then return conclude() end
+        if not stillOk() then return end
+        placeMinimap(pts, st.dx, st.dy)
+        if hidden then Minimap:SetAlpha(0) end
+        if st.mask then shown = maskFrame(st.mask, ox, oy) end
+        waitFrames(1, function()
+            if finished then return end
+            st.r1 = present()
+            waitFrames(2, function()
+                if finished then return end
+                st.r3 = present()
+                waitFrames(3, function()
+                    if finished then return end
+                    st.r6 = present()
+                    if shown then shown:Hide() shown = nil end
+                    placeMinimap(pts, 0, 0)
+                    Minimap:SetAlpha(alpha)
+                    waitFrames(3, function()
+                        if finished then return end
+                        st.back = present()
+                        nextStep()
+                    end)
+                end)
+            end)
+        end)
+    end
+    nextStep()
+end
+
+local function maskTest(hidden)
+    lines = {}
+    add("HerbRoute probe mask%s %s", hidden and " (hidden)" or "", date("%Y-%m-%d %H:%M:%S"))
+    if not (Minimap.GetNumPoints and Minimap.GetPoint and Minimap.SetPoint and Minimap.ClearAllPoints) then
+        add("ABORTED: the minimap anchors cannot be read")
+        return finish()
+    end
+    if InCombatLockdown and InCombatLockdown() then add("ABORTED: in combat") return finish() end
+    if buttonDown() then add("ABORTED: a mouse button is held") return finish() end
+    if not GetCursorPosition or cursorInside() ~= true then
+        add("ABORTED: phase A needs the cursor on a herb blip inside the minimap")
+        return finish()
+    end
+    if not present() then add("ABORTED: phase A found no data under the cursor: rest the mouse on a herb blip") return finish() end
+    local sx, sy = GetCursorPosition()
+    local cx, cy = Minimap:GetCenter()
+    local es = Minimap:GetEffectiveScale()
+    local ox, oy = sx / es - cx, sy / es - cy
+    add("Phase A: blip under the cursor, offset from the minimap center (%.1f, %.1f) units.", ox, oy)
+    HR:Print(("Blip captured. Move the mouse into the world (not over the minimap or a window) and keep it still: test in %d s."):format(WORLD_WAIT))
+    C_Timer.After(WORLD_WAIT, function() runMaskB(hidden, ox, oy) end)
+end
+
 -- /hr probe watch: log how the real hover changes while the mouse is moved by
 -- hand over empty ground, herb dots and outside the minimap.
 local WATCH_SECONDS, WATCH_STEP, WATCH_MAX_EVENTS = 15, 0.2, 80
@@ -358,6 +545,7 @@ local function usage()
     HR:Print("/hr probe minimap - same after 3 s, with the mouse on the minimap")
     HR:Print("/hr probe watch - log how the real hover changes while you move the mouse")
     HR:Print("/hr probe blink world [hidden] - move the minimap under a resting cursor")
+    HR:Print("/hr probe mask [hidden] - does a frame laid over a blip hide it? (test of the invisible frame)")
     HR:Print("/hr probe copy - reopen the last report")
 end
 
@@ -374,6 +562,9 @@ function Probe:Run(arg)
     elseif arg == "blink world" or arg == "blink world hidden" then
         HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap and keep it still."):format(COUNTDOWN))
         C_Timer.After(COUNTDOWN, function() blinkWorld(arg == "blink world hidden") end)
+    elseif arg == "mask" or arg == "mask hidden" then
+        HR:Print(("Phase A in %d s: put the mouse ON a herb blip of the minimap, near its centre, and keep it still."):format(COUNTDOWN))
+        C_Timer.After(COUNTDOWN, function() maskTest(arg == "mask hidden") end)
     elseif arg == "copy" then
         local saved = HR.db.probe
         if not saved then return HR:Print("No saved probe report.") end
