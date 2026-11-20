@@ -113,13 +113,13 @@ local REROUTE_DELAY = 1.5
 -- change; when the player's position is not on the route's map, the current point is the
 -- start and stays the target. The database is never touched; the verification state of each
 -- point follows it to its new place.
-function HR:Reroute()
+function HR:Reroute(fromCurrent)
     local r = self.route
     if not r or r.mode ~= "follow" or self.rerouting then return end
     local index, rev = r.index, r.rev or 0
     local cur = r.points[index]
     local m, px, py = self:GetPlayerPosition()
-    local fromPlayer = m ~= nil and m == r.mapID
+    local fromPlayer = not fromCurrent and m ~= nil and m == r.mapID
     local first = fromPlayer and index or index + 1
     local tail = {}
     for i = first, #r.points do
@@ -223,61 +223,35 @@ local function shiftFrom(t, pos)
     return out
 end
 
--- Puts a skipped or removed point that has respawned back into the route, at
--- the cheapest place from the player's position on (it becomes the current
--- target when that is the cheapest). The database is never touched.
-function HR:ReviveSkipped(entry, noHead)
+-- Puts a point that is back (reached, skipped or removed earlier) at the head of
+-- the route, as the new target, then recomputes the rest of the route from that
+-- point. The database is never touched.
+function HR:ReviveSkipped(entry)
     local r = self.route
     if not r or r.mode ~= "follow" then return false end
-    local live = {}
-    for j = r.index, #r.points do
-        if not r.removed[j] then live[#live + 1] = j end
-    end
-    if #live == 0 then return false end
     local p = entry.p
-    local dist = HR.Math.distance
-    local bestPos, bestCost
-    local m, px, py = self:GetPlayerPosition()
-    if not noHead and m ~= nil and m == r.mapID then
-        local s, b = {x = px, y = py}, r.points[live[1]]
-        bestPos, bestCost = live[1], dist(s, p) + dist(p, b) - dist(s, b)
-    end
-    for k = 1, #live do
-        local a, nextj = r.points[live[k]], live[k + 1]
-        local cost
-        if nextj then
-            local b = r.points[nextj]
-            cost = dist(a, p) + dist(p, b) - dist(a, b)
-        else
-            cost = dist(a, p)
-        end
-        if not bestCost or cost < bestCost then bestPos, bestCost = live[k] + 1, cost end
-    end
     local np = {}
     for k, v in pairs(p) do np[k] = v end
-    table.insert(r.points, bestPos, np)
-    r.removed = shiftFrom(r.removed, bestPos)
+    local pos = r.index
+    table.insert(r.points, pos, np)
+    r.removed = shiftFrom(r.removed, pos)
     if r.vstate then
-        r.vstate = shiftFrom(r.vstate, bestPos)
-        r.vstate[bestPos] = {misses = 0, none = 0, nextAt = 0, confirmed = true, farDone = true, amb = entry.amb}
+        r.vstate = shiftFrom(r.vstate, pos)
+        r.vstate[pos] = {misses = 0, none = 0, nextAt = 0, confirmed = true, farDone = true, amb = entry.amb}
     end
     r.world = nil
     r.rev = (r.rev or 0) + 1
     if entry.cause == "absent" and (r.removedCount or 0) > 0 then r.removedCount = r.removedCount - 1 end
     r.revivedCount = (r.revivedCount or 0) + 1
     if entry.key and r.cause then r.cause[entry.key] = nil end
-    local becomesCurrent = bestPos == r.index
-    if becomesCurrent then
-        if r.current then removeUID(r.current) end
-        r.current = nil
-        showCurrent(r)
-    end
+    if r.current then removeUID(r.current) end
+    r.current = nil
+    showCurrent(r)
     local from = {skip = "skipped", absent = "removed", reached = "reached"}
-    self:Print(("Revive: %s is back inside the minimap (%s earlier): back in the route as point %d/%d%s."):format(
-        np.herb, from[entry.cause] or "passed", bestPos, #r.points, becomesCurrent and ", next target" or ""))
+    self:Print(("Revive: %s is back inside the minimap (%s earlier): back at the head of the route, next target (%d points)."):format(
+        np.herb, from[entry.cause] or "passed", #r.points))
     self:RouteChanged()
-    self:RetargetNearest(r)
-    if not noHead then self:Reroute() end
+    self:Reroute(true)
     return true
 end
 

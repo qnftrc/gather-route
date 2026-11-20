@@ -1159,16 +1159,23 @@ end
 r = ambRoute(nil)
 assert(HR:RetargetNearest(r) == true and r.points[1].y == 12, "a clean positive may be targeted")
 ambTeardown()
--- F60: a point put back goes to the cheapest place, the head included, whatever its ambiguity; noHead stays available
-r = ambRoute(nil); r.vstate[2].confirmed = false
-local entry = {p = {x = 50, y = 50, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0, amb = {state = "unresolved", tries = 0, nextAt = 0}}
-local head = r.points[1]
-assert(HR:ReviveSkipped(entry, true) and r.points[1] == head and r.points[#r.points].x == 50, "no head insertion when asked")
-ambTeardown()
-r = ambRoute(nil); r.vstate[2].confirmed = false
-entry = {p = {x = 50, y = 50, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0, amb = {state = "unresolved", tries = 0, nextAt = 0}}
-assert(HR:ReviveSkipped(entry) and r.points[1].x == 50, "an ambiguous point goes to the head when that is the cheapest")
-ambTeardown()
+-- F60: a point that is back always goes to the head of the route, whatever its ambiguity, and the rest is recomputed from it
+for _, state in ipairs({"unresolved", "pending", "distinct", false}) do
+  r = ambSetup({}, {}, "off", {{8, 35}, {14, 12}, {14, 35}})
+  HR.db.verify = "off"
+  local before2 = #r.points
+  local entry = {p = {x = 40, y = 40, herb = "TestNb"}, cause = "skip", stay = 0, nextAt = 0,
+    amb = state and {state = state, tries = 0, nextAt = 0} or nil}
+  printed = {}
+  assert(HR:ReviveSkipped(entry), "revival")
+  assert(r.index == 1 and r.points[1].x == 40 and #r.points == before2 + 1, "at the head of the route (" .. tostring(state) .. ")")
+  assert(#WP() == 1 and WP()[1].title:find("1/", 1, true), "a new waypoint points to it")
+  assert(msgs():find("back at the head of the route, next target", 1, true), msgs())
+  RunTimers()
+  assert(msgs():find("Reroute from the current point", 1, true), "the rest of the route is recomputed from that point: " .. msgs())
+  assert(r.points[1].x == 40, "it stays the head after the recalculation")
+  ambTeardown()
+end
 -- red marks: the spots still in doubt (waiting or unresolved), nothing once the doubt is lifted
 r = ambRoute("pending")
 local spots = HR.AmbiguousSpots(r)
