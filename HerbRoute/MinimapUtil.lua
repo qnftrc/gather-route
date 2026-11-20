@@ -108,6 +108,52 @@ local function mouseFocus()
     if GetMouseFocus then return GetMouseFocus() end
 end
 
+-- Height of one text line in the tooltip font, measured on an invisible
+-- FontString with the same font (it follows the UI scale and the font).
+local unitFS
+local function lineUnit(src)
+    if not (UIParent and UIParent.CreateFontString and src.GetFont) then return nil end
+    if not unitFS then
+        unitFS = UIParent:CreateFontString(nil, "ARTWORK")
+        unitFS:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -2000, 0)
+        unitFS:SetAlpha(0)
+    end
+    local ok, path, size, flags = pcall(src.GetFont, src)
+    if not ok or not path or isSecret(size) then return nil end
+    pcall(unitFS.SetFont, unitFS, path, size, flags)
+    unitFS:SetText("X")
+    local ok2, h = pcall(unitFS.GetStringHeight, unitFS)
+    if ok2 and type(h) == "number" and not isSecret(h) then return h end
+end
+
+-- What the standard tooltip shows: whether it is up, who owns it, the height
+-- of its first text (the object names are joined by line breaks in one text,
+-- its text is secret but its height is not) and how many lines that makes.
+local function tooltipInfo()
+    local info = {}
+    if not GameTooltip or not GameTooltip.IsShown then return info end
+    info.shown = GameTooltip:IsShown() and true or false
+    if GameTooltip.GetOwner then
+        local ok, owner = pcall(GameTooltip.GetOwner, GameTooltip)
+        if ok and owner then
+            local ok2, name = pcall(owner.GetName, owner)
+            info.owner = ok2 and name or "?"
+        end
+    end
+    if not info.shown then return info end
+    local f = GameTooltipTextLeft1
+    if not f or not f.GetStringHeight then return info end
+    local ok, h = pcall(f.GetStringHeight, f)
+    if not ok then return info end
+    if isSecret(h) then info.secret = true return info end
+    if type(h) ~= "number" then return info end
+    info.h = h
+    info.unit = lineUnit(f)
+    if info.unit and info.unit > 0 then info.n = math.floor(h / info.unit + 0.5) end
+    return info
+end
+
+MM.tooltipInfo = tooltipInfo
 MM.isSecret = isSecret
 MM.lineCount = lineCount
 MM.signature = signature

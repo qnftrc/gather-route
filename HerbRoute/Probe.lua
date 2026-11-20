@@ -21,6 +21,15 @@ local function add(fmt, ...)
     lines[#lines + 1] = select("#", ...) > 0 and fmt:format(...) or fmt
 end
 
+local function tipText(t)
+    if not t or t.shown == nil then return "GameTooltip not available" end
+    if not t.shown then return "tooltip hidden" end
+    if t.secret then return "tooltip shown, text height is a secret value" end
+    if not t.h then return "tooltip shown, text height not readable" end
+    return ("tooltip shown (owner %s), text height %.1f, line unit %s, lines %s"):format(
+        tostring(t.owner), t.h, t.unit and ("%.1f"):format(t.unit) or "?", t.n and tostring(t.n) or "?")
+end
+
 local function viewRadius()
     if C_Minimap and C_Minimap.GetViewRadius then
         local ok, r = pcall(C_Minimap.GetViewRadius)
@@ -125,6 +134,7 @@ local function runMain(expected)
     add("Baseline read (no probe call): %s",
         data == nil and "no data" or (n > 0 and ("data with %d line(s)"):format(n) or "data without lines"))
     add("  structure: %s", describe(data))
+    add("  tooltip: %s", tipText(MM.tooltipInfo()))
     if describe(data):find("secret", 1, true) then
         add("NOTE: text fields are secret values; only the presence of tooltip lines is readable.")
     end
@@ -162,10 +172,18 @@ local function runBlinkWorldB(hidden, ox, oy)
                     st.r1 and "present" or "absent", st.r3 and "present" or "absent",
                     st.r6 and "present" or "absent", st.back and "present" or "absent",
                     st.sig and (" [" .. st.sig .. "]") or "")
+                add("    tooltip +1: %s", tipText(st.tip1))
+                add("    tooltip +6: %s", tipText(st.tip6))
                 if st.kind == "control" then control = st
                 elseif st.kind == "hit" then hit = st
                 else misses[#misses + 1] = st end
             end
+        end
+        if hit then
+            local up = (hit.tip1 and hit.tip1.shown) or (hit.tip6 and hit.tip6.shown)
+            local measured = (hit.tip1 and hit.tip1.n) or (hit.tip6 and hit.tip6.n)
+            add("TOOLTIP: during the shift the standard tooltip is %s; line count %s.",
+                up and "shown" or "NOT shown", measured and ("readable (" .. measured .. ")") or "not readable")
         end
         if control and hit and #misses > 0 then
             local function any(st) return st.r1 or st.r3 or st.r6 end
@@ -243,12 +261,14 @@ local function runBlinkWorldB(hidden, ox, oy)
         waitFrames(1, function()
             if finished then return end
             st.r1, st.sig = reading()
+            st.tip1 = MM.tooltipInfo()
             waitFrames(2, function()
                 if finished then return end
                 st.r3 = present()
                 waitFrames(3, function()
                     if finished then return end
                     st.r6 = present()
+                    st.tip6 = MM.tooltipInfo()
                     placeMinimap(pts, 0, 0)
                     Minimap:SetAlpha(alpha)
                     waitFrames(3, function()
@@ -282,6 +302,7 @@ local function blinkWorld(hidden)
     local es = Minimap:GetEffectiveScale()
     local ox, oy = sx / es - cx, sy / es - cy
     add("Phase A: blip under the cursor, offset from the minimap center (%.1f, %.1f) units.", ox, oy)
+    add("  tooltip: %s", tipText(MM.tooltipInfo()))
     HR:Print(("Blip captured. Move the mouse into the world (not over the minimap or a window) and keep it still: test in %d s."):format(WORLD_WAIT))
     C_Timer.After(WORLD_WAIT, function() runBlinkWorldB(hidden, ox, oy) end)
 end

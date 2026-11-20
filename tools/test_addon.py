@@ -267,6 +267,28 @@ assert(bw("hover"):find("ABORTED: phase A needs the cursor on a herb blip", 1, t
 curx = savedCur
 bl = nil
 assert(bw("hover"):find("ABORTED: phase A found no data under the cursor", 1, true))
+-- the standard tooltip: shown, text height, line unit measured on a helper FontString, number of lines
+curx = savedCur; bl = {20, 10}; mode = "hover"
+local tipLines, tipUp = 2, true
+GameTooltip = {IsShown = function() return tipUp end, GetOwner = function() return {GetName = function() return "Minimap" end} end}
+GameTooltipTextLeft1 = {GetStringHeight = function() return tipLines * 14 end, GetFont = function() return "Fonts\\x.ttf", 12, "" end}
+UIParent = {CreateFontString = function() return {SetPoint = function() end, SetAlpha = function() end, SetFont = function() end,
+  SetText = function() end, GetStringHeight = function() return 14 end} end}
+local tp = run("probe minimap")
+assert(tp:find("tooltip: tooltip shown (owner Minimap), text height 28.0, line unit 14.0, lines 2", 1, true), tp)
+tipLines = 1
+assert(run("probe minimap"):find("lines 1", 1, true))
+tipLines = 3
+worldAfter = true
+local tw = bw("hover")
+assert(tw:find("TOOLTIP: during the shift the standard tooltip is shown; line count readable (3)", 1, true), tw)
+assert(tw:find("tooltip +1: tooltip shown (owner Minimap), text height 42.0", 1, true), tw)
+tipUp = false
+assert(run("probe minimap"):find("tooltip: tooltip hidden", 1, true))
+assert(bw("hover"):find("standard tooltip is NOT shown", 1, true))
+worldAfter = false
+GameTooltip, GameTooltipTextLeft1, UIParent = nil, nil, nil
+assert(run("probe minimap"):find("tooltip: GameTooltip not available", 1, true))
 io.write("PROBE TESTS OK\n")
 ''')
 
