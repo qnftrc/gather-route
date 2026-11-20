@@ -419,7 +419,7 @@ local function step(r)
         return
     else
         local limit = HR.RECHECK_YD or 110
-        local far = HR.db.recheck ~= false and not st.farDone and st.confirmDist and st.confirmDist > limit
+        local far = not st.farDone and st.confirmDist and st.confirmDist > limit
             and g.dist <= limit and g.inside
         if not far and g.dist > NEAR then
             HR.verifyReason = "confirmed, waiting for the last check"
@@ -812,11 +812,6 @@ function HR:VerifyAhead(arg)
 end
 
 function HR:VerifyOption(name, value)
-    if name == "recheck" then
-        if value == "on" or value == "off" then self.db.recheck = value == "on" end
-        return self:Print(("Recheck of a confirmed point at %d yd (once, in addition to the check before arrival): %s (/hr verify recheck on|off)"):format(
-            HR.RECHECK_YD or 110, self.db.recheck == false and "off" or "on"))
-    end
     if value == "on" or value == "off" then self.db.verifyCombat = value == "on" end
     self:Print("Probing the minimap during combat: " .. (self.db.verifyCombat == true and "on" or "off")
         .. " (/hr verify combat on|off). The client may not give the reading in combat, and the minimap may not move back until combat ends.")
@@ -825,7 +820,7 @@ end
 function HR:VerifyStatus()
     local r = self.route
     local line = ("Verify: %s%s (%d blip(s) confirmed this session), method: %s"):format(
-        self.db.verify, (self.db.verifyAhead and " + ahead" or "") .. (self.db.recheck ~= false and " + recheck" or "")
+        self.db.verify, (self.db.verifyAhead and " + ahead" or "")
         .. (self.db.verifyCombat == true and " + combat" or ""), self.verifyHits, recipeOpts() and self.db.recipe or "not calibrated (/hr verify calibrate)")
     if r and r.vstats then
         line = line .. (", this route: %d probe(s), %d confirmed, %d empty, %d inconclusive, %d removed"):format(

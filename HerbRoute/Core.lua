@@ -17,7 +17,6 @@ local defaults = {
     revive = true,
     nearest = true,
     ambiguity = true,
-    recheck = true,
     verifyCombat = false,
     skipButton = {shown = false},
     overrides = {},
@@ -102,7 +101,7 @@ local function usage()
     HR:Print("/hr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > HerbRoute)")
     HR:Print("/hr stop | skip | debug | map (test of the world map overlay)")
     HR:Print("/hr tracking [on|off|status|restore] - keep only Find Herbs during a route")
-    HR:Print("/hr verify [off|report|remove|status|ahead [on|off]|recheck [on|off]|combat [on|off]|probe|scan|calibrate [ores]|arming [ores]] - check the next point on the minimap")
+    HR:Print("/hr verify [off|report|remove|status|ahead [on|off]|combat [on|off]|probe|scan|calibrate [ores]|arming [ores]] - check the next point on the minimap")
     HR:Print("/hr probe [minimap|watch|blink world [hidden]|copy] - test minimap reading")
     HR:Print("/hr setmap <region>: <mapID> - force the map ID of a region")
 end
@@ -181,7 +180,7 @@ local function handleSlash(msg)
         if word == "arming" then return HR:VerifyArming(cat) end
         if arg == "ahead" or arg:match("^ahead%s+%a+$") then return HR:VerifyAhead(arg:match("^ahead%s+(%a+)$")) end
         local opt, val = arg:match("^(%a+)%s*(%a*)$")
-        if opt == "recheck" or opt == "combat" then return HR:VerifyOption(opt, val) end
+        if opt == "combat" then return HR:VerifyOption(opt, val) end
         if arg == "off" or arg == "report" or arg == "remove" then HR.db.verify = arg end
         HR:VerifyStatus()
     elseif cmd == "probe" then

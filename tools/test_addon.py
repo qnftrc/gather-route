@@ -1167,7 +1167,7 @@ local function rcSetup(mode, startX)
   reset()
   ELW3["TestNb"] = {{8, 12}}; HR.categories.herbs.merged = nil
   HR.db.verify = mode; HR.db.verifyAhead = false; HR.db.revive = false; HR.db.nearest = false
-  HR.db.ambiguity = false; HR.db.recheck = true; HR.RECHECK_YD = 40; HR.verifyHits = 3
+  HR.db.ambiguity = false; HR.RECHECK_YD = 40; HR.verifyHits = 3
   ppx, ppy = startX, 988; nodes = {{8, 12}}; hitR = 6
   printed = {}; SlashCmdList.HERBROUTE("testnb")
   local rt = HR.route
@@ -1175,7 +1175,7 @@ local function rcSetup(mode, startX)
   return rt
 end
 local function rcTeardown()
-  go("stop"); ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.RECHECK_YD = nil; HR.db.recheck = nil
+  go("stop"); ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.RECHECK_YD = nil
 end
 -- confirmed from 55 yd: rechecked once at 40 yd, then the last check at 35 yd
 local rc = rcSetup("report", 1047)
@@ -1194,14 +1194,6 @@ nodes = {}
 ppx = 1030; printed = {}; RunTimers()
 assert(rc.removed[1] and msgs():find("has no node: removed", 1, true), "an empty recheck removes the point: " .. msgs())
 rcTeardown()
--- option off: only the check before arrival
-rc = rcSetup("report", 1047)
-HR.db.recheck = false
-ppx = 1030; RunTimers()
-assert(rc.vstats.probes == 1 and not rc.vstate[1].farDone, "recheck off")
-ppx = 1025; RunTimers()
-assert(rc.vstats.probes == 2, "the check before arrival still happens")
-rcTeardown()
 -- first confirmation already inside the recheck distance: no extra probe
 rc = rcSetup("report", 1030)
 assert(rc.vstate[1].confirmDist <= 40 and rc.vstats.probes == 1, "confirmed from 38 yd")
@@ -1210,15 +1202,12 @@ assert(rc.vstats.probes == 1 and not rc.vstate[1].farDone, "no recheck right aft
 ppx = 1025; RunTimers()
 assert(rc.vstats.probes == 2 and rc.vstate[1].nearDone, "only the last check")
 rcTeardown()
-go("verify recheck off"); assert(HR.db.recheck == false and msgs():find("off", 1, true), msgs())
-go("verify recheck on"); assert(HR.db.recheck == true)
-HR.db.recheck = nil
 
 -- 19. report mode: an empty point ahead is probed again every 8 seconds, silently, and followed when a node appears
 reset()
 ELW3["TestNb"] = {{8, 12}, {8, 35}}; HR.categories.herbs.merged = nil
 HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.revive = false; HR.db.nearest = true
-HR.db.ambiguity = false; HR.db.recheck = false; HR.verifyHits = 3
+HR.db.ambiguity = false; HR.RECHECK_YD = 0; HR.verifyHits = 3
 ppx, ppy = 1032, 988; nodes = {}; hitR = 6
 printed = {}
 C_Timer.After(20, function() nodes = {{8, 12}} end) -- a node respawns on the point that is not the current target
@@ -1231,7 +1220,7 @@ assert(keptCount == 2, "each empty point is announced once, not at every new pro
 assert(msgs():find("Nearest: TestNb is filled", 1, true), "the respawned point must become the target: " .. msgs())
 assert(rt19.points[1].y == 12 and rt19.vstate[1].confirmed and not rt19.vstate[1].final, "the point is confirmed again and is the current target")
 assert(#WP() == 1 and WP()[1].title:find("1/", 1, true), "a waypoint points to it")
-ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.db.recheck = nil
+ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.RECHECK_YD = nil
 go("stop")
 
 -- 18. option: probing during combat
