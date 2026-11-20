@@ -5,6 +5,12 @@ local addonName, HR = ...
 local MM = {}
 HR.MM = MM
 
+-- True when a probe must not run because of combat: the player is in combat and
+-- the "probe during combat" option (one switch for every probe) is off.
+function MM.combatBlocked()
+    return (InCombatLockdown and InCombatLockdown() and HR.db.verifyCombat ~= true) and true or false
+end
+
 local function isSecret(v)
     return issecretvalue and issecretvalue(v) or false
 end

@@ -85,7 +85,7 @@ local function blocked(ignoreRest, noRecipe)
     if not noRecipe and not recipeOpts() then
         return "run /hr verify calibrate once (the probe method is not calibrated for this build)"
     end
-    if InCombatLockdown and InCombatLockdown() and HR.db.verifyCombat ~= true then return "combat" end
+    if MM.combatBlocked() then return "combat" end
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return "dead" end
     if UnitOnTaxi and UnitOnTaxi("player") then return "flight" end
     if MM.buttonDown() then return "mouse button held" end
@@ -209,7 +209,7 @@ local function probe(ox, oy, done, detail, opts)
         if finished then return end
         local x, y = GetCursorPosition()
         if math.abs(x - sx) > 3 or math.abs(y - sy) > 3 then return finish("none", "the mouse moved") end
-        if InCombatLockdown and InCombatLockdown() and HR.db.verifyCombat ~= true then return finish("none", "combat") end
+        if MM.combatBlocked() then return finish("none", "combat") end
         local ncx, ncy = Minimap:GetCenter()
         local applied = ncx ~= nil and math.abs(ncx - (cx + hx)) < 2 and math.abs(ncy - (cy + hy)) < 2
         local has, sig, anyData = MM.reading()
@@ -863,7 +863,7 @@ end
 -- offset from the minimap center (units, y up), or nil after saying why.
 local function captureDot(name)
     if probing then return end
-    if InCombatLockdown and InCombatLockdown() then return HR:Print(name .. ": not in combat.") end
+    if MM.combatBlocked() then return HR:Print(name .. ": not in combat (or tick \"Probe the minimap during combat\").") end
     local has = MM.reading()
     if MM.cursorInside() ~= true or not has then
         return HR:Print(name .. ": no tooltip line under the cursor. Rest the mouse on a yellow dot and retry.")
@@ -1171,7 +1171,7 @@ function HR:VerifyScan()
             local c = cells[idx]
             if not c then return finishScan(r, cells, counts, R) end
             if HR.route ~= r then return end
-            local stop = (InCombatLockdown and InCombatLockdown()) and "combat" or (MM.buttonDown() and "a mouse button was pressed")
+            local stop = MM.combatBlocked() and "combat" or (MM.buttonDown() and "a mouse button was pressed")
             if stop then return HR:Print("Verify scan stopped: " .. stop .. ".") end
             probe(c.x, c.y, function(result, cause)
                 counts.cells = counts.cells + 1

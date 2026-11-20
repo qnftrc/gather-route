@@ -268,6 +268,10 @@ assert(bw("hover"):find("ABORTED: the cursor must rest in the world, outside the
 worldCursor = {100, 100}
 inCombat = true
 assert(bw("hover"):find("ABORTED: in combat", 1, true))
+-- the "probe during combat" box is one switch for every probe, diagnostics included
+HR.db.verifyCombat = true
+assert(bw("hover"):find("RESULT: a blip can be detected", 1, true), "blink world must run in combat when the box is ticked")
+HR.db.verifyCombat = false
 inCombat = false; mouseDown = true
 assert(bw("hover"):find("ABORTED: a mouse button is held", 1, true))
 mouseDown = false
@@ -355,6 +359,12 @@ zt = bw("hover", "zone")
 assert(zt:find("ZONE cursor left of the blip: lines present up to 20 unit(s), absent from 22.", 1, true), zt)
 assert(zt:find("AXIS horizontal: edges 21.0 unit(s) left and 21.0 unit(s) right of the captured point: width 42.0 units", 1, true), zt)
 for _, m in ipairs(masks) do assert(not m.shown, "a frame was left shown") end
+-- zone measurement in combat: refused by default, allowed with the box ticked
+zoneR = 7; maskMode = "focus"; inCombat = true
+assert(bw("hover", "zone"):find("ABORTED: in combat", 1, true))
+HR.db.verifyCombat = true
+assert(bw("hover", "zone"):find("RESULT: zone measured", 1, true), "zone must run in combat when the box is ticked")
+HR.db.verifyCombat = false; inCombat = false
 zoneR = 10; maskMode = "none"; CreateFrame = realCF; worldAfter = false
 io.write("PROBE TESTS OK\n")
 ''')
@@ -1247,6 +1257,14 @@ assert(msgs():find("Nearest: TestNb is filled", 1, true), "the respawned point m
 assert(rt19.points[1].y == 12 and rt19.vstate[1].confirmed and not rt19.vstate[1].final, "the point is confirmed again and is the current target")
 assert(#WP() == 1 and WP()[1].title:find("1/", 1, true), "a waypoint points to it")
 ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.RECHECK_YD = nil
+go("stop")
+
+-- 18a. calibration and scan commands follow the same box
+reset(); combat = true; HR.db.verifyCombat = false
+go("verify calibrate"); assert(msgs():find("not in combat", 1, true), msgs())
+HR.db.verifyCombat = true
+go("verify calibrate"); assert(not msgs():find("not in combat", 1, true), "calibration must start in combat when the box is ticked: " .. msgs())
+HR.db.verifyCombat = false; combat = false
 go("stop")
 
 -- 18. option: probing during combat

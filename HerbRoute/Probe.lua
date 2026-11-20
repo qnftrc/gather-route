@@ -215,7 +215,7 @@ local function runBlinkWorldB(hidden, ox, oy)
         finish()
     end
 
-    if InCombatLockdown and InCombatLockdown() then return conclude("in combat") end
+    if MM.combatBlocked() then return conclude("in combat") end
     if buttonDown() then return conclude("a mouse button is held") end
     if not GetCursorPosition or cursorInside() ~= false then return conclude("the cursor must rest in the world, outside the minimap") end
     if not mouseOverWorld() then return conclude("the mouse is over a UI element, not the world") end
@@ -243,7 +243,7 @@ local function runBlinkWorldB(hidden, ox, oy)
     C_Timer.After(30, function() conclude("timeout") end)
 
     local function stillOk()
-        if InCombatLockdown and InCombatLockdown() then conclude("combat started") return false end
+        if MM.combatBlocked() then conclude("combat started") return false end
         if buttonDown() then conclude("a mouse button was pressed") return false end
         local x, y = GetCursorPosition()
         if math.abs(x - sx) > 3 or math.abs(y - sy) > 3 then conclude("the mouse moved") return false end
@@ -291,7 +291,7 @@ local function blinkWorld(hidden)
         add("ABORTED: the minimap anchors cannot be read")
         return finish()
     end
-    if InCombatLockdown and InCombatLockdown() then add("ABORTED: in combat") return finish() end
+    if MM.combatBlocked() then add("ABORTED: in combat") return finish() end
     if buttonDown() then add("ABORTED: a mouse button is held") return finish() end
     if not GetCursorPosition or cursorInside() ~= true then
         add("ABORTED: phase A needs the cursor on a herb blip inside the minimap")
@@ -474,7 +474,7 @@ local function runZoneB(hidden, ox, oy)
         finish()
     end
 
-    if InCombatLockdown and InCombatLockdown() then return conclude("in combat") end
+    if MM.combatBlocked() then return conclude("in combat") end
     if buttonDown() then return conclude("a mouse button is held") end
     if not GetCursorPosition or cursorInside() ~= false then return conclude("the cursor must rest in the world, outside the minimap") end
     if not mouseOverWorld() then return conclude("the mouse is over a UI element, not the world") end
@@ -493,7 +493,7 @@ local function runZoneB(hidden, ox, oy)
     C_Timer.After(400, function() conclude("timeout") end)
 
     local function stillOk()
-        if InCombatLockdown and InCombatLockdown() then conclude("combat started") return false end
+        if MM.combatBlocked() then conclude("combat started") return false end
         if buttonDown() then conclude("a mouse button was pressed") return false end
         local x, y = GetCursorPosition()
         if math.abs(x - sx) > 3 or math.abs(y - sy) > 3 then conclude("the mouse moved") return false end
@@ -578,7 +578,7 @@ local function zoneTest(hidden)
         add("ABORTED: the minimap anchors cannot be read")
         return finish()
     end
-    if InCombatLockdown and InCombatLockdown() then add("ABORTED: in combat") return finish() end
+    if MM.combatBlocked() then add("ABORTED: in combat") return finish() end
     if buttonDown() then add("ABORTED: a mouse button is held") return finish() end
     if not GetCursorPosition or cursorInside() ~= true then
         add("ABORTED: phase A needs the cursor on a herb blip inside the minimap")
