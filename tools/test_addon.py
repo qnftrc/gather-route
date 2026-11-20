@@ -925,7 +925,7 @@ local probes0 = #probeTimes
 RunTimers() -- the player is far: nothing is probed, nothing is printed
 assert(#probeTimes == probes0 and not msgs():find("Revive", 1, true), "nothing must happen while the point is out of the minimap")
 local sy0 = r13.points[1].y
--- the player comes back near, no node there: one silent empty probe at once, then one more each 110 yd travelled
+-- the player comes back near, no node there: one silent empty probe at once, then one more each 60 yd travelled
 ppx, ppy = NEAR_PL[1], NEAR_PL[2]
 local candidate
 for _, e in ipairs(HR.RevivePool(r13)) do if e.key == skippedKey then candidate = e end end
@@ -934,10 +934,10 @@ RunTimers()
 assert(#probeTimes == 1 and candidate.stay == 1, "one probe while the player stays still: " .. #probeTimes)
 RunTimers()
 assert(#probeTimes == 1, "time alone does not start a new probe")
-travel(8) -- 80 yd
-assert(#probeTimes == 1, "80 yd are not enough: " .. #probeTimes)
-travel(6) -- 140 yd in total
-assert(#probeTimes == 2 and candidate.stay == 2, "110 yd travelled start a new probe: " .. #probeTimes)
+travel(5) -- 50 yd
+assert(#probeTimes == 1, "50 yd are not enough: " .. #probeTimes)
+travel(4) -- 90 yd in total
+assert(#probeTimes == 2 and candidate.stay == 2, "60 yd travelled start a new probe: " .. #probeTimes)
 assert(msgs() == "" and (r13.revivedCount or 0) == 0 and #r13.points == before, "an empty probe must be silent: " .. msgs())
 assert(alphaLog[1] == 0 and alphaLog[#alphaLog] == 1, "the minimap must be hidden while it moves and restored")
 assert(sx == 0 and sy == 0)
@@ -1247,7 +1247,7 @@ assert((rtOn.revivedCount or 0) == 1, "the point outside the route is probed and
 ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.RECHECK_YD = nil; HR.db.verifyCombat = false
 go("stop")
 
--- 19. report mode: an empty point ahead is probed again each 110 yd travelled, silently, and followed when a node appears
+-- 19. report mode: an empty point ahead is probed again each 60 yd travelled, silently, and followed when a node appears
 reset()
 ELW3["TestNb"] = {{8, 12}, {8, 35}}; HR.categories.herbs.merged = nil
 HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.revive = false; HR.db.nearest = true
@@ -1258,7 +1258,7 @@ SlashCmdList.HERBROUTE("testnb")
 local rt19 = HR.route
 RunTimers()
 nodes = {{8, 12}} -- a node respawns on the point that is not the current target
-travel(14) -- the player walks 140 yd: the empty points ahead are probed again
+travel(8) -- the player walks 80 yd: the empty points ahead are probed again
 local keptCount = 0
 for _ in msgs():gmatch("has no node %(report mode, kept") do keptCount = keptCount + 1 end
 assert(keptCount == 2, "each empty point is announced once, not at every new probe: " .. keptCount .. " " .. msgs())
@@ -1311,7 +1311,9 @@ local ELW5 = HerbRoute_Data["Elwynn Forest"]
 local gaChannel = function() return "Herb Gathering", "", "", (Now() - 4) * 1000, (Now() - 1) * 1000 end -- a channel that has just ended
 local noChannel = function() return nil end
 UnitChannelInfo = noChannel
-GetSpellInfo = function(id) if id == 2366 then return "Herb Gathering" elseif id == 1459 then return "Arcane Intellect" end end
+GetSpellInfo = function(id)
+  if id == 2366 then return "Herb Gathering" elseif id == 1459 then return "Arcane Intellect" elseif id == 99999 then return "Herbalism" end
+end
 local function gaSetup()
   reset()
   ELW5["TestNb"] = {{8, 12}, {8, 35}, {14, 12}}; HR.categories.herbs.merged = nil
@@ -1389,6 +1391,13 @@ HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "target", "guid", 2366)
 assert((rg.vstats.waves or 0) == 0, "only the player counts")
 gather(nil)
 assert(rg.removed[indexOf(rg, 14, 12)] and rg.vstats.waves == 1, "an unreadable spell with a point at hand counts as a gathering")
+gaTeardown()
+
+-- a gathering spell known by its name only (Herbalism)
+rg = gaSetup()
+standAt(14, 12)
+gather(99999)
+assert(rg.removed[indexOf(rg, 14, 12)] and rg.vstats.waves == 1, "Herbalism must be recognised by its name")
 gaTeardown()
 
 -- no point in range: nothing leaves the route, the wave still starts

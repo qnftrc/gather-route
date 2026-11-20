@@ -14,8 +14,8 @@ HR.verifyHits = 0
 local ENTER = 0.85  -- fraction of the view radius inside which a point is probed
 local NEAR = 35     -- yards: last check of a confirmed point before arrival
 HR.RECHECK_YD = 110 -- yards: one recheck of a point confirmed from farther away
-HR.RESCAN_YD = 110  -- yards travelled between two probes of a point that may have respawned
-local function rescanDist() return HR.RESCAN_YD or 110 end
+HR.RESCAN_YD = 60   -- yards travelled between two probes of a point that may have respawned
+local function rescanDist() return HR.RESCAN_YD or 60 end
 local REST = 0.5    -- seconds the cursor must stay still
 local TICK = 0.25
 local RETRY = 1.5   -- delay before a second probe of the same point
