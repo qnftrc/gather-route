@@ -1580,6 +1580,11 @@ assert(HR.StatsText().source:find("Auctionator", 1, true))
 Advance(3600)
 assert(HR.StatsText().duration:find("1:", 1, true), HR.StatsText().duration)
 go("stats probe"); assert(msgs():find("Blindweed (8839) price from Auctionator: 50s", 1, true), msgs()); assert(msgs():find("price function present", 1, true), msgs())
+local ni, nmiss = HR.NodeItems(), {}
+for node, id in pairs(ni) do if not id and node ~= "TestNb" then nmiss[#nmiss + 1] = node end end
+assert(#nmiss == 1 and nmiss[1] == "Demonsage", table.concat(nmiss, ","))
+assert(ni["Ooze Covered Rich Thorium Vein"] == 10620 and ni["Lesser Bloodstone Deposit"] == 4278 and ni["Peacebloom"] == 2447)
+assert(msgs():find("missing: Demonsage", 1, true) or msgs():find("missing: Demonsage, TestNb", 1, true) or msgs():find("Demonsage", 1, true), msgs())
 go("stats"); assert(HR.db.statsWindow.shown == true, tostring(HR.db.statsWindow.shown))
 go("stats"); assert(HR.db.statsWindow.shown == false)
 go("stats reset"); assert(HR.StatsText().body:find("Nothing gathered yet", 1, true))

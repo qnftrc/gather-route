@@ -17,6 +17,14 @@ local ITEMS = {
     [11370] = "Dark Iron Ore", [3340] = "Incendicite Ore", [4278] = "Lesser Bloodstone Ore",
 }
 
+local NODE_ITEM = {
+    ["Copper Vein"] = 2770, ["Tin Vein"] = 2771, ["Iron Deposit"] = 2772, ["Silver Vein"] = 2775,
+    ["Gold Vein"] = 2776, ["Mithril Deposit"] = 3858, ["Truesilver Deposit"] = 7911,
+    ["Thorium Vein"] = 10620, ["Small Thorium Vein"] = 10620, ["Rich Thorium Vein"] = 10620, ["Dark Iron Deposit"] = 11370,
+    ["Incendicite Mineral Vein"] = 3340, ["Lesser Bloodstone Deposit"] = 4278,
+}
+local OOZE = "Ooze Covered "
+
 local CALLER = "HerbRoute"
 local s          -- current statistics, nil before the first route
 local gather     -- window of the gathering in progress: {open = bool, until = time, snap = {id = count}}
@@ -36,6 +44,43 @@ local function itemInfo(id)
     return a, k
 end
 
+local function learned()
+    HR.db.itemIds = HR.db.itemIds or {}
+    return HR.db.itemIds
+end
+
+-- Names of the database (herbs and ore nodes) -> item ID; false when the ID is not known yet.
+function HR.NodeItems()
+    local out = {}
+    local byName = {}
+    for id, name in pairs(ITEMS) do byName[name] = id end
+    for _, region in pairs(HerbRoute_Data or {}) do
+        for herb in pairs(region) do out[herb] = byName[herb] or learned()[herb] or false end
+    end
+    for _, region in pairs(HerbRoute_OreData or {}) do
+        for node in pairs(region) do
+            local base = node:gsub("^" .. OOZE, "")
+            out[node] = NODE_ITEM[base] or false
+        end
+    end
+    return out
+end
+
+local function allItems()
+    local all = {}
+    for id, name in pairs(ITEMS) do all[id] = name end
+    for name, id in pairs(learned()) do all[id] = name end
+    for name, id in pairs(HR.NodeItems()) do
+        if id then all[id] = all[id] or name end
+        if id == false then
+            local _, link = (C_Item and C_Item.GetItemInfo or GetItemInfo or function() end)(name)
+            local got = type(link) == "string" and tonumber(link:match("|Hitem:(%d+)"))
+            if got then learned()[name] = got; all[got] = name end
+        end
+    end
+    return all
+end
+
 local function auctionator()
     local api = Auctionator and Auctionator.API and Auctionator.API.v1
     if api and api.GetAuctionPriceByItemID then return api end
@@ -51,7 +96,7 @@ function HR:RefreshPrices()
     local api = auctionator()
     if not api then return 0 end
     local mem, n = self:PriceMemory(), 0
-    for id in pairs(ITEMS) do
+    for id in pairs(allItems()) do
         local ok, c = pcall(api.GetAuctionPriceByItemID, CALLER, id)
         if ok and type(c) == "number" and c > 0 then
             n = n + 1
@@ -130,6 +175,9 @@ local function add(id, link, n)
     if not e then
         local name = type(link) == "string" and link:match("|h%[(.-)%]|h") or ITEMS[id] or itemInfo(id) or ("item " .. id)
         e = {count = 0, name = name}
+        if HR.db and not ITEMS[id] then
+            for n, known in pairs(HR.NodeItems()) do if known == false and n == name then learned()[name] = id end end
+        end
         s.items[id] = e
     end
     e.count = e.count + n
@@ -138,7 +186,7 @@ end
 local function snapshot()
     local snap = {}
     if GetItemCount then
-        for id in pairs(ITEMS) do
+        for id in pairs(allItems()) do
             local ok, c = pcall(GetItemCount, id)
             if ok and type(c) == "number" then snap[id] = c end
         end
@@ -334,12 +382,22 @@ function HR:StatsProbe()
         self:Say(("Stats: Blindweed (8839) price from Auctionator: %s."):format(ok and (c and HR.Money(c) or "none (no scan yet?)") or ("error " .. tostring(c))))
         self:Say(("Stats: %d herbs and ores priced and remembered."):format(self:RefreshPrices()))
     end
-    local n, bad = 0, 0
-    for id, name in pairs(ITEMS) do
+    local n, bad, unknown, total = 0, 0, {}, 0
+    local all = allItems()
+    for id, name in pairs(all) do
+        total = total + 1
         local got = itemInfo(id)
-        if got then n = n + 1 if got ~= name then bad = bad + 1 self:Say(("Stats: item %d is '%s', expected '%s'."):format(id, got, name)) end end
+        if got then n = n + 1 if got ~= name and ITEMS[id] and ITEMS[id] ~= got then bad = bad + 1 self:Say(("Stats: item %d is '%s', expected '%s'."):format(id, got, name)) end end
     end
-    self:Say(("Stats: %d item IDs read by the client, %d with another name."):format(n, bad))
+    local nodes, missing, k = HR.NodeItems(), {}, 0
+    for node, id in pairs(nodes) do
+        k = k + 1
+        if not id then missing[#missing + 1] = node end
+    end
+    table.sort(missing)
+    self:Say(("Stats: %d herbs and ore nodes of the database, %d with a known item%s."):format(k, k - #missing,
+        #missing > 0 and (" (missing: " .. table.concat(missing, ", ") .. "; learned from the first loot)") or ""))
+    self:Say(("Stats: %d item IDs checked, %d read by the client, %d with another name."):format(total, n, bad))
     local mem = self:PriceMemory()
     local c = 0
     for _ in pairs(mem) do c = c + 1 end
