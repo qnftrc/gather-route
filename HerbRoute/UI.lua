@@ -83,8 +83,29 @@ local function fillPosition()
     dirty = false
 end
 
+-- Letters typed in the search box must all be present in the region name, in any
+-- order; a letter typed twice needs two occurrences. Case, spaces and punctuation
+-- are ignored.
+function HR.MatchRegion(query, name)
+    local q = HR.normalize(query or "")
+    if q == "" then return true end
+    local counts = {}
+    for ch in HR.normalize(name):gmatch(".") do counts[ch] = (counts[ch] or 0) + 1 end
+    for ch in q:gmatch(".") do
+        if (counts[ch] or 0) == 0 then return false end
+        counts[ch] = counts[ch] - 1
+    end
+    return true
+end
+
 local function fillRegionPopup()
-    local regions = HR:GetRegions(ui.category)
+    local query = ui.regionSearch and ui.regionSearch:GetText() or ""
+    local regions = {}
+    for _, region in ipairs(HR:GetRegions(ui.category)) do
+        if HR.MatchRegion(query, region) then regions[#regions + 1] = region end
+    end
+    ui.regionMatches = regions
+    if ui.regionNone then ui.regionNone:SetShown(#regions == 0) end
     local child = ui.regionChild
     child:SetSize(290, #regions * 20)
     for i, region in ipairs(regions) do
@@ -112,7 +133,7 @@ end
 local function buildRegionPopup()
     local popup = CreateFrame("Frame", nil, ui, "BackdropTemplate")
     popup:SetFrameStrata("DIALOG")
-    popup:SetSize(328, 232)
+    popup:SetSize(328, 256)
     popup:SetPoint("TOPLEFT", ui.regionButton, "BOTTOMLEFT", 0, -2)
     popup:SetBackdrop({
         bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -122,15 +143,40 @@ local function buildRegionPopup()
     popup:SetBackdropColor(0.05, 0.05, 0.05, 0.97)
     popup:Hide()
 
+    local search = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
+    search:SetSize(286, 20)
+    search:SetPoint("TOPLEFT", 14, -6)
+    search:SetAutoFocus(false)
+    ui.regionSearch = search
+
     local scroll = CreateFrame("ScrollFrame", nil, popup, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 6, -6)
+    scroll:SetPoint("TOPLEFT", 6, -30)
     scroll:SetPoint("BOTTOMRIGHT", -26, 6)
+    ui.regionScroll = scroll
+    ui.regionNone = popup:CreateFontString(nil, "ARTWORK", "GameFontDisable")
+    ui.regionNone:SetPoint("TOPLEFT", 14, -40)
+    ui.regionNone:SetText("No match")
+    ui.regionNone:Hide()
     ui.regionChild = CreateFrame("Frame", nil, scroll)
     ui.regionChild:SetSize(290, 1)
     scroll:SetScrollChild(ui.regionChild)
     ui.regionRows = {}
     ui.setRegion = setRegion
     ui.regionPopup = popup
+    search:SetScript("OnTextChanged", function()
+        fillRegionPopup()
+        scroll:SetVerticalScroll(0)
+    end)
+    search:SetScript("OnEnterPressed", function()
+        local first = ui.regionMatches and ui.regionMatches[1]
+        if first then setRegion(first) end
+    end)
+    search:SetScript("OnEscapePressed", function() popup:Hide() end)
+    popup:SetScript("OnShow", function()
+        search:SetText("")
+        search:SetFocus()
+    end)
+    popup:SetScript("OnHide", function() search:ClearFocus() end)
     fillRegionPopup()
 end
 

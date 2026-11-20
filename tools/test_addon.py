@@ -1459,5 +1459,18 @@ ns2:ToggleSkipButton(true); assert(ns2.db.skipButton.shown == true)
 ns2:ToggleSkipButton(); assert(ns2.db.skipButton.shown == false)
 ns2:InitSkipButton()
 assert(BINDING_NAME_HERBROUTE_SKIP and BINDING_HEADER_HERBROUTE)
+-- region search: letters present in the name, any order, occurrences counted
+assert(HR.MatchRegion("SOS", "Swamp of Sorrows"), "SOS must keep Swamp of Sorrows")
+assert(HR.MatchRegion("sos", "Swamp of Sorrows") and HR.MatchRegion("  S o S ", "Swamp of Sorrows"), "case and spaces are ignored")
+assert(HR.MatchRegion("rows", "Swamp of Sorrows") and HR.MatchRegion("srow", "Swamp of Sorrows"), "any order")
+assert(not HR.MatchRegion("SOS", "Elwynn Forest"), "two S are needed")
+assert(HR.MatchRegion("SO", "Elwynn Forest") and HR.MatchRegion("OS", "Elwynn Forest") and not HR.MatchRegion("OOS", "Elwynn Forest"), "one S and one O are enough for SO, two O are not")
+assert(not HR.MatchRegion("zz", "Swamp of Sorrows") and not HR.MatchRegion("x", "Swamp of Sorrows"))
+assert(HR.MatchRegion("", "Anything") and HR.MatchRegion(nil, "Anything"), "an empty search keeps every region")
+assert(HR.MatchRegion("ssss", "Swamp of Sorrows") == false, "four S are too many")
+assert(HR.MatchRegion("Shendralas", "Shen'dralas"), "punctuation is ignored")
+local kept = 0
+for _, name in ipairs(HR:GetRegions("herbs")) do if HR.MatchRegion("SOS", name) then kept = kept + 1 end end
+assert(kept >= 1 and kept < #HR:GetRegions("herbs"), "the search must narrow the list: " .. kept)
 io.write("ORE TESTS OK\n")
 ''')
