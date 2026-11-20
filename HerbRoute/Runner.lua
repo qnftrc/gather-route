@@ -241,7 +241,7 @@ function HR:ReviveSkipped(entry, noHead)
     r.removed = shiftFrom(r.removed, bestPos)
     if r.vstate then
         r.vstate = shiftFrom(r.vstate, bestPos)
-        r.vstate[bestPos] = {misses = 0, none = 0, nextAt = 0, confirmed = true, amb = entry.amb}
+        r.vstate[bestPos] = {misses = 0, none = 0, nextAt = 0, confirmed = true, farDone = true, amb = entry.amb}
     end
     r.world = nil
     r.rev = (r.rev or 0) + 1

@@ -13,6 +13,7 @@ HR.verifyHits = 0
 
 local ENTER = 0.85  -- fraction of the view radius inside which a point is probed
 local NEAR = 35     -- yards: last check of a confirmed point before arrival
+HR.RECHECK_YD = 110 -- yards: one recheck of a point confirmed from farther away
 local REST = 0.5    -- seconds the cursor must stay still
 local TICK = 0.25
 local RETRY = 1.5   -- delay before a second probe of the same point
@@ -83,7 +84,7 @@ local function blocked(ignoreRest, noRecipe)
     if not noRecipe and not recipeOpts() then
         return "run /hr verify calibrate once (the probe method is not calibrated for this build)"
     end
-    if InCombatLockdown and InCombatLockdown() then return "combat" end
+    if InCombatLockdown and InCombatLockdown() and HR.db.verifyCombat ~= true then return "combat" end
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return "dead" end
     if UnitOnTaxi and UnitOnTaxi("player") then return "flight" end
     if MM.buttonDown() then return "mouse button held" end
@@ -173,11 +174,28 @@ local function probe(ox, oy, done, detail, opts)
         if soft then pcall(Minimap.SetUsingSoftCursor, Minimap, false) end
         if hiddenUID and TomTom.ShowWaypoint then pcall(TomTom.ShowWaypoint, TomTom, hiddenUID) end
         MM.waitFrames(2, function()
-            if detail then
-                local ax, ay = Minimap:GetCenter()
-                detail.homeOk = ax ~= nil and math.abs(ax - cx) < 1 and math.abs(ay - cy) < 1
+            local ax, ay = Minimap:GetCenter()
+            local homeOk = ax ~= nil and math.abs(ax - cx) < 1 and math.abs(ay - cy) < 1
+            if detail then detail.homeOk = homeOk end
+            if homeOk then
+                probing = false
+            else
+                -- The client refused to put the minimap back (for instance in combat):
+                -- keep trying, and no other probe starts before it is home again.
+                local tries = 0
+                local function retry()
+                    tries = tries + 1
+                    pcall(MM.placeMinimap, pts, 0, 0)
+                    pcall(Minimap.SetAlpha, Minimap, alpha0)
+                    local bx, by = Minimap:GetCenter()
+                    if (bx ~= nil and math.abs(bx - cx) < 1 and math.abs(by - cy) < 1) or tries >= 60 then
+                        probing = false
+                    else
+                        C_Timer.After(1, retry)
+                    end
+                end
+                C_Timer.After(1, retry)
             end
-            probing = false
             done(result, cause)
         end)
     end
@@ -190,7 +208,7 @@ local function probe(ox, oy, done, detail, opts)
         if finished then return end
         local x, y = GetCursorPosition()
         if math.abs(x - sx) > 3 or math.abs(y - sy) > 3 then return finish("none", "the mouse moved") end
-        if InCombatLockdown and InCombatLockdown() then return finish("none", "combat") end
+        if InCombatLockdown and InCombatLockdown() and HR.db.verifyCombat ~= true then return finish("none", "combat") end
         local ncx, ncy = Minimap:GetCenter()
         local applied = ncx ~= nil and math.abs(ncx - (cx + hx)) < 2 and math.abs(ncy - (cy + hy)) < 2
         local has, sig, anyData = MM.reading()
@@ -385,11 +403,20 @@ local function step(r)
             HR.verifyReason = "the next point is outside the minimap"
             return
         end
-    elseif st.nearDone or g.dist > NEAR then
+    elseif st.nearDone then
         HR.verifyReason = "confirmed, waiting for the last check"
         return
+    else
+        local limit = HR.RECHECK_YD or 110
+        local far = HR.db.recheck ~= false and not st.farDone and st.confirmDist and st.confirmDist > limit
+            and g.dist <= limit and g.inside
+        if not far and g.dist > NEAR then
+            HR.verifyReason = "confirmed, waiting for the last check"
+            return
+        end
     end
 
+    local gdist = g.dist
     local why = blocked()
     if why then
         HR.verifyReason = "waiting: " .. why
@@ -403,9 +430,11 @@ local function step(r)
             HR.verifyHits = HR.verifyHits + 1
             st.misses = 0
             if st.confirmed then
-                st.nearDone = true
+                st.farDone = true
+                if gdist <= NEAR then st.nearDone = true end
             else
                 st.confirmed = true
+                st.confirmDist = gdist
                 r.vstats.confirmed = r.vstats.confirmed + 1
                 st.amb = markAmbiguity(r, geometry(r, i))
                 if st.amb and st.amb.state == "pending" then st.amb.want = true end
@@ -461,6 +490,7 @@ local function runAhead(r, j, g)
         if result == "line" then
             HR.verifyHits = HR.verifyHits + 1
             st.confirmed = true
+            st.confirmDist = g.dist
             r.vstats.confirmed = r.vstats.confirmed + 1
             st.amb = markAmbiguity(r, geometry(r, j))
             HR:RetargetNearest(r)
@@ -761,10 +791,22 @@ function HR:VerifyAhead(arg)
     self:Print("Verify ahead: probing the points inside the minimap (automatic: " .. (self.db.verifyAhead and "on" or "off") .. ", /hr verify ahead on|off).")
 end
 
+function HR:VerifyOption(name, value)
+    if name == "recheck" then
+        if value == "on" or value == "off" then self.db.recheck = value == "on" end
+        return self:Print(("Recheck of a confirmed point at %d yd (once, in addition to the check before arrival): %s (/hr verify recheck on|off)"):format(
+            HR.RECHECK_YD or 110, self.db.recheck == false and "off" or "on"))
+    end
+    if value == "on" or value == "off" then self.db.verifyCombat = value == "on" end
+    self:Print("Probing the minimap during combat: " .. (self.db.verifyCombat == true and "on" or "off")
+        .. " (/hr verify combat on|off). The client may not give the reading in combat, and the minimap may not move back until combat ends.")
+end
+
 function HR:VerifyStatus()
     local r = self.route
     local line = ("Verify: %s%s (%d blip(s) confirmed this session), method: %s"):format(
-        self.db.verify, self.db.verifyAhead and " + ahead" or "", self.verifyHits, recipeOpts() and self.db.recipe or "not calibrated (/hr verify calibrate)")
+        self.db.verify, (self.db.verifyAhead and " + ahead" or "") .. (self.db.recheck ~= false and " + recheck" or "")
+        .. (self.db.verifyCombat == true and " + combat" or ""), self.verifyHits, recipeOpts() and self.db.recipe or "not calibrated (/hr verify calibrate)")
     if r and r.vstats then
         line = line .. (", this route: %d probe(s), %d confirmed, %d empty, %d inconclusive, %d removed"):format(
             r.vstats.probes, r.vstats.confirmed, r.vstats.empty, r.vstats.none, r.removedCount or 0)

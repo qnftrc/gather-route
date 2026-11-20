@@ -1158,6 +1158,89 @@ go("ambiguity on"); assert(HR.db.ambiguity == true and msgs():find("zone half-wi
 HR.db.ambiguity = false
 go("stop")
 
+-- 17. recheck of a confirmed point once it is within RECHECK_YD (set to 40 here: the fake minimap reaches 59 yd)
+local ELW3 = HerbRoute_Data["Elwynn Forest"]
+local function rcSetup(mode, startX)
+  reset()
+  ELW3["TestNb"] = {{8, 12}}; HR.categories.herbs.merged = nil
+  HR.db.verify = mode; HR.db.verifyAhead = false; HR.db.revive = false; HR.db.nearest = false
+  HR.db.ambiguity = false; HR.db.recheck = true; HR.RECHECK_YD = 40; HR.verifyHits = 3
+  ppx, ppy = startX, 988; nodes = {{8, 12}}; hitR = 6
+  printed = {}; SlashCmdList.HERBROUTE("testnb")
+  local rt = HR.route
+  RunTimers()
+  return rt
+end
+local function rcTeardown()
+  go("stop"); ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.RECHECK_YD = nil; HR.db.recheck = nil
+end
+-- confirmed from 55 yd: rechecked once at 40 yd, then the last check at 35 yd
+local rc = rcSetup("report", 1047)
+local st = rc.vstate[1]
+assert(st.confirmed and st.confirmDist > 54 and not st.farDone and rc.vstats.probes == 1, "first confirmation")
+ppx = 1030; RunTimers() -- 38 yd
+assert(st.farDone and not st.nearDone and rc.vstats.probes == 2, "recheck at 40 yd: " .. rc.vstats.probes)
+RunTimers()
+assert(rc.vstats.probes == 2, "the recheck happens once")
+ppx = 1025; RunTimers() -- 33 yd
+assert(st.nearDone and rc.vstats.probes == 3, "last check before arrival")
+rcTeardown()
+-- a node taken meanwhile is found at the recheck
+rc = rcSetup("remove", 1047)
+nodes = {}
+ppx = 1030; printed = {}; RunTimers()
+assert(rc.removed[1] and msgs():find("has no node: removed", 1, true), "an empty recheck removes the point: " .. msgs())
+rcTeardown()
+-- option off: only the check before arrival
+rc = rcSetup("report", 1047)
+HR.db.recheck = false
+ppx = 1030; RunTimers()
+assert(rc.vstats.probes == 1 and not rc.vstate[1].farDone, "recheck off")
+ppx = 1025; RunTimers()
+assert(rc.vstats.probes == 2, "the check before arrival still happens")
+rcTeardown()
+-- first confirmation already inside the recheck distance: no extra probe
+rc = rcSetup("report", 1030)
+assert(rc.vstate[1].confirmDist <= 40 and rc.vstats.probes == 1, "confirmed from 38 yd")
+RunTimers()
+assert(rc.vstats.probes == 1 and not rc.vstate[1].farDone, "no recheck right after a close confirmation")
+ppx = 1025; RunTimers()
+assert(rc.vstats.probes == 2 and rc.vstate[1].nearDone, "only the last check")
+rcTeardown()
+go("verify recheck off"); assert(HR.db.recheck == false and msgs():find("off", 1, true), msgs())
+go("verify recheck on"); assert(HR.db.recheck == true)
+HR.db.recheck = nil
+
+-- 18. option: probing during combat
+reset(); HR.db.verify = "report"; HR.verifyHits = 0; HR.db.verifyCombat = false
+nodes = {{first.x, first.y}}
+combat = true
+go("peacebloom")
+assert(HR.route.vstats.probes == 0 and HR.verifyReason and HR.verifyReason:find("combat", 1, true), "no probe in combat by default")
+go("stop"); reset(); HR.db.verify = "report"; HR.verifyHits = 0
+HR.db.verifyCombat = true; combat = true; nodes = {{first.x, first.y}}
+go("peacebloom")
+assert(HR.route.vstate[1] and HR.route.vstate[1].confirmed and HR.route.vstats.probes >= 1, "the probe must run in combat when allowed: " .. tostring(HR.verifyReason))
+assert(sx == 0 and sy == 0, "minimap restored")
+go("stop")
+-- the minimap cannot be moved back in combat: it keeps being retried and no other probe starts meanwhile
+reset(); HR.db.verify = "report"; HR.verifyHits = 0; HR.db.verifyCombat = true; combat = true
+nodes = {{first.x, first.y}}
+local origSetPoint, blockedSet = Minimap.SetPoint, false
+Minimap.SetPoint = function(m, a, b, c2, x, y)
+  if blockedSet and x == 0 and y == 0 then return end -- the client refuses to put the minimap back
+  return origSetPoint(m, a, b, c2, x, y)
+end
+blockedSet = true
+C_Timer.After(5, function() blockedSet = false end)
+go("peacebloom")
+assert(sx == 0 and sy == 0, "the minimap must end up at home once the client allows it")
+Minimap.SetPoint = origSetPoint
+combat = false; HR.db.verifyCombat = false
+go("stop")
+go("verify combat on"); assert(HR.db.verifyCombat == true and msgs():find("during combat: on", 1, true), msgs())
+go("verify combat off"); assert(HR.db.verifyCombat == false)
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)
