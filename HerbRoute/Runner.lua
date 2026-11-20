@@ -65,18 +65,29 @@ local function finish(self)
     self:StopRoute(true)
 end
 
-local function noteSkipped(r, p, cause)
-    r.skipped = r.skipped or {}
-    for _, e in ipairs(r.skipped) do
-        if e.p == p then return end
-    end
-    r.skipped[#r.skipped + 1] = {p = p, cause = cause, stay = 0, nextAt = 0}
+function HR.PointKey(p)
+    return p.x .. "|" .. p.y .. "|" .. p.herb
+end
+
+-- How a point left the route in progress (skip, absent, reached), and when. The
+-- points of the database that are no longer ahead in the route are the
+-- candidates of the revival (Verify.lua); this only adds the cause and the time.
+local function noteCause(r, p, cause)
+    r.cause = r.cause or {}
+    r.cause[HR.PointKey(p)] = {cause = cause, at = GetTime()}
 end
 
 function HR:Advance(skipped)
     local r = self.route
     if not r or r.mode ~= "follow" then return end
-    if skipped and r.points[r.index] then noteSkipped(r, r.points[r.index], "skip") end
+    local cur = r.points[r.index]
+    if cur then
+        if skipped then
+            noteCause(r, cur, "skip")
+        elseif not r.removed[r.index] then
+            noteCause(r, cur, "reached")
+        end
+    end
     local replan = r.rerouteOnArrival and not skipped
     r.rerouteOnArrival = nil
     if r.current then removeUID(r.current) end
@@ -179,7 +190,7 @@ end
 function HR:DropPoint(i)
     local r = self.route
     if not r or r.removed[i] then return end
-    if r.points[i] then noteSkipped(r, r.points[i], "absent") end
+    if r.points[i] then noteCause(r, r.points[i], "absent") end
     r.removed[i] = true
     r.rev = (r.rev or 0) + 1
     r.removedCount = (r.removedCount or 0) + 1
@@ -236,19 +247,19 @@ function HR:ReviveSkipped(entry, noHead)
     r.rev = (r.rev or 0) + 1
     if entry.cause == "absent" and (r.removedCount or 0) > 0 then r.removedCount = r.removedCount - 1 end
     r.revivedCount = (r.revivedCount or 0) + 1
-    for k, e in ipairs(r.skipped or {}) do
-        if e == entry then table.remove(r.skipped, k) break end
-    end
+    if entry.key and r.cause then r.cause[entry.key] = nil end
     local becomesCurrent = bestPos == r.index
     if becomesCurrent then
         if r.current then removeUID(r.current) end
         r.current = nil
         showCurrent(r)
     end
-    self:Print(("Revive: %s respawned inside the minimap (%s earlier): back in the route as point %d/%d%s."):format(
-        np.herb, entry.cause == "absent" and "removed" or "skipped", bestPos, #r.points, becomesCurrent and ", next target" or ""))
+    local from = {skip = "skipped", absent = "removed", reached = "reached"}
+    self:Print(("Revive: %s is back inside the minimap (%s earlier): back in the route as point %d/%d%s."):format(
+        np.herb, from[entry.cause] or "passed", bestPos, #r.points, becomesCurrent and ", next target" or ""))
     self:RouteChanged()
     self:RetargetNearest(r)
+    if not noHead then self:Reroute() end
     return true
 end
 
@@ -365,6 +376,8 @@ function HR:StartRoute(region, mapID, points, start, length, category)
         mode = "follow",
         removed = {},
     }
+    r.herbSet = {}
+    for _, p in ipairs(points) do r.herbSet[p.herb] = true end
     self.route = r
     self:IsolateTracking(r.category)
     showCurrent(r)

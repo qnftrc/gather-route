@@ -246,7 +246,7 @@ local function build()
         HR.db.reroute = self:GetChecked() and true or false
     end)
 
-    ui.revive = check(ui, "Put skipped points back when they respawn", 12, -466, function(self)
+    ui.revive = check(ui, "Put points back in the route when they reappear", 12, -466, function(self)
         HR.db.revive = self:GetChecked() and true or false
     end)
 

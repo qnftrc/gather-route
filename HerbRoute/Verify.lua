@@ -485,28 +485,96 @@ local function runAhead(r, j, g)
     end, nil, recipeOpts())
 end
 
-local REVIVE_STAYS = 3  -- empty probes of one skipped point per stay inside the minimap
-local REVIVE_GAP = 30    -- seconds between two probes of the same point
+local REVIVE_STAYS = 3    -- empty probes of one point per stay inside the minimap
+local REVIVE_GAP = 8       -- seconds between two probes of the same point
 local REVIVE_RETRY = 3
+local REACHED_DELAY = 10   -- seconds after reaching a point before its first probe
 
--- Skipped or removed points that are back inside the minimap are probed with
--- the minimap hidden while it moves. A node found is put back in the route;
--- nothing found changes nothing and prints nothing.
+-- The points of the database of the route's types (herbs or ores) that are
+-- not ahead in the route are candidates to come back: reached, skipped or
+-- removed ones. Each candidate carries its probing state for the route.
+local function poolOf(r)
+    if r.pool then return r.pool end
+    local hbd = hbdLib()
+    if not hbd or not r.herbSet then return nil end
+    local pool = {}
+    local data = HR:DataFor(r.category)[r.region]
+    if data then
+        for herb in pairs(r.herbSet) do
+            for _, pt in ipairs(data[herb] or {}) do
+                local wx, wy, inst = hbd:GetWorldCoordinatesFromZone(pt[1] / 100, pt[2] / 100, r.mapID)
+                if wx then
+                    local p = {x = pt[1], y = pt[2], herb = herb}
+                    pool[#pool + 1] = {p = p, key = HR.PointKey(p), wx = wx, wy = wy, inst = inst, stay = 0, nextAt = 0}
+                end
+            end
+        end
+    end
+    r.pool = pool
+    return pool
+end
+
+-- Keys of the points still ahead in the route (current one included).
+local function liveKeys(r)
+    local sig = r.index .. ":" .. (r.rev or 0) .. ":" .. #r.points .. ":" .. (r.removedCount or 0)
+    if r.live and r.liveSig == sig then return r.live end
+    local live = {}
+    for j = r.index, #r.points do
+        if not r.removed[j] then live[HR.PointKey(r.points[j])] = true end
+    end
+    r.live, r.liveSig = live, sig
+    return live
+end
+
+function HR.RevivePool(r)
+    return r and poolOf(r)
+end
+
+-- Number of database points of the route's types that are outside the route.
+function HR.ReviveCount(r)
+    local pool = r and poolOf(r)
+    if not pool then return 0 end
+    local live, n = liveKeys(r), 0
+    for _, e in ipairs(pool) do
+        if not live[e.key] then n = n + 1 end
+    end
+    return n
+end
+
+-- Candidates inside the minimap are probed with the minimap hidden while it
+-- moves. A node found is put back in the route; nothing found changes nothing
+-- and prints nothing.
 local function pickRevive(r)
-    if HR.db.revive == false or not r.skipped or #r.skipped == 0 then return end
+    if HR.db.revive == false then return end
     local hbd = hbdLib()
     if not hbd or not HR.ViewRadius then return end
+    local pool = poolOf(r)
+    if not pool then return end
+    local px, py, pinst = hbd:GetPlayerWorldPosition()
+    local radius = HR.ViewRadius()
+    if not px or not radius then return end
+    local reachSq = (radius * 1.05) ^ 2
+    local live = liveKeys(r)
     local now = GetTime()
     local best, bestG
-    for _, e in ipairs(r.skipped) do
-        if not e.wx then e.wx, e.wy, e.inst = hbd:GetWorldCoordinatesFromZone(e.p.x / 100, e.p.y / 100, r.mapID) end
-        local g = e.wx and project(hbd, e.wx, e.wy, e.inst)
-        if g and g.inside then
-            if not e.inside then e.inside, e.stay, e.nextAt = true, 0, 0 end
-            if e.stay < REVIVE_STAYS and now >= e.nextAt and (not bestG or g.dist < bestG.dist) then
-                best, bestG = e, g
+    for _, e in ipairs(pool) do
+        if live[e.key] then
+            e.inside = false
+        elseif e.inst == pinst and (e.wx - px) ^ 2 + (e.wy - py) ^ 2 <= reachSq then
+            local g = project(hbd, e.wx, e.wy, e.inst)
+            if g and g.inside then
+                if not e.inside then e.inside, e.stay, e.nextAt = true, 0, 0 end
+                local ready = e.nextAt
+                local rec = r.cause and r.cause[e.key]
+                if rec and rec.cause == "reached" and rec.at + REACHED_DELAY > ready then ready = rec.at + REACHED_DELAY end
+                local waiting = e.amb and e.amb.state == "pending"
+                if not waiting and e.stay < REVIVE_STAYS and now >= ready and (not bestG or g.dist < bestG.dist) then
+                    best, bestG = e, g
+                end
+            else
+                e.inside = false
             end
-        elseif g then
+        else
             e.inside = false
         end
     end
@@ -523,6 +591,8 @@ local function runRevive(r, e, g)
         if result == "line" then
             HR.verifyHits = HR.verifyHits + 1
             local hbd = hbdLib()
+            local rec = r.cause and r.cause[e.key]
+            e.cause = rec and rec.cause or "passed"
             local a = hbd and e.wx and markAmbiguity(r, project(hbd, e.wx, e.wy, e.inst))
             if not a then
                 HR:ReviveSkipped(e)
@@ -559,8 +629,12 @@ local function pickResolve(r)
         if st and st.amb and not r.removed[j] then consider("point", j, st.amb, geometry(r, j)) end
     end
     local hbd = hbdLib()
-    for _, e in ipairs(r.skipped or {}) do
-        if e.amb and hbd and e.wx then consider("entry", e, e.amb, project(hbd, e.wx, e.wy, e.inst)) end
+    local pool = hbd and r.pool
+    if pool then
+        local live = liveKeys(r)
+        for _, e in ipairs(pool) do
+            if e.amb and not live[e.key] then consider("entry", e, e.amb, project(hbd, e.wx, e.wy, e.inst)) end
+        end
     end
     return best
 end
@@ -573,7 +647,11 @@ local function runResolve(r, c)
     if not px then
         a.state = "unresolved"
         r.vstats.amb.unresolved = r.vstats.amb.unresolved + 1
-        if c.kind == "entry" then HR:ReviveSkipped(c.ref, true) end
+        if c.kind == "entry" then
+            local rec = r.cause and r.cause[c.ref.key]
+            c.ref.cause = rec and rec.cause or "passed"
+            HR:ReviveSkipped(c.ref, true)
+        end
         return
     end
     local base = recipeOpts()
@@ -588,7 +666,13 @@ local function runResolve(r, c)
         if result == "line" then
             a.state = "distinct"
             r.vstats.amb.distinct = r.vstats.amb.distinct + 1
-            if c.kind == "point" then HR:RetargetNearest(r) else HR:ReviveSkipped(c.ref) end
+            if c.kind == "point" then
+                HR:RetargetNearest(r)
+            else
+                local rec = r.cause and r.cause[c.ref.key]
+                c.ref.cause = rec and rec.cause or "passed"
+                HR:ReviveSkipped(c.ref)
+            end
         elseif result == "empty" then
             a.state = "rejected"
             r.vstats.amb.rejected = r.vstats.amb.rejected + 1
@@ -609,14 +693,18 @@ local function runResolve(r, c)
             if a.tries >= AMB_TRIES then
                 a.state = "unresolved"
                 r.vstats.amb.unresolved = r.vstats.amb.unresolved + 1
-                if c.kind == "entry" then HR:ReviveSkipped(c.ref, true) end
+                if c.kind == "entry" then
+                    local rec = r.cause and r.cause[c.ref.key]
+                    c.ref.cause = rec and rec.cause or "passed"
+                    HR:ReviveSkipped(c.ref, true)
+                end
             end
         end
         HR:RouteChanged()
     end, nil, opts)
 end
 
--- One pool of candidates (points ahead and skipped points that came back):
+-- One pool of candidates (points ahead and points that are back in the minimap):
 -- the one nearest to the player is probed first.
 local function probeCandidates(r)
     local aj, ag, pending

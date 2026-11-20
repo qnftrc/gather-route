@@ -865,82 +865,137 @@ go("verify calibrate ores"); assert(HR.verifyCategory == "ores"); RunTimers()
 go("verify calibrate"); assert(HR.verifyCategory == "herbs"); RunTimers()
 go("stop")
 
--- 13. F60: skipped and removed points that respawn inside the minimap are put back in the route
+-- 13. F60: points of the database that are no longer ahead in the route come back when they reappear in the minimap
 local alphaLog = {}
 local baseSetAlpha = Minimap.SetAlpha
 Minimap.SetAlpha = function(_, a) alphaLog[#alphaLog + 1] = a; alphaCalled = true end
-local function far(p, d) local dx, dy = p.x - first.x, p.y - first.y return dx * dx + dy * dy > d * d end
-reset(); HR.db.verify = "off"; HR.db.revive = true; HR.verifyHits = 0
-go("peacebloom")
-r = HR.route
-local before = #r.points
-local skippedP = r.points[1]
-assert(skippedP.x == first.x and skippedP.y == first.y)
+local probeTimes = {}
+local baseSetPoint = Minimap.SetPoint
+Minimap.SetPoint = function(m, a, b, c, x, y)
+  baseSetPoint(m, a, b, c, x, y)
+  if x ~= 0 or y ~= 0 then probeTimes[#probeTimes + 1] = Now() end
+end
+local ELW2 = HerbRoute_Data["Elwynn Forest"]
+local NEAR_PL, FAR_PL = {1032, 988}, {1332, 988} -- the player near the test points, or far from them
+local function revSetup(points)
+  reset()
+  ELW2["TestNb"] = points or {{8, 12}, {8, 35}}
+  HR.categories.herbs.merged = nil
+  HR.db.verify = "off"; HR.db.verifyAhead = false; HR.db.revive = true; HR.db.nearest = true
+  HR.db.ambiguity = false; HR.verifyHits = 3
+  ppx, ppy = FAR_PL[1], FAR_PL[2]
+  nodes = {}; hitR = 6; probeTimes = {}; alphaLog = {}
+  printed = {}; SlashCmdList.HERBROUTE("testnb")
+  local rt = HR.route
+  RunTimers()
+  return rt
+end
+local function revTeardown()
+  go("stop"); ELW2["TestNb"] = nil; HR.categories.herbs.merged = nil
+end
+local function poolEntry(rt, y)
+  for _, e in ipairs(HR.RevivePool(rt)) do if e.p.y == y then return e end end
+end
+
+-- a skipped point that reappears (4 points: the route is recomputed with it)
+local r13 = revSetup({{8, 12}, {8, 35}, {14, 12}, {14, 35}})
+local skippedKey = HR.PointKey(r13.points[1])
+local before = #r13.points
 go("skip")
-assert(r.skipped and #r.skipped == 1 and r.skipped[1].cause == "skip" and r.skipped[1].p == skippedP, "the skip must be remembered: " .. msgs())
-local gone = r.skipped[1]
--- the skipped point is not in the minimap (player far away): no probe, no message
-local probes0 = setCalls
-ppx, ppy = 1000 - first.x + 300, 1000 - first.y
-nodes = {{first.x, first.y}}
-printed = {}; RunTimers()
-assert(setCalls == probes0 and #r.skipped == 1 and msgs() == "", "nothing must happen while the point is out of the minimap: " .. msgs())
--- back inside, no node: nothing printed, nothing changed, point still watched
-ppx, ppy = 1000 - first.x + 10, 1000 - first.y
-nodes = {}
-printed = {}; alphaLog = {}; RunTimers()
-assert(#r.skipped == 1 and msgs() == "" and #r.points == before and (r.revivedCount or 0) == 0, "an empty probe must be silent: " .. msgs())
-assert(setCalls > probes0, "the point inside the minimap must be probed")
+assert(r13.cause[skippedKey] and r13.cause[skippedKey].cause == "skip", "the skip must be remembered")
+assert(HR.ReviveCount(r13) == 1, "one candidate outside the route")
+assert(msgs() == "" or not msgs():find("Revive", 1, true))
+local probes0 = #probeTimes
+RunTimers() -- the player is far: nothing is probed, nothing is printed
+assert(#probeTimes == probes0 and not msgs():find("Revive", 1, true), "nothing must happen while the point is out of the minimap")
+local sy0 = r13.points[1].y
+-- the player comes back near, no node there: three silent empty probes, 8 seconds apart
+ppx, ppy = NEAR_PL[1], NEAR_PL[2]
+local candidate
+for _, e in ipairs(HR.RevivePool(r13)) do if e.key == skippedKey then candidate = e end end
+printed = {}; probeTimes = {}; alphaLog = {}
+RunTimers()
+assert(#probeTimes >= 3 and candidate.stay == 3, "three probes at most per stay: " .. #probeTimes .. " " .. candidate.stay)
+for k = 2, 3 do
+  local d = probeTimes[k] - probeTimes[k - 1]
+  assert(d >= 8 and d <= 9, "probes must be 8 seconds apart, got " .. d)
+end
+assert(msgs() == "" and (r13.revivedCount or 0) == 0 and #r13.points == before, "an empty probe must be silent: " .. msgs())
 assert(alphaLog[1] == 0 and alphaLog[#alphaLog] == 1, "the minimap must be hidden while it moves and restored")
 assert(sx == 0 and sy == 0)
-local pointsSeen = r.points[r.index]
--- the node is back: the point is re-inserted, with a message, and the minimap is restored
-nodes = {{first.x, first.y}}
-r.skipped[1].nextAt = 0; r.skipped[1].stay = 0
+-- a stay is over when the point leaves the minimap; the node is back when it re-enters
+ppx, ppy = FAR_PL[1], FAR_PL[2]; RunTimers()
+nodes = {{skippedKey:match("^([%d%.]+)|([%d%.]+)")}}
+nodes[1] = {tonumber(nodes[1][1]), tonumber(nodes[1][2])}
+ppx, ppy = NEAR_PL[1], NEAR_PL[2]
 printed = {}; RunTimers()
-assert(msgs():find("Revive:", 1, true) and msgs():find("respawned inside the minimap (skipped earlier)", 1, true), msgs())
-assert(#r.skipped == 0 and r.revivedCount == 1 and #r.points == before + 1, "the point must be back in the route")
-local back
-for j, p in ipairs(r.points) do if p ~= first and p.x == first.x and p.y == first.y and j >= r.index then back = j end end
-assert(back and not r.removed[back], "revived point missing from the route")
-assert(WP()[1] and #WP() == 1, "a single TomTom waypoint must be active")
+assert(msgs():find("Revive:", 1, true) and msgs():find("(skipped earlier)", 1, true), msgs())
+assert(r13.revivedCount == 1 and #r13.points == before + 1 and HR.ReviveCount(r13) == 0, "the point must be back in the route")
+assert(msgs():find("Reroute from", 1, true), "the route must be recomputed with the point: " .. msgs())
 assert(sx == 0 and sy == 0 and #HerbRoute_Data["Elwynn Forest"]["Peacebloom"] == peaceCount, "database changed")
+revTeardown()
+
+-- a reached point: its first probe waits 10 seconds after the arrival
+local r13b = revSetup()
+ppx, ppy = NEAR_PL[1], NEAR_PL[2]
+local reachedKey = HR.PointKey(r13b.points[1])
+nodes = {{8, 35}}
+local t0 = Now()
+printed = {}; probeTimes = {}
+Fire(WP()[1])
+assert(r13b.cause[reachedKey] and r13b.cause[reachedKey].cause == "reached" and r13b.cause[reachedKey].at == t0, "the arrival must be remembered")
+RunTimers()
+assert(#probeTimes >= 1 and probeTimes[1] >= t0 + 10 - 0.01, "the first probe of a reached point must wait 10 s: " .. tostring(probeTimes[1]) .. " vs " .. t0)
+assert(msgs():find("(reached earlier)", 1, true) and r13b.revivedCount == 1, msgs())
+revTeardown()
+
+-- a point removed as absent comes back
+local r13c = revSetup()
+local absentKey = HR.PointKey(r13c.points[1])
+HR:DropPoint(1)
+assert(r13c.cause[absentKey].cause == "absent" and r13c.removedCount == 1)
+nodes = {{8, 35}}
+ppx, ppy = NEAR_PL[1], NEAR_PL[2]
+printed = {}; RunTimers()
+assert(msgs():find("(removed earlier)", 1, true) and r13c.revivedCount == 1 and (r13c.removedCount or 0) == 0, msgs())
+revTeardown()
+
 -- off: no probe at all
-reset(); HR.db.verify = "off"; HR.db.revive = false
-go("peacebloom"); r = HR.route; go("skip")
-ppx, ppy = 1000 - first.x + 10, 1000 - first.y; nodes = {{first.x, first.y}}
-probes0 = setCalls; printed = {}; RunTimers()
-assert(setCalls == probes0 and #r.skipped == 1 and (r.revivedCount or 0) == 0, "revive off must not probe")
-go("revive on"); assert(HR.db.revive == true and msgs():find("Revive skipped points: on", 1, true), msgs())
+local r13d = revSetup()
+go("skip")
+HR.db.revive = false
+ppx, ppy = NEAR_PL[1], NEAR_PL[2]; nodes = {{8, 35}}
+probeTimes = {}; printed = {}; RunTimers()
+assert(#probeTimes == 0 and (r13d.revivedCount or 0) == 0, "revive off must not probe")
+go("revive on"); assert(HR.db.revive == true and msgs():find("Revive points outside the route: on", 1, true), msgs())
 go("revive off"); assert(HR.db.revive == false)
 HR.db.revive = true
-go("stop")
--- a point removed by the verification (absent) that comes back
-reset(); HR.db.verify = "remove"; HR.verifyHits = 3; HR.db.revive = true
-nodes = othersNodes()
-go("peacebloom"); r = HR.route
-assert(r.removed[1] and r.skipped and r.skipped[1].cause == "absent" and r.skipped[1].p == r.points[1], "a point removed as absent must be remembered: " .. msgs())
-local removedBefore = r.removedCount
-HR.db.verify = "off"
-nodes = {{first.x, first.y}}
-r.skipped[1].nextAt = 0; r.skipped[1].stay = 0
-printed = {}; RunTimers()
-assert(msgs():find("(removed earlier)", 1, true) and r.revivedCount == 1 and r.removedCount == removedBefore - 1, msgs())
--- arrival does not count as skipped
-reset(); HR.db.verify = "off"; go("peacebloom"); r = HR.route
-HR:Advance()
-assert(not r.skipped or #r.skipped == 0, "reaching a point is not a skip")
-go("stop")
--- ores: same, driven by Find Minerals
-reset(); HR.db.verify = "off"; HR.db.revive = true
-go("ores copper vein"); r = HR.route
-local oreP = r.points[1]
-ppx, ppy = 1000 - oreP.x + 300, 1000 - oreP.y
-go("skip")
-ppx, ppy = 1000 - oreP.x + 10, 1000 - oreP.y; nodes = {{oreP.x, oreP.y}}
-printed = {}; RunTimers()
-assert(msgs():find("Revive: Copper Vein respawned", 1, true) and r.revivedCount == 1, msgs())
-go("stop")
+revTeardown()
+
+-- a point that comes back next to another point of the database: the offset probe decides
+local function revAmbiguous(nodeList)
+  local rt = revSetup({{8, 12}, {8, 35}})
+  ELW2["TestNeigh"] = {{15, 35}}
+  HR.categories.herbs.merged = nil
+  HR.db.ambiguity = true; HR.db.zone = {half = 8, es = 2, build = "70999"}
+  rt.dbw = nil
+  go("skip")
+  hitR = 8; nodes = nodeList
+  ppx, ppy = NEAR_PL[1], NEAR_PL[2]
+  printed = {}; RunTimers()
+  return rt
+end
+local r13e = revAmbiguous({{8, 35}, {15, 35}})
+assert(msgs():find("Revive:", 1, true) and r13e.vstats.amb.marked == 1 and r13e.vstats.amb.distinct == 1, msgs())
+ELW2["TestNeigh"] = nil; revTeardown()
+local r13f = revAmbiguous({{15, 35}})
+assert((r13f.revivedCount or 0) == 0 and r13f.vstats.amb.rejected == 3 and not msgs():find("Revive:", 1, true), "only the neighbour answers: " .. msgs() .. " rejected=" .. r13f.vstats.amb.rejected)
+assert(poolEntry(r13f, 35).stay == 3, "a rejected read counts as an empty probe")
+ELW2["TestNeigh"] = nil; revTeardown()
+HR.db.ambiguity = false; HR.db.zone = nil
+Minimap.SetAlpha = baseSetAlpha
+Minimap.SetPoint = baseSetPoint
+
 -- 14. F61: a filled point found by a probe becomes the target (new waypoint); the route is recomputed on arrival
 reset(); HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.nearest = true; HR.db.reroute = false
 HR.db.revive = false; HR.verifyHits = 0; hitR = 1.5

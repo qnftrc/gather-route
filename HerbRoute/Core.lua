@@ -94,7 +94,7 @@ local function usage()
     HR:Print("/hr ores <ore>[, <ore>] or /hr ores <region>: <ore>[, <ore>] - same for ores (or 'all')")
     HR:Print("/hr ambiguity [on|off] - tell apart a positive read that comes from a neighbouring point (on by default)")
     HR:Print("/hr nearest [on|off] - the filled point nearest to you becomes the target, the route is recomputed on arrival (on by default)")
-    HR:Print("/hr revive [on|off] - put skipped or removed points that respawn on the minimap back in the route (on by default)")
+    HR:Print("/hr revive [on|off] - put points of the database that are no longer ahead in the route (reached, skipped, removed) back when they reappear on the minimap (on by default)")
     HR:Print("/hr reroute [on|off|now] - reorder the points ahead after points are removed (off by default)")
     HR:Print("/hr merge [on|off] - merge points closer than 1% of the map (the data files stay untouched)")
     HR:Print("/hr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > HerbRoute)")
@@ -138,8 +138,8 @@ local function handleSlash(msg)
         local arg = rest:lower()
         if arg == "on" or arg == "off" then HR.db.revive = arg == "on" end
         local r = HR.route
-        HR:Print(("Revive skipped points: %s (/hr revive on|off), %d point(s) watched, %d put back this route; the database is never changed."):format(
-            HR.db.revive == false and "off" or "on", r and r.skipped and #r.skipped or 0, r and r.revivedCount or 0))
+        HR:Print(("Revive points outside the route: %s (/hr revive on|off), %d candidate(s) from the database, %d put back this route; the database is never changed."):format(
+            HR.db.revive == false and "off" or "on", r and HR.ReviveCount(r) or 0, r and r.revivedCount or 0))
     elseif cmd == "merge" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then HR.db.mergeDuplicates = arg == "on" end
