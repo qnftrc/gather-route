@@ -909,14 +909,14 @@ local probes0 = #probeTimes
 RunTimers() -- the player is far: nothing is probed, nothing is printed
 assert(#probeTimes == probes0 and not msgs():find("Revive", 1, true), "nothing must happen while the point is out of the minimap")
 local sy0 = r13.points[1].y
--- the player comes back near, no node there: three silent empty probes, 8 seconds apart
+-- the player comes back near, no node there: silent empty probes, 8 seconds apart, without end
 ppx, ppy = NEAR_PL[1], NEAR_PL[2]
 local candidate
 for _, e in ipairs(HR.RevivePool(r13)) do if e.key == skippedKey then candidate = e end end
 printed = {}; probeTimes = {}; alphaLog = {}
 RunTimers()
-assert(#probeTimes >= 3 and candidate.stay == 3, "three probes at most per stay: " .. #probeTimes .. " " .. candidate.stay)
-for k = 2, 3 do
+assert(#probeTimes >= 10 and candidate.stay == #probeTimes, "no cap: the point is probed again and again: " .. #probeTimes .. " " .. candidate.stay)
+for k = 2, #probeTimes do
   local d = probeTimes[k] - probeTimes[k - 1]
   assert(d >= 8 and d <= 9, "probes must be 8 seconds apart, got " .. d)
 end
@@ -989,8 +989,8 @@ local r13e = revAmbiguous({{8, 35}, {15, 35}})
 assert(msgs():find("Revive:", 1, true) and r13e.vstats.amb.marked == 1 and r13e.vstats.amb.distinct == 1, msgs())
 ELW2["TestNeigh"] = nil; revTeardown()
 local r13f = revAmbiguous({{15, 35}})
-assert((r13f.revivedCount or 0) == 0 and r13f.vstats.amb.rejected == 3 and not msgs():find("Revive:", 1, true), "only the neighbour answers: " .. msgs() .. " rejected=" .. r13f.vstats.amb.rejected)
-assert(poolEntry(r13f, 35).stay == 3, "a rejected read counts as an empty probe")
+assert((r13f.revivedCount or 0) == 0 and r13f.vstats.amb.rejected >= 3 and not msgs():find("Revive:", 1, true), "only the neighbour answers: " .. msgs() .. " rejected=" .. r13f.vstats.amb.rejected)
+assert(poolEntry(r13f, 35).stay >= 3, "a rejected read counts as an empty probe")
 ELW2["TestNeigh"] = nil; revTeardown()
 HR.db.ambiguity = false; HR.db.zone = nil
 Minimap.SetAlpha = baseSetAlpha
@@ -1094,7 +1094,10 @@ assert(r.removed[1] and msgs():find("has no node: removed", 1, true), "a rejecte
 ambTeardown()
 -- report mode: the same case is only reported
 r = ambSetup({{15, 12}}, {{15, 12}}, "report")
-assert(r.vstats.amb.rejected == 1 and not r.removed[1] and msgs():find("report mode, kept", 1, true), msgs())
+assert(r.vstats.amb.rejected >= 1 and not r.removed[1] and msgs():find("report mode, kept", 1, true), msgs())
+local keptMsgs = 0
+for _ in msgs():gmatch("report mode, kept") do keptMsgs = keptMsgs + 1 end
+assert(keptMsgs == 1, "a repeated empty read must stay silent: " .. keptMsgs)
 ambTeardown()
 -- unresolved: neighbours on every side leave no position outside their zones; no probe, nothing removed
 r = ambSetup({{13, 12}, {3, 12}, {8, 17}, {8, 7}}, {{8, 12}, {13, 12}, {3, 12}, {8, 17}, {8, 7}}, "remove")
@@ -1210,6 +1213,26 @@ rcTeardown()
 go("verify recheck off"); assert(HR.db.recheck == false and msgs():find("off", 1, true), msgs())
 go("verify recheck on"); assert(HR.db.recheck == true)
 HR.db.recheck = nil
+
+-- 19. report mode: an empty point ahead is probed again every 8 seconds, silently, and followed when a node appears
+reset()
+ELW3["TestNb"] = {{8, 12}, {8, 35}}; HR.categories.herbs.merged = nil
+HR.db.verify = "report"; HR.db.verifyAhead = true; HR.db.revive = false; HR.db.nearest = true
+HR.db.ambiguity = false; HR.db.recheck = false; HR.verifyHits = 3
+ppx, ppy = 1032, 988; nodes = {}; hitR = 6
+printed = {}
+C_Timer.After(20, function() nodes = {{8, 12}} end) -- a node respawns on the point that is not the current target
+SlashCmdList.HERBROUTE("testnb")
+local rt19 = HR.route
+RunTimers()
+local keptCount = 0
+for _ in msgs():gmatch("has no node %(report mode, kept") do keptCount = keptCount + 1 end
+assert(keptCount == 2, "each empty point is announced once, not at every new probe: " .. keptCount .. " " .. msgs())
+assert(msgs():find("Nearest: TestNb is filled", 1, true), "the respawned point must become the target: " .. msgs())
+assert(rt19.points[1].y == 12 and rt19.vstate[1].confirmed and not rt19.vstate[1].final, "the point is confirmed again and is the current target")
+assert(#WP() == 1 and WP()[1].title:find("1/", 1, true), "a waypoint points to it")
+ELW3["TestNb"] = nil; HR.categories.herbs.merged = nil; HR.db.recheck = nil
+go("stop")
 
 -- 18. option: probing during combat
 reset(); HR.db.verify = "report"; HR.verifyHits = 0; HR.db.verifyCombat = false
