@@ -2,7 +2,8 @@ local addonName, HR = ...
 
 local GRACE = 8       -- seconds after the end of a gathering during which loot still counts
 local GATHER_MAX = 30 -- safety: a gathering window never stays open longer than this
-local LINES = 12
+local LINE_H = 12
+local VISIBLE = 8
 
 local ITEMS = {
     [2447] = "Peacebloom", [765] = "Silverleaf", [2449] = "Earthroot", [785] = "Mageroyal",
@@ -68,6 +69,7 @@ end
 
 local function allItems()
     local all = {}
+    for id, name in pairs(HR.db and HR.db.seen or {}) do all[id] = name end
     for id, name in pairs(ITEMS) do all[id] = name end
     for name, id in pairs(learned()) do all[id] = name end
     for name, id in pairs(HR.NodeItems()) do
@@ -91,18 +93,23 @@ function HR:PriceMemory()
     return self.db.prices
 end
 
+local function readPrice(api, id)
+    local ok, c = pcall(api.GetAuctionPriceByItemID, CALLER, id)
+    if ok and type(c) == "number" and c > 0 then
+        local mem = HR:PriceMemory()
+        local old = mem[id]
+        if not old or old.c ~= c then mem[id] = {c = c, at = time()} end
+        return true
+    end
+end
+
 -- Reads the Auctionator price of every herb and ore and keeps it. Returns the number read.
 function HR:RefreshPrices()
     local api = auctionator()
     if not api then return 0 end
-    local mem, n = self:PriceMemory(), 0
+    local n = 0
     for id in pairs(allItems()) do
-        local ok, c = pcall(api.GetAuctionPriceByItemID, CALLER, id)
-        if ok and type(c) == "number" and c > 0 then
-            n = n + 1
-            local old = mem[id]
-            if not old or old.c ~= c then mem[id] = {c = c, at = time()} end
-        end
+        if readPrice(api, id) then n = n + 1 end
     end
     return n
 end
@@ -181,6 +188,12 @@ local function add(id, link, n)
             for n, known in pairs(HR.NodeItems()) do if known == false and n == name then learned()[name] = id end end
         end
         s.items[id] = e
+        if HR.db then
+            HR.db.seen = HR.db.seen or {}
+            HR.db.seen[id] = name
+            local api = auctionator()
+            if api then readPrice(api, id) end
+        end
     end
     e.count = e.count + n
 end
@@ -290,10 +303,6 @@ local function lines()
     end
     table.sort(list, function(a, b) if a.v ~= b.v then return a.v > b.v end return a.e.name < b.e.name end)
     for i, it in ipairs(list) do
-        if i > LINES then
-            out[#out + 1] = ("... and %d more"):format(#list - LINES)
-            break
-        end
         out[#out + 1] = ("%s x%d  %s%s"):format(it.e.name, it.e.count,
             it.src and HR.Money(it.v) or "no price", it.src == "vendor" and " (vendor)" or "")
     end
@@ -306,16 +315,12 @@ function HR.StatsText()
     local total, unpriced = HR.StatsTotal()
     local el = HR.StatsElapsed()
     local perHour = el >= 60 and HR.Money(total / el * 3600) .. "/h" or "..."
-    local mem = HR.db and HR.db.prices
-    local newest
-    if mem then for _, m in pairs(mem) do if m.at and (not newest or m.at > newest) then newest = m.at end end end
-    local src = newest and ("AH prices (Auctionator) of " .. date("%Y-%m-%d %H:%M", newest) .. ", else vendor") or "Vendor prices only"
     return {
         duration = "Route time: " .. clock(el) .. (s and s.stoppedAt and " (stopped)" or ""),
         body = table.concat(body, "\n"),
         total = "Total: " .. HR.Money(total) .. (unpriced > 0 and (" (" .. unpriced .. " unpriced)") or ""),
         perHour = "Per hour: " .. perHour,
-        source = src,
+        count = math.max(1, #body),
     }
 end
 
@@ -326,7 +331,7 @@ end
 
 local function build()
     win = CreateFrame("Frame", "HerbRouteStatsFrame", UIParent, "BasicFrameTemplateWithInset")
-    win:SetSize(270, 346)
+    win:SetSize(270, 173)
     win:SetFrameStrata("MEDIUM")
     win:SetClampedToScreen(true)
     win:SetMovable(true)
@@ -344,21 +349,28 @@ local function build()
     if pos then win:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else win:SetPoint("CENTER", UIParent, "CENTER", 320, 0) end
 
     win.duration = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    win.duration:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -32)
-    win.body = win:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    win.body:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -54)
-    win.body:SetJustifyH("LEFT")
-    win.total = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    win.total:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 68)
-    win.perHour = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    win.perHour:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 52)
-    win.source = win:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    win.source:SetPoint("BOTTOMLEFT", win, "BOTTOMLEFT", 14, 36)
+    win.duration:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -30)
     local b = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
-    b:SetSize(80, 22)
-    b:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -14, 10)
+    b:SetSize(52, 18)
+    b:SetPoint("TOPRIGHT", win, "TOPRIGHT", -12, -29)
     b:SetText("Reset")
     b:SetScript("OnClick", function() HR.StatsReset() end)
+    win.scroll = CreateFrame("ScrollFrame", nil, win, "UIPanelScrollFrameTemplate")
+    win.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -48)
+    win.scroll:SetSize(226, LINE_H * VISIBLE)
+    win.child = CreateFrame("Frame", nil, win.scroll)
+    win.child:SetSize(226, LINE_H * VISIBLE)
+    win.scroll:SetScrollChild(win.child)
+    win.body = win.child:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    win.body:SetPoint("TOPLEFT", win.child, "TOPLEFT", 2, 0)
+    win.body:SetJustifyH("LEFT")
+    win.body:SetJustifyV("TOP")
+    win.body:SetWordWrap(false)
+    win.body:SetSpacing(0)
+    win.total = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    win.total:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -48 - LINE_H * VISIBLE - 4)
+    win.perHour = win:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    win.perHour:SetPoint("TOPLEFT", win, "TOPLEFT", 14, -48 - LINE_H * VISIBLE - 18)
 end
 
 local function tick()
@@ -379,7 +391,8 @@ function HR:UpdateStats()
     win.body:SetText(t.body)
     win.total:SetText(t.total)
     win.perHour:SetText(t.perHour)
-    win.source:SetText(t.source)
+    win.child:SetHeight(math.max(LINE_H * VISIBLE, LINE_H * t.count))
+    win.body:SetHeight(LINE_H * t.count)
 end
 
 function HR:ToggleStats(show)

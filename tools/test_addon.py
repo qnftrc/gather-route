@@ -1578,9 +1578,19 @@ Auctionator = {API = {v1 = {GetAuctionPriceByItemID = function(_, id) if id == 8
 assert(HR:RefreshPrices() == 1 and HR.db.prices[8839].c == 5000)
 assert(HR.StatsTotal() == 3 * 5000 + 5, HR.StatsTotal())
 assert(HR.StatsText().body:find("Blindweed x3  " .. HR.Money(15000) .. "\n", 1, true), HR.StatsText().body)
-assert(HR.StatsText().source:find("Auctionator", 1, true))
 Advance(3600)
 assert(HR.StatsText().duration:find("1:", 1, true), HR.StatsText().duration)
+-- an item that is not in the herb and ore table gets its Auctionator price as soon as it is counted
+local vine = "|cff1eff00|Hitem:77001::::::::60:::::|h[Stranglevine]|h|r"
+Auctionator.API.v1.GetAuctionPriceByItemID = function(_, id) if id == 8839 then return 5000 elseif id == 77001 then return 9000 end end
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 2366)
+HR.StatsLoot("You receive loot: " .. vine .. ".")
+assert(HR.db.prices[77001] and HR.db.prices[77001].c == 9000 and HR.db.seen[77001] == "Stranglevine")
+assert(HR.StatsText().body:find("Stranglevine x1  " .. HR.Money(9000), 1, true) and not HR.StatsText().body:match("Stranglevine x1[^\n]*"):find("(vendor)", 1, true), HR.StatsText().body)
+HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
+HR.db.prices[77001] = nil
+HR:RefreshPrices()
+assert(HR.db.prices[77001] and HR.db.prices[77001].c == 9000, "a seen item is read again with the others")
 go("stats probe"); assert(msgs():find("Blindweed (8839) price from Auctionator: 50" .. ico("Silver"), 1, true), msgs()); assert(msgs():find("price function present", 1, true), msgs())
 local ni, nmiss = HR.NodeItems(), {}
 for node, id in pairs(ni) do if not id and node ~= "TestNb" then nmiss[#nmiss + 1] = node end end
@@ -1685,7 +1695,7 @@ do
   for _ in pairs(ids) do nitems = nitems + 1 end
   local lines = 0
   for _ in HR.StatsText().body:gmatch("x2") do lines = lines + 1 end
-  assert(lines == math.min(nitems, 12), lines)
+  assert(lines == nitems and HR.StatsText().count == nitems, lines)
   HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 2366)
   RunTimers()
   -- bag counts for each of them, one by one
