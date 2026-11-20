@@ -342,6 +342,55 @@ local function maskFrame(size, ox, oy)
     return f
 end
 
+-- Database points of the current zone (herbs and ores) projected on the
+-- minimap, listed around a given spot: the offset of the nearest one to the
+-- measured centre of the zone is the projection error plus any shift between
+-- the drawn point and its response zone. The player must not have moved.
+local function databaseAround(cx, cy)
+    local hbd = LibStub and LibStub("HereBeDragons-2.0", true)
+    if not hbd or not HR.ProjectWorld then return {"DATABASE: HereBeDragons is not available."} end
+    local region = HR:GetCurrentRegion()
+    if not region then return {"DATABASE: the current zone has no point data."} end
+    local mapID = HR:GetRegionMapID(region)
+    local found = {}
+    for _, cat in ipairs({"herbs", "ores"}) do
+        local data = HR:DataFor(cat)[region]
+        if data then
+            for item, list in pairs(data) do
+                for _, pt in ipairs(list) do
+                    local wx, wy, inst = hbd:GetWorldCoordinatesFromZone(pt[1] / 100, pt[2] / 100, mapID)
+                    local g = wx and HR.ProjectWorld(wx, wy, inst)
+                    if g then
+                        local dx, dy = g.ox - cx, g.oy - cy
+                        found[#found + 1] = {item = item, cat = cat, x = pt[1], y = pt[2], dx = dx, dy = dy,
+                            d = math.sqrt(dx * dx + dy * dy)}
+                    end
+                end
+            end
+        end
+    end
+    table.sort(found, function(a, b) return a.d < b.d end)
+    local out = {}
+    if #found == 0 then
+        out[1] = ("DATABASE (%s): no point is projected inside the minimap."):format(region)
+        return out
+    end
+    local n = found[1]
+    out[1] = ("DATABASE (%s): nearest point to the zone centre is %s (%s) at (%.1f, %.1f), offset (%+.1f, %+.1f) units = %.1f units%s from the centre."):format(
+        region, n.item, n.cat == "ores" and "ore" or "herb", n.x, n.y, n.dx, n.dy, n.d,
+        ZONE_YD and (" (" .. ("%.1f"):format(n.d * ZONE_YD) .. " yd)") or "")
+    out[2] = "DATABASE: points within 45 units of the centre (offset from the centre, x right, y up; * = inside a 22 unit zone):"
+    local shown = 0
+    for _, f in ipairs(found) do
+        if f.d > 45 or shown >= 8 then break end
+        shown = shown + 1
+        out[#out + 1] = ("  %s%s (%s) (%.1f, %.1f): (%+.1f, %+.1f)"):format(
+            math.max(math.abs(f.dx), math.abs(f.dy)) <= 11 and "* " or "", f.item, f.cat == "ores" and "ore" or "herb",
+            f.x, f.y, f.dx, f.dy)
+    end
+    return out
+end
+
 local function runZoneB(hidden, ox, oy)
     local done, finished = {}, false
     local pts, alpha, shown
@@ -387,15 +436,22 @@ local function runZoneB(hidden, ox, oy)
                     add("AXIS %s: edges %.1f unit(s) %s and %.1f unit(s) %s of the captured point: width %.1f units (%s), half-width %.1f units (%s), centre %.1f units %s of the captured point.",
                         name, en, negName, ep, posName, width, yd(width), width / 2, yd(width / 2),
                         math.abs(ep - en) / 2, ep >= en and posName or negName)
-                    return width
+                    return en, ep
                 end
                 local minWidth = n.present + p.present
                 add("AXIS %s: an edge was not found within %d units; width at least %d units (%s).",
                     name, ZONE_MAXD, minWidth, yd(minWidth))
                 return nil
             end
-            axis("horizontal", 1, 2, "left", "right")
-            axis("vertical", 3, 4, "below", "above")
+            local hn, hp = axis("horizontal", 1, 2, "left", "right")
+            local vn, vp = axis("vertical", 3, 4, "below", "above")
+            if hn and vn then
+                local cx, cy = ox + (hp - hn) / 2, oy + (vp - vn) / 2
+                add("ZONE CENTRE: (%.1f, %.1f) units from the minimap centre (captured point (%.1f, %.1f)).", cx, cy, ox, oy)
+                for _, l in ipairs(databaseAround(cx, cy)) do add("%s", l) end
+            else
+                add("ZONE CENTRE: not computed, an edge was not found.")
+            end
             add("One unit = %s at this zoom.", yd(1))
             if any(ctrl) then
                 add("CONTROL: a frame on the cursor did NOT block the reading: the frame does not take the mouse here.")

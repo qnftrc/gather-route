@@ -239,6 +239,13 @@ end
 
 HR.PointGeometry = geometry
 
+-- Offset on the minimap (units, y up) and distance of a world point, same projection.
+function HR.ProjectWorld(wx, wy, winstance)
+    local hbd = hbdLib()
+    if not hbd or not HR.ViewRadius then return end
+    return project(hbd, wx, wy, winstance)
+end
+
 local function decideAbsent(r, i, st)
     local p = r.points[i]
     local label = ("point %d/%d (%s)"):format(i, #r.points, p.herb)

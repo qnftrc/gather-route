@@ -326,6 +326,17 @@ assert(zt:find("AXIS vertical: edges 3.5 unit(s) below and 3.5 unit(s) above", 1
 assert(zt:find("CONTROL: a frame on the cursor blocks the reading", 1, true), zt)
 assert(zt:find("RESULT: zone measured", 1, true), zt)
 assert(not zt:find("frame on the blip", 1, true), zt)
+assert(zt:find("DATABASE: HereBeDragons is not available.", 1, true), zt)
+local P = HR:DataFor("herbs")["Elwynn Forest"]["Peacebloom"][1]
+local hbdZ = {GetPlayerWorldPosition = function() return 1000 - P[1] + 20, 1000 - P[2] - 10, "inst" end,
+  GetWorldCoordinatesFromZone = function(_, x, y) return 1000 - x * 100, 1000 - y * 100, "inst" end}
+local oldLS = LibStub
+LibStub = function() return hbdZ end
+zt = bw("hover", "zone")
+LibStub = oldLS
+assert(zt:find("ZONE CENTRE: (20.0, 10.0) units from the minimap centre (captured point (20.0, 10.0))", 1, true), zt)
+assert(zt:find("nearest point to the zone centre is Peacebloom (herb) at (" .. string.format("%.1f, %.1f", P[1], P[2]) .. "), offset (+0.0, +0.0)", 1, true), zt)
+assert(zt:find("points within 45 units of the centre", 1, true), zt)
 maskMode = "none"
 zt = bw("hover", "zone hidden")
 assert(zt:find("did NOT block the reading", 1, true), zt)
