@@ -321,20 +321,21 @@ local zt = bw("hover", "zone")
 assert(zt:find("Minimap: 140x140 units, zoom 1, view radius 70.0 yd, effective scale 2.00, 1.00 yd per unit.", 1, true), zt)
 assert(zt:find("ZONE cursor left of the blip: lines present up to 3 unit(s), absent from 4.", 1, true), zt)
 assert(zt:find("ZONE cursor above the blip: lines present up to 3 unit(s), absent from 4.", 1, true), zt)
-assert(zt:find("ZONE half-widths in units: left 3, right 3, below 3, above 3 (horizontal 6, vertical 6)", 1, true), zt)
+assert(zt:find("AXIS horizontal: edges 3.5 unit(s) left and 3.5 unit(s) right of the captured point: width 7.0 units (7.0 yd), half-width 3.5 units (3.5 yd), centre 0.0 units right of the captured point.", 1, true), zt)
+assert(zt:find("AXIS vertical: edges 3.5 unit(s) below and 3.5 unit(s) above", 1, true), zt)
 assert(zt:find("CONTROL: a frame on the cursor blocks the reading", 1, true), zt)
-assert(zt:find("frame on the blip: +1 frame present", 1, true), zt)
-assert(zt:find("a frame over the blip does NOT hide it", 1, true), zt)
-maskMode = "blip"
-zt = bw("hover", "zone hidden")
-assert(zt:find("a frame over the blip HIDES it although the cursor is outside the frame", 1, true), zt)
+assert(zt:find("RESULT: zone measured", 1, true), zt)
+assert(not zt:find("frame on the blip", 1, true), zt)
 maskMode = "none"
-zt = bw("hover", "zone")
+zt = bw("hover", "zone hidden")
 assert(zt:find("did NOT block the reading", 1, true), zt)
 zoneR = 1 -- smaller than one unit: only the blip centre answers
 maskMode = "focus"
 zt = bw("hover", "zone")
-assert(zt:find("lines present up to 0 unit(s), absent from 1.", 1, true) and zt:find("the frame test did not run", 1, true), zt)
+assert(zt:find("lines present up to 0 unit(s), absent from 1.", 1, true) and zt:find("width 1.0 units", 1, true), zt)
+zoneR = 100 -- 50 units: no edge is found within the range
+zt = bw("hover", "zone")
+assert(zt:find("no end found within 12", 1, true) and zt:find("an edge was not found within 12 units; width at least 24 units", 1, true), zt)
 for _, m in ipairs(masks) do assert(not m.shown, "a frame was left shown") end
 zoneR = 10; maskMode = "none"; CreateFrame = realCF; worldAfter = false
 io.write("PROBE TESTS OK\n")
