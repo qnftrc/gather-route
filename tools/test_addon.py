@@ -1570,16 +1570,18 @@ HR.StatsLoot("You receive loot: " .. blind .. ".")
 assert(HR.StatsText().body:find("Blindweed x3", 1, true), "the window is closed after the grace period")
 local total = HR.StatsTotal()
 assert(total == 3 * 20 + 5, total)
-assert(HR.Money(123456) == "12g 34s" and HR.Money(250) == "2s 50c" and HR.Money(7) == "7c", HR.Money(123456))
+local function ico(n) return "|TInterface\\MoneyFrame\\UI-" .. n .. "Icon:14:14:2:0|t" end
+assert(HR.Money(1234567) == "123" .. ico("Gold") .. " 45" .. ico("Silver") .. " 67" .. ico("Copper"), HR.Money(1234567))
+assert(HR.Money(250) == "2" .. ico("Silver") .. " 50" .. ico("Copper") and HR.Money(7) == "7" .. ico("Copper") and HR.Money(10005) == "1" .. ico("Gold") .. " 0" .. ico("Silver") .. " 5" .. ico("Copper"), HR.Money(10005))
 Auctionator = {API = {v1 = {GetAuctionPriceByItemID = function(_, id) if id == 8839 then return 5000 end end,
   RegisterForDBUpdate = function() end}}}
 assert(HR:RefreshPrices() == 1 and HR.db.prices[8839].c == 5000)
 assert(HR.StatsTotal() == 3 * 5000 + 5, HR.StatsTotal())
-assert(HR.StatsText().body:find("Blindweed x3  1g 50s\n", 1, true), HR.StatsText().body)
+assert(HR.StatsText().body:find("Blindweed x3  " .. HR.Money(15000) .. "\n", 1, true), HR.StatsText().body)
 assert(HR.StatsText().source:find("Auctionator", 1, true))
 Advance(3600)
 assert(HR.StatsText().duration:find("1:", 1, true), HR.StatsText().duration)
-go("stats probe"); assert(msgs():find("Blindweed (8839) price from Auctionator: 50s", 1, true), msgs()); assert(msgs():find("price function present", 1, true), msgs())
+go("stats probe"); assert(msgs():find("Blindweed (8839) price from Auctionator: 50" .. ico("Silver"), 1, true), msgs()); assert(msgs():find("price function present", 1, true), msgs())
 local ni, nmiss = HR.NodeItems(), {}
 for node, id in pairs(ni) do if not id and node ~= "TestNb" then nmiss[#nmiss + 1] = node end end
 assert(#nmiss == 1 and nmiss[1] == "Demonsage", table.concat(nmiss, ","))

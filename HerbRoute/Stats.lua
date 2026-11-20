@@ -116,16 +116,18 @@ function HR.ItemPrice(id)
     return 0, nil
 end
 
+local ICON = "|TInterface\\MoneyFrame\\UI-%sIcon:14:14:2:0|t"
+
 function HR.Money(c)
     c = math.floor((c or 0) + 0.5)
     local neg = c < 0
     if neg then c = -c end
     local g, sv, cp = math.floor(c / 10000), math.floor(c / 100) % 100, c % 100
-    local t
-    if g > 0 then t = ("%dg %02ds"):format(g, sv)
-    elseif sv > 0 then t = ("%ds %02dc"):format(sv, cp)
-    else t = ("%dc"):format(cp) end
-    return (neg and "-" or "") .. t
+    local parts = {}
+    if g > 0 then parts[#parts + 1] = g .. ICON:format("Gold") end
+    if g > 0 or sv > 0 then parts[#parts + 1] = sv .. ICON:format("Silver") end
+    parts[#parts + 1] = cp .. ICON:format("Copper")
+    return (neg and "-" or "") .. table.concat(parts, " ")
 end
 
 local function clock(sec)
