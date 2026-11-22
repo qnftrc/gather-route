@@ -51,7 +51,15 @@ local function copy(v)
     return t
 end
 
+local ACCENTS = {
+    ["à"] = "a", ["â"] = "a", ["ä"] = "a", ["é"] = "e", ["è"] = "e", ["ê"] = "e", ["ë"] = "e",
+    ["î"] = "i", ["ï"] = "i", ["ô"] = "o", ["ö"] = "o", ["ù"] = "u", ["û"] = "u", ["ü"] = "u", ["ç"] = "c",
+    ["À"] = "a", ["Â"] = "a", ["Ä"] = "a", ["É"] = "e", ["È"] = "e", ["Ê"] = "e", ["Ë"] = "e",
+    ["Î"] = "i", ["Ï"] = "i", ["Ô"] = "o", ["Ö"] = "o", ["Ù"] = "u", ["Û"] = "u", ["Ü"] = "u", ["Ç"] = "c",
+}
+
 local function normalize(s)
+    s = s:gsub("[\195][\128-\191]", function(c) return ACCENTS[c] or "" end)
     return (s:lower():gsub("[^%w]", ""))
 end
 HR.normalize = normalize
@@ -70,13 +78,18 @@ local function findRegion(name, category)
     local n = normalize(name)
     local regions = category and HR:GetRegions(category) or HR.regionNames
     for _, region in ipairs(regions) do
-        if normalize(region) == n then return region end
+        for _, name in ipairs(HR.RegionNames(region)) do
+            if normalize(name) == n then return region end
+        end
     end
     local hit
     for _, region in ipairs(regions) do
-        if normalize(region):find(n, 1, true) then
-            if hit then return nil, "ambiguous" end
-            hit = region
+        for _, name in ipairs(HR.RegionNames(region)) do
+            if normalize(name):find(n, 1, true) then
+                if hit and hit ~= region then return nil, "ambiguous" end
+                hit = region
+                break
+            end
         end
     end
     return hit
@@ -91,14 +104,25 @@ local function findHerbs(region, names, category)
         for _, herb in ipairs(available) do
             if normalize(herb) == w then hit = herb break end
         end
-        if not hit then
+        local alias = not hit and category == "ores" and HR.OreNodesNamed and HR.OreNodesNamed(available, w) or nil
+        if not hit and not alias then
             for _, herb in ipairs(available) do
                 if normalize(herb):find(w, 1, true) then hit = herb break end
             end
         end
-        if hit then picked[#picked + 1] = hit else missing[#missing + 1] = wanted end
+        if hit then
+            picked[#picked + 1] = hit
+        elseif alias and #alias > 0 then
+            for _, node in ipairs(alias) do picked[#picked + 1] = node end
+        else
+            missing[#missing + 1] = wanted
+        end
     end
-    return picked, missing
+    local seen, unique = {}, {}
+    for _, h in ipairs(picked) do
+        if not seen[h] then seen[h] = true unique[#unique + 1] = h end
+    end
+    return unique, missing
 end
 
 local function usage()
@@ -267,7 +291,7 @@ local function handleSlash(msg)
             herbs, missing = findHerbs(region, splitList(herbPart), category)
         end
         if #missing > 0 then
-            HR:Print("Not found in " .. region .. ": " .. table.concat(missing, ", "))
+            HR:Print("Not found in " .. HR.RegionLabel(region) .. ": " .. table.concat(missing, ", "))
         end
         if #herbs == 0 then return end
         HR:GenerateRoute(region, herbs, nil, category)

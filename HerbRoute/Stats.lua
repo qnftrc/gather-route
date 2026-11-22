@@ -84,6 +84,25 @@ local function allItems()
     return all
 end
 
+function HR.ItemName(id)
+    return (itemInfo(id))
+end
+
+-- Nodes of `available` whose ore has the given normalized name (client language or English).
+function HR.OreNodesNamed(available, w)
+    local items, out = HR.NodeItems(), {}
+    for _, node in ipairs(available) do
+        local id = items[node]
+        if id then
+            local names = {ITEMS[id], HR.ItemName(id)}
+            for _, nm in ipairs(names) do
+                if nm and HR.normalize(nm) == w then out[#out + 1] = node break end
+            end
+        end
+    end
+    return out
+end
+
 local function auctionator()
     local api = Auctionator and Auctionator.API and Auctionator.API.v1
     if api and api.GetAuctionPriceByItemID then return api end
@@ -183,7 +202,7 @@ local function add(id, link, n)
     if not s or s.stoppedAt then return end
     local e = s.items[id]
     if not e then
-        local name = type(link) == "string" and link:match("|h%[(.-)%]|h") or ITEMS[id] or itemInfo(id) or ("item " .. id)
+        local name = type(link) == "string" and link:match("|h%[(.-)%]|h") or itemInfo(id) or ITEMS[id] or ("item " .. id)
         e = {count = 0, name = name}
         if HR.db and not ITEMS[id] then
             for n, known in pairs(HR.NodeItems()) do if known == false and n == name then learned()[name] = id end end
@@ -445,7 +464,7 @@ function HR:StatsProbe()
     for id, name in pairs(all) do
         total = total + 1
         local got = itemInfo(id)
-        if got then n = n + 1 if got ~= name and ITEMS[id] and ITEMS[id] ~= got then bad = bad + 1 self:Say(("Stats: item %d is '%s', expected '%s'."):format(id, got, name)) end end
+        if got then n = n + 1 if got ~= name and ITEMS[id] and ITEMS[id] ~= got and not (GetLocale and GetLocale():sub(1, 2) ~= "en") then bad = bad + 1 self:Say(("Stats: item %d is '%s', expected '%s'."):format(id, got, name)) end end
     end
     local nodes, missing, k = HR.NodeItems(), {}, 0
     for node, id in pairs(nodes) do

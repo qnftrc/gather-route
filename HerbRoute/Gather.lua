@@ -60,7 +60,8 @@ local function isGatherSpell(id)
     local n = spellName(id)
     if not n then return nil end
     n = n:lower()
-    return (n:find("gathering", 1, true) or n:find("herbalism", 1, true) or n:find("mining", 1, true)) and true or false
+    return (n:find("gathering", 1, true) or n:find("herbalism", 1, true) or n:find("mining", 1, true)
+        or n:find("herboristerie", 1, true) or n:find("cueillette", 1, true) or n:find("minage", 1, true)) and true or false
 end
 
 local function nodeAtPlayer(r)

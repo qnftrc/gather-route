@@ -369,7 +369,7 @@ function HR:StartRoute(region, mapID, points, start, length, category)
     self:IsolateTracking(r.category)
     showCurrent(r)
     self:StartVerify()
-    self:Print(("%s: %d points, map distance %.1f."):format(region, #points, length))
+    self:Print(("%s: %d points, map distance %.1f."):format(HR.RegionLabel(region), #points, length))
     self:RouteChanged()
 end
 

@@ -61,7 +61,7 @@ function WP() return waypoints end
 function Fire(uid) uid.callbacks.distance[15]("distance", uid, 15, 5, 20) end
 
 local ns = {}
-for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","Stats","UI"}) do
+for _, f in ipairs({"Data/HerbData","Data/HerbDataGatherMate","Data/OreDataGatherMate","Data/OreDataWowhead","Core","Locale","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","Stats","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns)
 end
@@ -1731,6 +1731,54 @@ end
 gaTeardown()
 Auctionator, GetItemCount, GetItemInfo = nil, nil, nil
 
+-- 23. French client: region names, accent-free input, ore names by item
+do
+  local oldLocale, oldMap = GetLocale, TomTom.NameToMapId
+  GetLocale = function() return "frFR" end
+  TomTom.NameToMapId = {["Forêt d'Elwynn"] = 37, ["Vallée de Strangleronce"] = 50}
+  HR.db.overrides = {}
+  HR:BuildMaps()
+  assert(HR.RegionLabel("Elwynn Forest") == "Forêt d'Elwynn" and HR.RegionLabel("Zephras Isle") == "Zephras Isle")
+  assert(HR:GetRegionMapID("Elwynn Forest") == 37 and HR:GetRegionMapID("Stranglethorn Vale") == 50, "French names resolve to maps")
+  assert(HR.normalize("Marécage d'Âprefange") == HR.normalize("marecage d'aprefange"), "accents are ignored")
+  reset(); HR.db.verify = "off"
+  printed = {}; go("Forêt d'Elwynn: peacebloom")
+  assert(HR.route and HR.route.region == "Elwynn Forest" and msgs():find("Forêt d'Elwynn: ", 1, true), msgs())
+  go("stop")
+  go("foret d'elwynn: peacebloom"); assert(HR.route and HR.route.region == "Elwynn Forest"); go("stop")
+  go("Elwynn Forest: peacebloom"); assert(HR.route and HR.route.region == "Elwynn Forest"); go("stop")
+  go("Vallée de Strangleronce: Gold Vein")
+  go("ores Vallée de Strangleronce: Gold Vein"); assert(HR.route and HR.route.region == "Stranglethorn Vale" and HR.route.category == "ores" and HR.route.herbSet["Gold Vein"], msgs()); go("stop")
+  assert(HR.MatchRegion("ar", "Marais des Chagrins") and HR.MatchRegion("ar", "Hautes-terres d'Arathi"))
+  -- ore name given by the client: every node of that ore
+  local reg, thorium
+  for region, nodes in pairs(HerbRoute_OreData) do
+    local list = {}
+    for node in pairs(nodes) do if node:find("Thorium", 1, true) then list[#list + 1] = node end end
+    if #list >= 2 and not reg then reg, thorium = region, list end
+  end
+  assert(reg, "a region with two thorium nodes")
+  HR.db.overrides[reg] = 4242; HR:BuildMaps()
+  GetItemInfo = function(id) if id == 10620 then return "Minerai de thorium" end end
+  go("ores " .. reg .. ": minerai de thorium")
+  assert(HR.route and HR.route.category == "ores", msgs())
+  for _, node in ipairs(thorium) do assert(HR.route.herbSet[node], node .. " must be in the route") end
+  go("stop")
+  go("ores " .. reg .. ": thorium ore"); assert(HR.route and HR.route.herbSet[thorium[1]]); go("stop")
+  -- French gathering spell names are recognised
+  GetSpellInfo = function(id) if id == 99998 then return "Herboristerie" end end
+  UnitChannelInfo = noChannel
+  HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_START", "player", "guid", 99998)
+  assert(HR.gatheringUntil, "a French gathering spell is a gathering")
+  HR.GatherEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player", "guid", 99998)
+  GetSpellInfo, GetItemInfo = nil, nil
+  GetLocale, TomTom.NameToMapId = oldLocale, oldMap
+  HR.db.overrides = {}
+  HR:BuildMaps()
+  assert(HR.RegionLabel("Elwynn Forest") == "Elwynn Forest", "an English client keeps the English names")
+  io.write("FRENCH CLIENT OK\n")
+end
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)
@@ -1880,7 +1928,7 @@ assert(list() == "Find Herbs,Flight Master", list())
 -- the window opens on the saved category without error
 HR.db.category = "ores"
 local ns2 = {}
-for _, f in ipairs({"Core","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","Stats","UI"}) do
+for _, f in ipairs({"Core","Locale","Tracking","Resolver","MinimapUtil","RouteMath","Runner","Overlay","Probe","Verify","Gather","Stats","UI"}) do
   local fh = assert(io.open("HerbRoute/"..f..".lua")); local src = fh:read("a"); fh:close()
   assert(load(src, f))("HerbRoute", ns2)
 end

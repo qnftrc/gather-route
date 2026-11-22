@@ -115,11 +115,16 @@ function HR:BuildMaps()
 
     for _, region in ipairs(self.regionNames) do
         local id = self.db.overrides[region]
-        local n = normalize(region)
-        if not id then id = byName[n] end
-        if not id then
-            for key, candidate in pairs(byName) do
-                if key:sub(1, #n) == n and (not id or candidate < id) then id = candidate end
+        local names = HR.RegionNames(region)
+        for _, name in ipairs(names) do
+            if not id then id = byName[normalize(name)] end
+        end
+        for _, name in ipairs(names) do
+            local n = normalize(name)
+            if not id then
+                for key, candidate in pairs(byName) do
+                    if key:sub(1, #n) == n and (not id or candidate < id) then id = candidate end
+                end
             end
         end
         if id then

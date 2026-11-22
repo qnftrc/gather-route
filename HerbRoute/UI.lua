@@ -70,7 +70,7 @@ end
 
 local function setRegion(region)
     ui.region = region
-    ui.regionButton:SetText(region)
+    ui.regionButton:SetText(HR.RegionLabel(region))
     ui.regionPopup:Hide()
     fillHerbs(region)
 end
@@ -102,7 +102,7 @@ local function fillRegionPopup()
     local query = ui.regionSearch and ui.regionSearch:GetText() or ""
     local regions = {}
     for _, region in ipairs(HR:GetRegions(ui.category)) do
-        if HR.MatchRegion(query, region) then regions[#regions + 1] = region end
+        if HR.MatchRegion(query, HR.RegionLabel(region)) or HR.MatchRegion(query, region) then regions[#regions + 1] = region end
     end
     ui.regionMatches = regions
     if ui.regionNone then ui.regionNone:SetShown(#regions == 0) end
@@ -116,14 +116,14 @@ local function fillRegionPopup()
             b:SetPoint("TOPLEFT", 0, -(i - 1) * 20)
             b:SetNormalFontObject("GameFontHighlight")
             b:SetHighlightFontObject("GameFontNormal")
-            b:SetText(region)
+            b:SetText(HR.RegionLabel(region))
             b:GetFontString():SetPoint("LEFT", 4, 0)
             local hl = b:CreateTexture(nil, "HIGHLIGHT")
             hl:SetAllPoints()
             hl:SetColorTexture(1, 1, 1, 0.12)
             ui.regionRows[i] = b
         end
-        b:SetText(region)
+        b:SetText(HR.RegionLabel(region))
         b:SetScript("OnClick", function() ui.setRegion(region) end)
         b:Show()
     end
@@ -380,7 +380,7 @@ function HR:UpdateUI()
     elseif active then
         local i, n = self:GetProgress()
         local removed = self.route.removedCount or 0
-        ui.status:SetText(("%s: point %d / %d%s"):format(self.route.region, i, n,
+        ui.status:SetText(("%s: point %d / %d%s"):format(HR.RegionLabel(self.route.region), i, n,
             removed > 0 and (", " .. removed .. " removed") or ""))
     else
         ui.status:SetText("No active route")

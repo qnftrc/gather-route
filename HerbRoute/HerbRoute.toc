@@ -10,6 +10,7 @@ Data\HerbDataGatherMate.lua
 Data\OreDataGatherMate.lua
 Data\OreDataWowhead.lua
 Core.lua
+Locale.lua
 Tracking.lua
 Resolver.lua
 MinimapUtil.lua
