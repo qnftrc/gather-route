@@ -43,19 +43,25 @@ local function updateHerbCount()
     ui.herbTitle:SetText(("%s (%d selected)"):format(HR.categories[ui.category].label, #selectedHerbs()))
 end
 
+local function getRow(i)
+    local row = ui.rows[i]
+    if not row then
+        row = CreateFrame("CheckButton", nil, ui.herbChild, "UICheckButtonTemplate")
+        row:SetSize(24, 24)
+        row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        row.text:SetPoint("LEFT", row, "RIGHT", 2, 1)
+        ui.rows[i] = row
+    end
+    return row
+end
+
 local function fillHerbs(region)
     local herbs = HR:GetHerbs(region, ui.category)
     local saved = (ui.category == "ores" and HR.db.ores or HR.db.herbs)[region] or {}
     for i, herb in ipairs(herbs) do
-        local row = ui.rows[i]
-        if not row then
-            row = CreateFrame("CheckButton", nil, ui.herbChild, "UICheckButtonTemplate")
-            row:SetSize(24, 24)
-            row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-            row.text:SetPoint("LEFT", row, "RIGHT", 2, 1)
-            row:SetScript("OnClick", updateHerbCount)
-            ui.rows[i] = row
-        end
+        local row = getRow(i)
+        row:SetScript("OnClick", updateHerbCount)
+        row.region = nil
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", ui.herbChild, "TOPLEFT", 0, -(i - 1) * 24)
         row.herb = herb
@@ -68,7 +74,13 @@ local function fillHerbs(region)
     updateHerbCount()
 end
 
+local function chooseRankedRegion(region)
+    ui.region = region
+    for _, row in ipairs(ui.rows) do row:SetChecked(row.region ~= nil and row.region == region) end
+end
+
 local function setRegion(region)
+    if ui.mode == "item" then return chooseRankedRegion(region) end
     ui.region = region
     ui.regionButton:SetText(HR.RegionLabel(region))
     ui.regionPopup:Hide()
@@ -128,6 +140,124 @@ local function fillRegionPopup()
         b:Show()
     end
     for i = #regions + 1, #ui.regionRows do ui.regionRows[i]:Hide() end
+end
+
+local function itemSelection()
+    HR.db.browseItems = HR.db.browseItems or {}
+    HR.db.browseItems[ui.category] = HR.db.browseItems[ui.category] or {}
+    return HR.db.browseItems[ui.category]
+end
+
+local function selectedItems()
+    local list, sel = {}, itemSelection()
+    for _, e in ipairs(HR:GetAllItems(ui.category)) do
+        if sel[e.item] then list[#list + 1] = e.item end
+    end
+    return list
+end
+
+local function itemButtonText()
+    local items = selectedItems()
+    local noun = HR.categories[ui.category].item
+    if #items == 0 then return "Select " .. noun .. "s" end
+    local text = items[1]
+    if #items > 1 then text = text .. ", " .. items[2] end
+    if #items > 2 then text = text .. (" (+%d)"):format(#items - 2) end
+    return text
+end
+
+local function refreshRanking(top)
+    local items = selectedItems()
+    local ranking = HR:RankRegions(ui.category, items)
+    ui.ranking = ranking
+    for i, e in ipairs(ranking) do
+        local row = getRow(i)
+        row:SetScript("OnClick", function() chooseRankedRegion(e.region) end)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", ui.herbChild, "TOPLEFT", 0, -(i - 1) * 24)
+        row.herb, row.region = nil, e.region
+        row.text:SetText(("%s |cff999999(%d)|r"):format(HR.RegionLabel(e.region), e.total))
+        row:Show()
+    end
+    for i = #ranking + 1, #ui.rows do
+        ui.rows[i].region = nil
+        ui.rows[i]:SetChecked(false)
+        ui.rows[i]:Hide()
+    end
+    ui.herbChild:SetSize(270, math.max(1, #ranking * 24))
+    local keep
+    if not top then
+        for _, e in ipairs(ranking) do if e.region == ui.region then keep = e.region end end
+    end
+    if ranking[1] then chooseRankedRegion(keep or ranking[1].region) end
+    ui.herbTitle:SetText(#items == 0 and "Select items to list the regions"
+        or ("Regions, most points first (%d)"):format(#ranking))
+    ui.regionButton:SetText(itemButtonText())
+end
+
+local function fillItemPopup()
+    local all, sel = HR:GetAllItems(ui.category), itemSelection()
+    for i, e in ipairs(all) do
+        local row = ui.itemRows[i]
+        if not row then
+            row = CreateFrame("CheckButton", nil, ui.itemChild, "UICheckButtonTemplate")
+            row:SetSize(24, 24)
+            row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+            row.text:SetPoint("LEFT", row, "RIGHT", 2, 1)
+            ui.itemRows[i] = row
+        end
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", ui.itemChild, "TOPLEFT", 4, -(i - 1) * 24)
+        row.item = e.item
+        row.text:SetText(("%s |cff999999(%d)|r"):format(e.item, e.total))
+        row:SetChecked(sel[e.item] and true or false)
+        row:SetScript("OnClick", function(self)
+            itemSelection()[self.item] = self:GetChecked() and true or nil
+            refreshRanking(true)
+        end)
+        row:Show()
+    end
+    for i = #all + 1, #ui.itemRows do ui.itemRows[i]:Hide() end
+    ui.itemChild:SetSize(290, math.max(1, #all * 24))
+end
+
+local function applyMode()
+    local item = ui.mode == "item"
+    ui.byItem:SetChecked(item)
+    ui.regionLabel:SetText(item and (HR.categories[ui.category].item:gsub("^%l", string.upper)) or "Region")
+    ui.regionPopup:Hide()
+    ui.itemPopup:Hide()
+    ui.noneButton:SetShown(not item)
+    ui.allButton:SetShown(not item)
+    if item then
+        fillItemPopup()
+        refreshRanking()
+    else
+        ui.regionButton:SetText(HR.RegionLabel(ui.region))
+        fillHerbs(ui.region)
+    end
+end
+
+local function buildItemPopup()
+    local popup = CreateFrame("Frame", nil, ui, "BackdropTemplate")
+    popup:SetFrameStrata("DIALOG")
+    popup:SetSize(328, 256)
+    popup:SetPoint("TOPLEFT", ui.regionButton, "BOTTOMLEFT", 0, -2)
+    popup:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12, insets = {left = 3, right = 3, top = 3, bottom = 3},
+    })
+    popup:SetBackdropColor(0.05, 0.05, 0.05, 0.97)
+    popup:Hide()
+    local scroll = CreateFrame("ScrollFrame", nil, popup, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 6, -6)
+    scroll:SetPoint("BOTTOMRIGHT", -26, 6)
+    ui.itemChild = CreateFrame("Frame", nil, scroll)
+    ui.itemChild:SetSize(290, 1)
+    scroll:SetScrollChild(ui.itemChild)
+    ui.itemRows = {}
+    ui.itemPopup = popup
 end
 
 local function buildRegionPopup()
@@ -199,7 +329,12 @@ local function setCategory(category)
         region = (current and hasData(current, category) and current) or HR:GetRegions(category)[1]
     end
     fillRegionPopup()
-    setRegion(region)
+    if ui.mode == "item" then
+        ui.region = region
+        applyMode()
+    else
+        setRegion(region)
+    end
 end
 
 local function build()
@@ -217,20 +352,30 @@ local function build()
     tinsert(UISpecialFrames, "HerbRouteFrame")
     ui.rows = {}
 
-    label(ui, "Region", "TOPLEFT", 16, -34)
-    ui.catHerbs = check(ui, "Herbs", 140, -30, function() setCategory("herbs") end)
-    ui.catOres = check(ui, "Ores", 230, -30, function() setCategory("ores") end)
+    ui.regionLabel = label(ui, "Region", "TOPLEFT", 16, -34)
+    ui.catHerbs = check(ui, "Herbs", 96, -30, function() setCategory("herbs") end)
+    ui.catOres = check(ui, "Ores", 166, -30, function() setCategory("ores") end)
+    ui.byItem = check(ui, "By item", 240, -30, function(self)
+        ui.mode = self:GetChecked() and "item" or "region"
+        HR.db.browse = ui.mode
+        applyMode()
+    end)
     ui.regionButton = button(ui, "", 328, "TOPLEFT", 16, -52, function()
-        ui.regionPopup:SetShown(not ui.regionPopup:IsShown())
+        if ui.mode == "item" then
+            ui.itemPopup:SetShown(not ui.itemPopup:IsShown())
+        else
+            ui.regionPopup:SetShown(not ui.regionPopup:IsShown())
+        end
     end)
     buildRegionPopup()
+    buildItemPopup()
 
     ui.herbTitle = label(ui, "Herbs", "TOPLEFT", 16, -84)
-    button(ui, "None", 50, "TOPRIGHT", -16, -80, function()
+    ui.noneButton = button(ui, "None", 50, "TOPRIGHT", -16, -80, function()
         for _, row in ipairs(ui.rows) do row:SetChecked(false) end
         updateHerbCount()
     end)
-    button(ui, "All", 50, "TOPRIGHT", -70, -80, function()
+    ui.allButton = button(ui, "All", 50, "TOPRIGHT", -70, -80, function()
         for _, row in ipairs(ui.rows) do if row:IsShown() then row:SetChecked(true) end end
         updateHerbCount()
     end)
@@ -324,9 +469,14 @@ local function build()
     end)
     ui.slider = slider
 
-    ui.generate = button(ui, "Generate", 100, "BOTTOMLEFT", 16, 40, function()
-        local herbs = selectedHerbs()
+    ui.generate = button(ui, "Generate", 100, "BOTTOMLEFT", 16, 40, function() HR.UIGenerate() end)
+    function HR.UIGenerate()
+        local item = ui.mode == "item"
+        local herbs = item and selectedItems() or selectedHerbs()
         if #herbs == 0 then return HR:Print("Select at least one " .. HR.categories[ui.category].item .. ".") end
+        if item and not (ui.ranking and #ui.ranking > 0) then
+            return HR:Print("No region has the selected " .. HR.categories[ui.category].item .. "s.")
+        end
         local start
         if dirty then
             local x, y = tonumber(ui.x:GetText()), tonumber(ui.y:GetText())
@@ -336,7 +486,7 @@ local function build()
             start = {x = x, y = y}
         end
         HR:GenerateRoute(ui.region, herbs, start, ui.category)
-    end)
+    end
     button(ui, "Stats", 60, "TOPRIGHT", -34, -3, function() HR:ToggleStats() end)
     ui.skip = button(ui, "Skip", 100, "BOTTOM", 0, 40, function() HR:SkipPoint() end)
     ui.stop = button(ui, "Stop", 100, "BOTTOMRIGHT", -16, 40, function() HR:StopRoute() end)
@@ -354,6 +504,7 @@ local function build()
         ui.nearest:SetChecked(HR.db.nearest ~= false)
         ui.combat:SetChecked(HR.db.verifyCombat == true)
         ui.chat:SetChecked(HR.db.chat ~= false)
+        ui.byItem:SetChecked(ui.mode == "item")
         ui.slider:SetValue(HR.db.radius)
         if not dirty then fillPosition() end
         HR:UpdateUI()
@@ -366,6 +517,7 @@ local function build()
         if not (region and hasData(region, ui.category)) then region = HR:GetRegions(ui.category)[1] end
     end
     ui.region = region
+    ui.mode = HR.db.browse == "item" and "item" or "region"
     setCategory(ui.category)
 end
 
@@ -439,4 +591,26 @@ end
 function HR:ToggleUI()
     if not ui then build() end
     ui:SetShown(not ui:IsShown())
+end
+
+function HR:SetBrowseMode(mode)
+    if not ui then build() end
+    ui.mode = mode == "item" and "item" or "region"
+    HR.db.browse = ui.mode
+    applyMode()
+end
+
+function HR:ToggleBrowseItem(item)
+    if not ui then build() end
+    local sel = itemSelection()
+    sel[item] = not sel[item] or nil
+    if ui.mode == "item" then fillItemPopup() refreshRanking(true) end
+end
+
+function HR:SelectBrowseRegion(region)
+    if ui and ui.mode == "item" then chooseRankedRegion(region) end
+end
+
+function HR:BrowseState()
+    return ui and ui.mode, ui and ui.ranking, ui and ui.region
 end

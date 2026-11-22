@@ -1779,6 +1779,54 @@ do
   io.write("FRENCH CLIENT OK\n")
 end
 
+-- 24. browse by item: regions ranked by the points of the selected items
+do
+  HR.db.mergeDuplicates = true
+  local r1 = HR:RankRegions("ores", {"Mithril Deposit"})
+  assert(#r1 >= 10 and r1[1].total >= r1[2].total, "ores ranked")
+  for i = 2, #r1 do assert(r1[i - 1].total > r1[i].total or (r1[i - 1].total == r1[i].total and r1[i - 1].region < r1[i].region), "descending order") end
+  for _, e in ipairs(r1) do assert(e.total == HR:CountPoints(e.region, "Mithril Deposit", "ores"), e.region) end
+  local both = HR:RankRegions("ores", {"Mithril Deposit", "Gold Vein"})
+  local sumOf = {}
+  for _, e in ipairs(HR:RankRegions("ores", {"Gold Vein"})) do sumOf[e.region] = e.total end
+  for _, e in ipairs(both) do
+    local single = HR:CountPoints(e.region, "Mithril Deposit", "ores")
+    assert(e.total == single + (sumOf[e.region] or 0), "sum over several items: " .. e.region)
+  end
+  assert(#HR:RankRegions("herbs", {}) == 0, "no item, no region")
+  local all = HR:GetAllItems("herbs")
+  assert(#all >= 28 and all[1].item < all[2].item and all[1].total > 0)
+
+  local seen, mid = {}, 500
+  for _, cat in ipairs({"herbs", "ores"}) do
+    for _, region in ipairs(HR:GetRegions(cat)) do
+      if not seen[region] then seen[region] = true mid = mid + 1 HR.db.overrides[region] = mid end
+    end
+  end
+  HR:BuildMaps()
+  HR:SetBrowseMode("item")
+  assert(HR.db.browse == "item")
+  HR:ToggleBrowseItem("Peacebloom"); HR:ToggleBrowseItem("Silverleaf")
+  local mode, ranking, region = HR:BrowseState()
+  assert(mode == "item" and #ranking > 1 and region == ranking[1].region, "first region chosen: " .. tostring(region))
+  local want = HR:CountPoints(ranking[1].region, "Peacebloom", "herbs") + HR:CountPoints(ranking[1].region, "Silverleaf", "herbs")
+  assert(ranking[1].total == want)
+  printed = {}; HR.UIGenerate(); RunTimers()
+  assert(HR.route and HR.route.region == ranking[1].region and HR.route.herbSet["Peacebloom"], msgs())
+  go("stop")
+  HR:SelectBrowseRegion(ranking[2].region)
+  HR.UIGenerate(); RunTimers()
+  assert(HR.route and HR.route.region == ranking[2].region, "the chosen region is the one of the route")
+  go("stop")
+  HR:ToggleBrowseItem("Peacebloom"); HR:ToggleBrowseItem("Silverleaf")
+  printed = {}; HR.UIGenerate()
+  assert(msgs():find("Select at least one", 1, true), msgs())
+  HR:SetBrowseMode("region")
+  assert(HR.db.browse == "region")
+  HR.db.overrides = {}; HR:BuildMaps()
+  io.write("BROWSE BY ITEM OK\n")
+end
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)

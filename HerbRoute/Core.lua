@@ -21,6 +21,8 @@ local defaults = {
     gatherDebug = false,
     ambiguityMarks = true,
     chat = true,
+    browse = "region",
+    browseItems = {},
     skipButton = {shown = false},
     prices = {},
     statsWindow = {},

@@ -94,6 +94,38 @@ function HR:GetHerbs(region, category)
     return list
 end
 
+-- Every herb or ore of the category with its points over all regions, sorted by name.
+function HR:GetAllItems(category)
+    category = category or "herbs"
+    local data, totals = self:DataFor(category), {}
+    for _, region in ipairs(self:GetRegions(category)) do
+        for item, pts in pairs(data[region] or {}) do totals[item] = (totals[item] or 0) + #pts end
+    end
+    local list = {}
+    for item, n in pairs(totals) do list[#list + 1] = {item = item, total = n} end
+    table.sort(list, function(a, b) return a.item < b.item end)
+    return list
+end
+
+-- Regions holding at least one of the items, most points first (ties by name).
+function HR:RankRegions(category, items)
+    category = category or "herbs"
+    local data, list = self:DataFor(category), {}
+    for _, region in ipairs(self:GetRegions(category)) do
+        local total = 0
+        for _, item in ipairs(items) do
+            local pts = data[region] and data[region][item]
+            if pts then total = total + #pts end
+        end
+        if total > 0 then list[#list + 1] = {region = region, total = total} end
+    end
+    table.sort(list, function(a, b)
+        if a.total ~= b.total then return a.total > b.total end
+        return a.region < b.region
+    end)
+    return list
+end
+
 function HR:CountPoints(region, herb, category)
     local data = self:DataFor(category)
     local pts = data[region] and data[region][herb]
