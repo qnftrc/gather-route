@@ -196,7 +196,12 @@ local function refreshRanking(top)
 end
 
 local function fillItemPopup()
-    local all, sel = HR:GetAllItems(ui.category), itemSelection()
+    local query = type(ui.itemQuery) == "string" and ui.itemQuery or ""
+    local all, sel = {}, itemSelection()
+    for _, e in ipairs(HR:GetAllItems(ui.category)) do
+        if HR.MatchRegion(query, e.item) then all[#all + 1] = e end
+    end
+    ui.itemMatches = #all
     for i, e in ipairs(all) do
         local row = ui.itemRows[i]
         if not row then
@@ -219,6 +224,7 @@ local function fillItemPopup()
     end
     for i = #all + 1, #ui.itemRows do ui.itemRows[i]:Hide() end
     ui.itemChild:SetSize(290, math.max(1, #all * 24))
+    if ui.itemNone then ui.itemNone:SetShown(#all == 0) end
 end
 
 local function applyMode()
@@ -250,9 +256,29 @@ local function buildItemPopup()
     })
     popup:SetBackdropColor(0.05, 0.05, 0.05, 0.97)
     popup:Hide()
+    local search = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
+    search:SetSize(286, 20)
+    search:SetPoint("TOPLEFT", 14, -6)
+    search:SetAutoFocus(false)
+    ui.itemSearch = search
     local scroll = CreateFrame("ScrollFrame", nil, popup, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 6, -6)
+    scroll:SetPoint("TOPLEFT", 6, -30)
     scroll:SetPoint("BOTTOMRIGHT", -26, 6)
+    ui.itemNone = popup:CreateFontString(nil, "ARTWORK", "GameFontDisable")
+    ui.itemNone:SetPoint("TOPLEFT", 14, -40)
+    ui.itemNone:SetText("No match")
+    ui.itemNone:Hide()
+    search:SetScript("OnTextChanged", function()
+        ui.itemQuery = search:GetText()
+        fillItemPopup()
+        scroll:SetVerticalScroll(0)
+    end)
+    search:SetScript("OnEscapePressed", function() popup:Hide() end)
+    popup:SetScript("OnShow", function()
+        search:SetText("")
+        search:SetFocus()
+    end)
+    popup:SetScript("OnHide", function() search:ClearFocus() end)
     ui.itemChild = CreateFrame("Frame", nil, scroll)
     ui.itemChild:SetSize(290, 1)
     scroll:SetScrollChild(ui.itemChild)
@@ -613,4 +639,11 @@ end
 
 function HR:BrowseState()
     return ui and ui.mode, ui and ui.ranking, ui and ui.region
+end
+
+function HR:BrowseItemSearch(query)
+    if not ui then build() end
+    ui.itemQuery = query or ""
+    fillItemPopup()
+    return ui.itemMatches
 end
