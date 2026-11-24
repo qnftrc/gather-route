@@ -9,3 +9,5 @@ Data\SkinData.lua
 Core.lua
 Resolver.lua
 Rules.lua
+Zones.lua
+Overlay.lua

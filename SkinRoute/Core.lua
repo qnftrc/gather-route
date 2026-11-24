@@ -7,6 +7,10 @@ local defaults = {
     bandLow = -8,
     bandHigh = 2,
     chat = false,
+    showMap = true,
+    zoneRadius = 233,
+    zoneMin = 5,
+    zoneMax = 12,
     prices = {},
     overrides = {},
 }
@@ -111,9 +115,9 @@ local function itemNames(ids)
     return table.concat(names, ", ")
 end
 
-local function describeRegion(i, row, ctx, anyPrice)
+local function describeRow(i, label, row, ctx, anyPrice)
     local e = row.eval
-    local parts = {("%d. %s"):format(i, row.region), levelText(e, ctx.level)}
+    local parts = {("%d. %s"):format(i, label), levelText(e, ctx.level)}
     if e.status == "locked" then
         parts[#parts + 1] = paint("orange", "needs skinning " .. e.minNeeded)
     else
@@ -137,7 +141,22 @@ local function usage()
     SR:Say("/sr band [<low> <high>|off] - count only mobs from level+low to level+high (default -8 +2)")
     SR:Say("/sr price <item>: <copper> - price used for the value (Auctionator comes later)")
     SR:Say("/sr need <level> - skinning skill needed for a mob level")
+    SR:Say("/sr zones [region] - compute the zones of a region (default: your region) and draw them on the world map")
+    SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233)")
+    SR:Say("/sr map - status of the map overlay and a test circle around you")
     SR:Say("/sr chat [on|off] | setmap <region>: <mapID> | debug")
+end
+
+function SR:ReportZones()
+    local s = self.shown
+    if not s then return end
+    self:Say(("%s: %d zone(s) of %d yd from %d points, %d without a mob in range, %d point(s) left outside any zone."):format(
+        s.region, #s.rows, s.set.radius, s.set.points, s.hidden or 0, s.set.leftover or 0))
+    for i = 1, math.min(8, #s.rows) do
+        local row = s.rows[i]
+        self:Say(describeRow(i, ("(%.0f, %.0f)"):format(row.zone.x, row.zone.y), row, s.ctx, s.anyPrice))
+    end
+    if #s.rows == 0 then self:Say("Nothing to show: select other items or change the level, skill or band.") end
 end
 
 local function showItems()
@@ -160,7 +179,7 @@ local function listRegions(limit)
         ctx.bandOnly and ("mobs from level " .. (level + ctx.lo) .. " to " .. (level + ctx.hi)) or "all mob levels",
         itemNames(SR.db.items)))
     if #ranked == 0 then return SR:Say(("No region (%d without a mob in range)."):format(hidden)) end
-    for i = 1, math.min(limit, #ranked) do SR:Say(describeRegion(i, ranked[i], ctx, anyPrice)) end
+    for i = 1, math.min(limit, #ranked) do SR:Say(describeRow(i, ranked[i].region, ranked[i], ctx, anyPrice)) end
     if #ranked > limit then SR:Say(("... %d more (/sr regions <n>)."):format(#ranked - limit)) end
 end
 
@@ -198,6 +217,7 @@ local function setNumber(field, arg, label)
         if not n or n < 1 then return SR:Say("Usage: /sr " .. label .. " <number>|auto") end
         SR.db[field] = math.floor(n)
     end
+    SR:RefreshZones()
     local value, simulated = (field == "level" and SR.PlayerLevel or SR.PlayerSkill)(SR)
     SR:Say(("%s: %s%s."):format(label == "level" and "Level" or "Skinning skill", value and tostring(value) or "unknown",
         simulated and " (simulated, /sr " .. label .. " auto to go back)" or ""))
@@ -219,6 +239,7 @@ local function handleSlash(msg)
             if #missing > 0 then SR:Say("Not found: " .. table.concat(missing, ", ")) end
             if #ids > 0 then SR.db.items = ids end
         end
+        SR:RefreshZones()
         showItems()
     elseif cmd == "regions" then
         listRegions(tonumber(rest) or 10)
@@ -239,6 +260,7 @@ local function handleSlash(msg)
             if lo > hi then lo, hi = hi, lo end
             SR.db.bandLow, SR.db.bandHigh, SR.db.bandOnly = lo, hi, true
         end
+        SR:RefreshZones()
         SR:Say(SR.db.bandOnly == false and "Level band: off (all mob levels)."
             or ("Level band: from level %+d to %+d."):format(SR.db.bandLow, SR.db.bandHigh))
     elseif cmd == "price" then
@@ -255,11 +277,38 @@ local function handleSlash(msg)
         local ids = name and SR:FindItems({name})
         if not ids or #ids ~= 1 then return SR:Say("Usage: /sr price <one item>: <copper>") end
         SR.db.prices[ids[1]] = tonumber(copper)
+        SR:RefreshZones()
         SR:Say(("%s: %s."):format(SR.Data.items[ids[1]], SR.MoneyText(tonumber(copper))))
     elseif cmd == "need" then
         local level = tonumber(rest)
         if not level then return SR:Say("Usage: /sr need <mob level>") end
         SR:Say(("Mob level %d needs skinning %d (rule of the 1.12 server code, to check on Forever)."):format(level, SR.Rules.minSkill(level)))
+    elseif cmd == "zones" then
+        local region
+        if rest ~= "" then
+            local err
+            region, err = SR:FindRegion(rest)
+            if not region then
+                return SR:Say(err == "ambiguous" and ("Several regions match '" .. rest .. "'.") or ("Unknown region '" .. rest .. "'."))
+            end
+        else
+            region = SR:GetCurrentRegion()
+            if not region then return SR:Say("Your current zone has no data. Use /sr zones <region>.") end
+        end
+        SR:ShowZones(region)
+    elseif cmd == "clear" then
+        SR:ClearZones()
+        SR:Say("Zones removed from the map.")
+    elseif cmd == "radius" then
+        local n = tonumber(rest)
+        if rest ~= "" then
+            if not n or n < 50 or n > 1000 then return SR:Say("Usage: /sr radius <50 to 1000> (yards)") end
+            SR.db.zoneRadius = math.floor(n)
+            if SR.shown then SR:ShowZones(SR.shown.region) end
+        end
+        SR:Say("Zone radius: " .. SR.db.zoneRadius .. " yd (the minimap at zoom 0 shows about 233 yd around you).")
+    elseif cmd == "map" then
+        SR:MapTest()
     elseif cmd == "chat" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then SR.db.chat = arg == "on" end
@@ -298,4 +347,5 @@ frame:SetScript("OnEvent", function(self, event, name)
     end
     SR.db = SkinRouteDB
     SR:LoadData()
+    SR:InitOverlay()
 end)

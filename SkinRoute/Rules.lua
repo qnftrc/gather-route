@@ -84,18 +84,17 @@ function SR:EvaluateRegion(region, ctx)
     return R.evaluate(self:RegionEntries(region), self.Data.creatures, ctx)
 end
 
-function SR:RankRegions(ctx)
-    local open, locked, hidden = {}, {}, 0
+local function sortRows(rows, ctx)
     local anyPrice = false
     for item in pairs(ctx.items) do
         if ctx.price and ctx.price(item) then anyPrice = true end
     end
-    for _, region in ipairs(self:GetRegions()) do
-        local e = self:EvaluateRegion(region, ctx)
-        local row = {region = region, eval = e}
-        if e.status == "ok" or e.status == "partial" then
+    local open, locked, hidden = {}, {}, 0
+    for _, row in ipairs(rows) do
+        local status = row.eval.status
+        if status == "ok" or status == "partial" then
             open[#open + 1] = row
-        elseif e.status == "locked" then
+        elseif status == "locked" then
             locked[#locked + 1] = row
         else
             hidden = hidden + 1
@@ -104,12 +103,28 @@ function SR:RankRegions(ctx)
     local key = anyPrice and "value" or "drops"
     table.sort(open, function(a, b)
         if a.eval[key] ~= b.eval[key] then return a.eval[key] > b.eval[key] end
-        return a.region < b.region
+        return a.tie < b.tie
     end)
     table.sort(locked, function(a, b)
         if a.eval.minNeeded ~= b.eval.minNeeded then return a.eval.minNeeded < b.eval.minNeeded end
-        return a.region < b.region
+        return a.tie < b.tie
     end)
     for _, row in ipairs(locked) do open[#open + 1] = row end
     return open, hidden, anyPrice
+end
+
+function SR:RankRegions(ctx)
+    local rows = {}
+    for _, region in ipairs(self:GetRegions()) do
+        rows[#rows + 1] = {region = region, tie = region, eval = self:EvaluateRegion(region, ctx)}
+    end
+    return sortRows(rows, ctx)
+end
+
+function SR:RankZones(set, ctx)
+    local rows = {}
+    for _, zone in ipairs(set.zones) do
+        rows[#rows + 1] = {zone = zone, tie = zone.id, eval = R.evaluate(zone.entries, self.Data.creatures, ctx)}
+    end
+    return sortRows(rows, ctx)
 end
