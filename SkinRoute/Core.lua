@@ -11,6 +11,7 @@ local defaults = {
     zoneRadius = 233,
     zoneMin = 5,
     zoneMax = 12,
+    arrival = 233,
     prices = {},
     overrides = {},
 }
@@ -142,10 +143,13 @@ local function usage()
     SR:Say("/sr price <item>: <copper> - price used for the value (Auctionator comes later)")
     SR:Say("/sr need <level> - skinning skill needed for a mob level")
     SR:Say("/sr zones [region] - compute the zones of a region (default: your region) and draw them on the world map")
-    SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233)")
+    SR:Say("/sr go [region] - compute the zones, then guide you to the best one with TomTom; /sr skip - next zone; /sr stop - end the guide")
+    SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233) | /sr arrival [yd] - distance at which you count as arrived (default 233)")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
     SR:Say("/sr chat [on|off] | setmap <region>: <mapID> | debug")
 end
+
+SR.DescribeRow = describeRow
 
 function SR:ReportZones()
     local s = self.shown
@@ -296,6 +300,30 @@ local function handleSlash(msg)
             if not region then return SR:Say("Your current zone has no data. Use /sr zones <region>.") end
         end
         SR:ShowZones(region)
+    elseif cmd == "go" then
+        local region
+        if rest ~= "" then
+            local err
+            region, err = SR:FindRegion(rest)
+            if not region then
+                return SR:Say(err == "ambiguous" and ("Several regions match '" .. rest .. "'.") or ("Unknown region '" .. rest .. "'."))
+            end
+        else
+            region = SR:GetCurrentRegion()
+            if not region then return SR:Say("Your current zone has no data. Use /sr go <region>.") end
+        end
+        SR:ShowZones(region, true)
+    elseif cmd == "skip" then
+        SR:SkipZone()
+    elseif cmd == "stop" then
+        SR:StopGuide()
+    elseif cmd == "arrival" then
+        local n = tonumber(rest)
+        if rest ~= "" then
+            if not n or n < 10 or n > 1000 then return SR:Say("Usage: /sr arrival <10 to 1000> (yards)") end
+            SR.db.arrival = math.floor(n)
+        end
+        SR:Say("Arrival distance: " .. SR.db.arrival .. " yd (takes effect at the next zone).")
     elseif cmd == "clear" then
         SR:ClearZones()
         SR:Say("Zones removed from the map.")
@@ -348,4 +376,5 @@ frame:SetScript("OnEvent", function(self, event, name)
     SR.db = SkinRouteDB
     SR:LoadData()
     SR:InitOverlay()
+    SR:InitRunner()
 end)

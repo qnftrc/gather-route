@@ -112,6 +112,23 @@ TomTom = {NameToMapId = {["Hillsbrad Foothills"] = 25, ["Elwynn Forest"] = 37}}
 gamepad = false
 function TomTom:GetCurrentPlayerPosition() return playerMap, px, py end
 function TomTom:IsGamepadUI() return gamepad end
+waypoints, tomtomCallbacks, pinged = {}, {}, 0
+function TomTom:DefaultCallbacks(o)
+    local c = {minimap = {}, world = {}, distance = {}}
+    c.distance[o.arrivaldistance] = function() pinged = pinged + 1 end
+    return c
+end
+function TomTom:SetCustomWaypoint(m, x, y, o)
+    local uid = {map = m, x = x, y = y, opts = o}
+    waypoints[#waypoints + 1] = uid
+    return uid
+end
+function TomTom:RemoveWaypoint(uid)
+    for i, u in ipairs(waypoints) do if u == uid then table.remove(waypoints, i) break end end
+    for _, f in ipairs(tomtomCallbacks) do f("WaypointRemoved", uid) end
+end
+TomTom.RegisterCallback = function(owner, ev, f) tomtomCallbacks[#tomtomCallbacks + 1] = f end
+function Arrive(uid) uid.opts.callbacks.distance[uid.opts.arrivaldistance]("distance", uid, uid.opts.arrivaldistance, 5, 20) end
 hbdAvailable = true
 HBD = {}
 function HBD:GetWorldCoordinatesFromZone(x, y, map) return x * 2000, y * 1000, 1 end
@@ -122,7 +139,7 @@ function Slash(msg) SlashCmdList.SKINROUTE(msg) return Said() end
 
 LOAD = r'''
 SR = {}
-for _, f in ipairs({"Core", "Resolver", "Rules", "Zones", "Overlay"}) do
+for _, f in ipairs({"Core", "Resolver", "Rules", "Zones", "Runner", "Overlay"}) do
     local fh = assert(io.open(ROOT .. "/SkinRoute/" .. f .. ".lua"))
     local src = fh:read("a")
     fh:close()
@@ -503,6 +520,96 @@ def check_real_zones(path):
     return "\n".join(report)
 
 
+def guide_env(skill=300, level=30):
+    lua = zone_env()
+    lines(lua, 'return Slash("items medium leather")')
+    lines(lua, 'return Slash("level %d")' % level)
+    lines(lua, 'return Slash("skill %d")' % skill)
+    lines(lua, 'return Slash("price medium leather: 3420")')
+    return lua
+
+
+def go(lua):
+    return lines(lua, 'local s = Slash("go test valley") RunTimers() return s .. Said()')
+
+
+def check_guide():
+    lua = guide_env()
+    out = go(lua)
+    assert "Go to 1. zone (20, 20)" in out, out
+    assert lua.eval("#waypoints") == 1
+    wp = lua.eval("waypoints[1]")
+    assert wp.map == 77 and abs(wp.x - 0.2) < 0.01 and abs(wp.y - 0.2) < 0.01
+    assert lua.eval("waypoints[1].opts['from']") == "SkinRoute"
+    assert lua.eval("waypoints[1].opts.crazy") is True and lua.eval("waypoints[1].opts.silent") is True
+    assert lua.eval("waypoints[1].opts.arrivaldistance") == 233 and lua.eval("waypoints[1].opts.cleardistance") == 0
+    assert "Test Valley zone (20, 20)" in lua.eval("waypoints[1].opts.title")
+
+    lua.execute("Arrive(waypoints[1])")
+    assert lua.eval("#waypoints") == 0 and lua.eval("SR.guide.arrived") is True and lua.eval("pinged") == 1
+    assert lines(lua, "return Said()") == "", "arrival message follows the chat setting"
+    lua.execute("RunTimers()")
+    assert lua.eval("#waypoints") == 0 and lua.eval("SR.guide ~= nil") is True, "our own removal must not skip"
+    lua.execute("SR:Arrive()")
+    assert lua.eval("#waypoints") == 0
+
+    out = lines(lua, 'return Slash("skip")')
+    assert "Go to 2. zone (80, 80)" in out, out
+    assert lua.eval("#waypoints") == 1 and abs(lua.eval("waypoints[1].x") - 0.8) < 0.01
+    out = lines(lua, 'return Slash("skip")')
+    assert "No more zone to go to" in out and lua.eval("#waypoints") == 0 and lua.eval("SR.guide") is None
+    assert "No active guide" in lines(lua, 'return Slash("skip")')
+    assert "No active guide" in lines(lua, 'return Slash("stop")')
+
+    go(lua)
+    lua.execute("TomTom:RemoveWaypoint(waypoints[1]); RunTimers()")
+    assert lua.eval("#waypoints") == 1 and abs(lua.eval("waypoints[1].x") - 0.8) < 0.01, "removing the current waypoint skips it"
+    go(lua)
+    assert lua.eval("#waypoints") == 1 and abs(lua.eval("waypoints[1].x") - 0.2) < 0.01, "go again restarts"
+    lua.execute("local dummy = TomTom:SetCustomWaypoint(1, 0.5, 0.5, {}); TomTom:RemoveWaypoint(SR.guide.current); TomTom:RemoveWaypoint(dummy); RunTimers()")
+    assert lua.eval("SR.guide") is None and lua.eval("#waypoints") == 0, "a bulk removal stops the guide"
+
+    go(lua)
+    assert "Guide stopped" in lines(lua, 'return Slash("stop")')
+    assert lua.eval("#waypoints") == 0 and lua.eval("SR.shown ~= nil") is True
+
+    go(lua)
+    lines(lua, 'return Slash("level 24")')
+    assert lua.eval("#SR.shown.rows") == 1
+    assert "No more zone" in lines(lua, 'return Slash("skip")')
+
+    lines(lua, 'return Slash("level 30")')
+    assert "Arrival distance: 100" in lines(lua, 'return Slash("arrival 100")')
+    go(lua)
+    assert lua.eval("waypoints[1].opts.arrivaldistance") == 100
+    assert "Usage: /sr arrival" in lines(lua, 'return Slash("arrival 5")')
+    assert "Arrival distance: 100" in lines(lua, 'return Slash("arrival")')
+
+    lines(lua, 'return Slash("chat on")')
+    go(lua)
+    lua.execute("Arrive(waypoints[1])")
+    assert "Arrived at the zone (20, 20)" in lines(lua, "return Said()")
+
+
+def check_guide_limits():
+    lua = guide_env(skill=100)
+    out = go(lua)
+    assert "No zone you can skin with skinning 100" in out and lua.eval("#waypoints") == 0 and lua.eval("SR.guide") is None, out
+
+    lua = zone_env()
+    assert "Select items first" in lines(lua, 'return Slash("go test valley")')
+    lines(lua, 'return Slash("items medium leather")')
+    assert "Unknown region" in lines(lua, 'return Slash("go nowhere")')
+    lua.execute("playerMap = 500")
+    assert "no data" in lines(lua, 'return Slash("go")')
+    assert "No zone to go to" in lines(lua, "SR:StartGuide() return Said()")
+    lua.execute("playerMap = 77")
+    lines(lua, 'return Slash("level 24")')
+    lines(lua, 'return Slash("skill 140")')
+    out = lines(lua, 'local s = Slash("go") RunTimers() return s .. Said()')
+    assert "Go to 1. zone (20, 20)" in out, out
+
+
 def check_missing_data():
     lua = env(data=None)
     assert lua.eval("SR.dataMissing") is True and lua.eval("#SR.regionNames") == 0
@@ -543,6 +650,8 @@ def main():
     check_zones_pipeline()
     check_zone_errors()
     check_map_test()
+    check_guide()
+    check_guide_limits()
     check_missing_data()
     check_lua51_constructs()
     real = os.environ.get("SKINROUTE_DATA")

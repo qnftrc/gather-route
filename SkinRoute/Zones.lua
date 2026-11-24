@@ -167,7 +167,7 @@ function SR:RefreshZones()
     self:UpdateOverlay()
 end
 
-function SR:ShowZones(region)
+function SR:ShowZones(region, go)
     if #self.db.items == 0 then
         return self:Say("Select items first: /sr items <name>[, <name>]")
     end
@@ -178,6 +178,7 @@ function SR:ShowZones(region)
         SR.shown = {region = region, mapID = set.mapID, set = set}
         SR:RefreshZones()
         SR:ReportZones()
+        if go then SR:StartGuide() end
     end)
 end
 
