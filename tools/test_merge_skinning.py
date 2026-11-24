@@ -78,10 +78,12 @@ LEGACY = {
         {"id": 200, "name": "Wowhead Bat", "minlevel": 24, "maxlevel": 26, "classification": 0, "count": 60, "outof": 100},
         {"id": 201, "name": "Rare One", "minlevel": 25, "maxlevel": 25, "classification": 4, "count": 50, "outof": 100},
         {"id": 100, "name": "Gray Bear", "minlevel": 21, "maxlevel": 22, "classification": 0, "count": 40, "outof": 100},
+        {"id": 202, "name": "Odd Shape", "minlevel": 10, "maxlevel": 11, "classification": 0, "count": 50, "outof": 100},
     ]}},
     "npcs": {
         "200": {"data": {"267": [{"coords": [[10.5, 20.1], [11, 21]], "uiMapName": "Hillsbrad Foothills"}]}},
         "201": {"data": {"267": [{"coords": [[1, 1]], "uiMapName": "Hillsbrad Foothills"}]}},
+        "202": {"data": {"267": {"coords": [[7, 8]], "uiMapName": "Hillsbrad Foothills"}, "5": "oops", "6": None}},
         "100": {"data": {"267": [{"coords": [[9, 9]], "uiMapName": "Hillsbrad Foothills"}],
                          "999": [{"coords": [[33, 44]], "uiMapName": "Riverglades"}]}},
     },
@@ -89,9 +91,10 @@ LEGACY = {
 
 V3 = {
     "version": 3,
-    "items": {"Light Leather": {"id": 2318, "drops": {"200": [60, 100], "100": [40, 100]}}},
+    "items": {"Light Leather": {"id": 2318, "drops": {"200": [60, 100], "100": [40, 100], "202": [50, 100]}}},
     "creatures": {"200": {"name": "Wowhead Bat", "minlevel": 24, "maxlevel": 26},
-                  "100": {"name": "Gray Bear", "minlevel": 21, "maxlevel": 22}},
+                  "100": {"name": "Gray Bear", "minlevel": 21, "maxlevel": 22},
+                  "202": {"name": "Odd Shape", "minlevel": 10, "maxlevel": 11}},
     "npcs": LEGACY["npcs"],
 }
 
@@ -158,12 +161,13 @@ def check_wowhead(tmp, data):
     assert 200 in keys(d.creatures) and d.creatures[200].s == "w", keys(d.creatures)
     assert d.creatures[200].d[2318][1] == 60
     assert flat(d.zones["Hillsbrad Foothills"][200]) == [10.5, 20.1, 11, 21]
+    assert flat(d.zones["Hillsbrad Foothills"][202]) == [7, 8]
     assert 201 not in keys(d.creatures)
     bear = d.creatures[100]
     assert bear.s == "cw" and bear.d[2318][1] == 40
     assert flat(d.zones["Hillsbrad Foothills"][100]) == [46.2, 9.3], "pfQuest points must not be duplicated"
     assert flat(d.zones["Riverglades"][100]) == [33, 44]
-    assert "1 creature(s) added, 1 zone(s) filled in" in report, report
+    assert "2 creature(s) added, 1 zone(s) filled in" in report, report
 
 
 def main():

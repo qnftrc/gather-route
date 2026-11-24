@@ -161,11 +161,17 @@ def load_wowhead(path, zone_names):
     for npc, n in d["npcs"].items():
         zones = collections.defaultdict(list)
         for z, entries in (n.get("data") or {}).items():
+            if isinstance(entries, dict):
+                entries = [entries]
+            elif not isinstance(entries, list):
+                continue
             for e in entries:
+                if not isinstance(e, dict):
+                    continue
                 zname = e.get("uiMapName") or zone_names.get(int(z), "Zone %s" % z)
-                for x, y in e.get("coords", []):
-                    if 0 <= x <= 100 and 0 <= y <= 100:
-                        zones[zname].append((x, y))
+                for xy in e.get("coords", []):
+                    if isinstance(xy, list) and len(xy) >= 2 and 0 <= xy[0] <= 100 and 0 <= xy[1] <= 100:
+                        zones[zname].append((xy[0], xy[1]))
         if zones:
             points[int(npc)] = dict(zones)
     return item_ids, drops, creatures, points

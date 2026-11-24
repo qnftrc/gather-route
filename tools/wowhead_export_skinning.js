@@ -147,7 +147,23 @@
   const excludeReason = r => r.classification ? "classification " + r.classification : (r.boss ? "boss" : (r.tag ? "tag" : ""));
   const slim = r => ({name: r.name, minlevel: r.minlevel, maxlevel: r.maxlevel, location: Array.isArray(r.location) ? r.location : [],
     family: r.family === undefined ? null : r.family, type: r.type, classicEra: !!r.classicEra});
-  const countPoints = data => data ? Object.values(data).reduce((a, z) => a + z.reduce((b, e) => b + ((e && e.coords) ? e.coords.length : 0), 0), 0) : 0;
+  const zoneEntries = data => {
+    const out = [];
+    if (!data || typeof data !== "object") return out;
+    for (const z of Object.values(data)) {
+      if (Array.isArray(z)) { for (const e of z) if (e && Array.isArray(e.coords)) out.push(e); }
+      else if (z && Array.isArray(z.coords)) out.push(z);
+    }
+    return out;
+  };
+  const countPoints = data => zoneEntries(data).reduce((a, e) => a + e.coords.length, 0);
+  let oddLogged = 0;
+  const oddShapes = (id, data) => {
+    if (!data || typeof data !== "object" || oddLogged >= 3) return;
+    for (const [k, z] of Object.entries(data)) {
+      if (!Array.isArray(z) && oddLogged < 3) { oddLogged++; console.warn(`Forme inattendue, créature ${id}, zone ${k} : ${JSON.stringify(z).slice(0, 150)}`); }
+    }
+  };
 
   const itemList = Object.entries(CORE).map(([n, id]) => [n, id, true]).concat(Object.entries(EXTRA).map(([n, id]) => [n, id, false]));
   const pendingItems = () => itemList.filter(it => !state.items[it[0]]);
@@ -172,7 +188,7 @@
       const p = countPoints(n.data);
       if (n.http !== 200 || p === 0) { noData++; continue; }
       points += p;
-      for (const z of Object.values(n.data)) for (const e of z) for (const xy of e.coords) {
+      for (const e of zoneEntries(n.data)) for (const xy of e.coords) {
         if (!Array.isArray(xy) || xy.length < 2 || !(xy[0] >= 0 && xy[0] <= 100 && xy[1] >= 0 && xy[1] <= 100)) badCoords++;
       }
     }
@@ -259,6 +275,7 @@
       const data = res.status === 200 ? mapperData(res.html) : null;
       state.npcs[id] = {title: title(res.html), http: res.status, data};
       save();
+      oddShapes(id, data);
       done++;
       emptyNpc = countPoints(data) === 0 ? emptyNpc + 1 : 0;
       if (emptyNpc >= 12) stopReason = "12 créatures de suite sans point d'apparition : format de page modifié ?";
@@ -277,7 +294,7 @@
 
   const v = validate();
   const perMap = {};
-  for (const [id, n] of Object.entries(state.npcs)) for (const z of Object.values(n.data || {})) for (const e of z) {
+  for (const [id, n] of Object.entries(state.npcs)) for (const e of zoneEntries(n.data)) {
     const key = e.uiMapName || String(e.uiMapId);
     perMap[key] = perMap[key] || {zone: key, creatures: 0, points: 0};
     perMap[key].creatures++;
