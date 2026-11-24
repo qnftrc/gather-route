@@ -36,5 +36,14 @@ python3 -I tools/test_addon.py
 ```
 Charge tous les fichiers Lua dans un faux environnement WoW/TomTom : résolution des régions, génération, avancement, skip, suppression externe, fin de route, mode pins, entrées invalides, puis `/hr probe` sur un faux minimap : lecture de base du survol réel, valeurs secrètes, fonction absente, commandes retirées (affichage de l'aide), et `watch` (changements de signature), valeurs numériques journalisées, et `blink world` (cas touché et contrôles, lecture figée, lecture disparue, abandons en combat, bouton enfoncé, souris sur une fenêtre, curseur hors du monde, restauration de la minimap). Le pistage est testé sur une API simulée : isolement, restauration, échange entre pistages à sort, ancien format de `GetTrackingInfo`, combat, reprise au chargement, commandes. La vérification du prochain waypoint est testée sur un faux minimap dont le moteur renvoie des lignes d'infobulle seulement sous un nœud (modes `report` et `remove`, premier point confirmé, point retiré et route qui avance, base inchangée, dernier contrôle avant arrivée, garde-fous, moteur inconclusif, commandes). Aucune erreur Lua ne doit apparaître. Ne teste pas le rendu réel (UI, lignes carte/minimap) ni le comportement du vrai moteur.
 
+## SkinRoute : données et tests
+`tools/wowhead_export_skinning.js` se colle dans la console du navigateur sur une page `wowhead.com/forever/...` (confirmation avec durée estimée, arrêt sur refus ou page inattendue, validation avant le téléchargement de `wowhead_skinning_all_zones.json`). Ensuite, avec les dossiers classic-db (SQL) et pfQuest (`db/units.lua`, `enUS/zones.lua`) :
+```bash
+python3 -I tools/merge_skinning.py --cmangos <classic-db> --pfquest <pfQuest> --wowhead wowhead_skinning_all_zones.json --out SkinRoute/Data/SkinData.lua
+python3 -I tools/test_merge_skinning.py
+python3 -I tools/test_skinroute.py
+```
+`merge_skinning.py` exclut les créatures rares, élites, boss et marquées (`--ranks 0`), écarte les objets de quête et les zones inutiles (`--skip-zone`, villes, champ de bataille, continents) et écrit `SkinRoute_Data` (objets, créatures, points par zone). Le fichier généré n'est **pas versionné** (licences classic-db et pfQuest). `test_skinroute.py` charge SkinRoute dans un faux environnement WoW/TomTom ; avec `SKINROUTE_DATA=SkinRoute/Data/SkinData.lua` il ajoute des essais sur les vraies données. Il finit par `SKINROUTE TESTS OK`.
+
 ## Prérequis
 `pip install lupa` (Lua embarqué, version 5.5 ; WoW exécute du Lua 5.1), Python 3 et Node.js.

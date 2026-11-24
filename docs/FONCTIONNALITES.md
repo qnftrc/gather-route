@@ -170,3 +170,43 @@ Deux familles : ce qui **construit la base de données** (points d'herbes et de 
 | R-7 | F64 : zoom d'arbitrage de 0 vers 5 pour distinguer un positif ambigu | Abandonné à la demande du joueur (2026-11-20), remplacé par le sondage décalé (F63) |
 
 Les anciennes versions restent dans l'historique Git (dernier commit avant nettoyage : `30c4969`).
+
+## SkinRoute (add-on de zones pour le dépeçage, v0.10.2)
+Références **S**. « Hors jeu » = faux environnement WoW/TomTom (`tools/test_skinroute.py`) ; « En jeu » = vu par le joueur (captures ou essai).
+
+### S-A. Données
+| Réf. | Fonctionnalité | Où | Hors jeu | En jeu |
+|---|---|---|---|---|
+| S1 | Export Wowhead par la console (garde-fous, état, validation) | `tools/wowhead_export_skinning.js` | — | Exécuté par le joueur (607 créatures) |
+| S2 | Fusion CMaNGOS + pfQuest + Wowhead, nettoyage, sortie Lua | `tools/merge_skinning.py`, `tools/test_merge_skinning.py` | Oui | Données chargées |
+| S3 | Données générées (651 créatures, 44 zones, 29 objets, 22 529 points), **non versionnées** | `SkinRoute/Data/SkinData.lua` | Fumée sur vraies données | Oui |
+
+### S-B. Calcul
+| Réf. | Fonctionnalité | Où | Hors jeu | En jeu |
+|---|---|---|---|---|
+| S4 | Règles : dépeçable, bande de niveau, difficulté, statuts, valeur, pourcentage | `Rules.lua` | Oui | Affichage vu |
+| S5 | Région vers carte, région courante, surcharge `/sr setmap` | `Resolver.lua` | Oui | Validé |
+| S6 | Niveau et Dépeçage réels ou simulés | `Core.lua`, `Skill.lua` | Oui | Simulé vu ; lecture réelle **non vue** |
+| S7 | Prix : manuel, Auctionator, marchand ; `/sr price`, `/sr prices` | `Prices.lua` | Oui | Prix affichés ; source **non vérifiée** |
+| S8 | Couverture en zones de 233 yd, tranches de calcul | `Zones.lua` | Oui | Validé |
+| S9 | Vue Profit : or par heure, temps par bête (10 s + 15 s × 1,10^écart), `/sr time` | `Rules.lua`, `Core.lua` | Oui | Affichée |
+| S10 | Choix automatique des cuirs par région (seuil de 70 %, `/sr keep`), séparé de la sélection | `Rules.lua`, `Zones.lua`, `UI.lua` | Oui | Affiché |
+
+### S-C. Interface et carte
+| Réf. | Fonctionnalité | Où | Hors jeu | En jeu |
+|---|---|---|---|---|
+| S11 | Fenêtre de 442 px : vues Region, Item, Value, Profit, popups à recherche par lettres, Options | `UI.lua` | Oui | Vue Profit et Options vues |
+| S12 | Prix en fin de ligne (Region, Item), alerte sans prix (Profit) | `UI.lua` | Oui | Prix vus |
+| S13 | Cercles sur la carte du monde : contour par difficulté, pointillés si verrouillée, étiquettes, `/sr map` | `Overlay.lua` | Oui | Validé |
+| S14 | Fond blanc transparent par masque (`/sr fill`, case « Fill ») | `Overlay.lua` | Oui | Fond vu ; choix du masque noté dans le journal |
+| S15 | Police proportionnelle au cercle ; nombre de bêtes (`N mobs`, `X/Y mobs`) | `Overlay.lua` | Oui | Police vue ; nombre de bêtes **à voir** |
+| S16 | Guide TomTom par zone : go, skip, stop | `Runner.lua` | Oui | Validé (Barrens) |
+| S17 | Fenêtre de stats (`/sr stats`) | `Stats.lua` | Oui | **Non vue** |
+| S18 | Touches et bouton Skip (`Bindings.xml`, `/sr button`) | `SkipButton.lua` | Oui | **Non vus** |
+| S19 | Français : régions et objets | `Locale.lua` | Oui | **Non vu** |
+| S20 | Diagnostic `/sr probe`, `/sr debug` | `Probe.lua`, `Resolver.lua` | Oui | Probe joué |
+
+### Idées et écarts
+- Plafond de réapparition et temps de recherche : écartés par le joueur (2026-11-24).
+- Commission d'HV : écartée par le joueur.
+- Position de départ : retirée de la fenêtre (non utile à un guide par zone).

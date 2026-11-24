@@ -162,3 +162,30 @@ Activer « Trouver les herbes » au lancement d'une route (`C_Minimap.GetNumTrac
 2. États des points, `RemovePoint` et restauration (Runner/Overlay), puis mémoire de récolte (4.4), utile même si la minimap est bloquée.
 3. Vérification et suppression (4.3 bis) avec la croix (4.2) et l'activation automatique du pistage (4.5).
 4. Optionnel : recalcul complet (4.3) et couleurs supplémentaires sur les tracés.
+
+## 7. SkinRoute : besoin du dépeçage (2026-11-24)
+
+### 7.1 Besoin de départ
+Un add-on séparé, sur le modèle d'HerbRoute mais **par zone** : le joueur veut savoir où dépecer pour gagner de l'or, sans route à suivre bête par bête. Une zone vaut environ une minimap au zoom 0 (cercle de 233 yd). Mono-région. L'add-on **guide seulement vers la zone** ; aucune vérification sur la minimap.
+
+### 7.2 Besoins exprimés (par le joueur)
+- Même interface qu'HerbRoute, avec trois vues : par **région**, par **item**, par **valeur** selon le scan d'Auctionator ; symboles de pièces d'or, d'argent et de cuivre du jeu.
+- Niveau du personnage **détecté ou simulé** ; niveau de **Dépeçage** réel ou simulé ; zones et cuirs verrouillés **grisés et visibles** avec « needs skinning N » ; pourcentage de bêtes dépeçables, en nombre de bêtes.
+- Bande de niveau −8/+2 par défaut, **réglable**.
+- Cercles sur la carte du monde : contour coloré selon la difficulté face au niveau, même épaisseur partout, sans numéros de zone, étiquettes valeur, niveaux et pourcentage ; **fond blanc transparent** ; **polices qui tiennent dans les cercles** ; **nombre de bêtes** (« X mobs »).
+- Données : export Wowhead par script (avec garde-fous), complété par une base de créatures libre ; nettoyage des données (objets de quête, villes, champ de bataille, cartes de continents).
+- **Prix en fin de ligne** dans toutes les vues.
+- **Vue Profit** : classement des régions par or par heure d'après le scan d'Auctionator ; temps par bête de 25 s à niveau égal, **décroissant selon l'écart de niveau** (courbe continue, pente 1,10) ; pas de commission d'HV, pas de plafond de réapparition ; **choix automatique des cuirs** sous la ligne de la région, séparés de la sélection manuelle ; alerte « scan the auction house » si aucun prix n'est connu.
+- Fenêtre élargie pour que rien ne dépasse (442 px), prix, stats, touches, bouton Skip, français.
+
+### 7.3 Faits établis
+- Seul Wowhead donne les positions des créatures par zone ; ses fetchs automatiques sont refusés (405), l'export se fait donc dans le navigateur du joueur.
+- CMaNGOS classic-db fournit rang, butin de dépeçage et niveaux ; pfQuest fournit les positions en pourcentage. Un point CMaNGOS = un spawn.
+- La carte, le cercle de 233 yd, le fond blanc et la fenêtre fonctionnent sur le client du joueur (captures).
+
+### 7.4 Questions ouvertes
+1. Lecture du niveau de Dépeçage sur un personnage qui a le métier.
+2. Règles de dépeçage et butins réels sur Forever.
+3. Réglage du temps par bête et du seuil de 70 % d'après la pratique ; durées de réapparition.
+4. Noms français des régions.
+5. Licence : publication éventuelle du fichier de données généré.
