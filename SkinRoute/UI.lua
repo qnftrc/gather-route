@@ -3,12 +3,12 @@ local addonName, SR = ...
 local ui
 
 local ROW, VROW = 24, 20
-local WIDTH, WIDE = 540, 160
+local WIDTH, WIDE = 442, 62
 local VIEW_NAMES = {region = "Region", item = "Item", value = "Value", profit = "Profit"}
 local VIEWS = {
     {"region", "Region", "Choose a region, then the leathers inside it"},
     {"item", "Item", "Choose leathers, regions ranked by mobs"},
-    {"value", "Value", "Choose leathers, zones ranked by value (prices set with /sr price)"},
+    {"value", "Value", "Choose leathers, zones ranked by value"},
     {"profit", "Profit", "Choose leathers, regions ranked by gold per hour"},
 }
 
