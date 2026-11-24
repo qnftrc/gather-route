@@ -89,7 +89,8 @@ end
 
 function SR:PlayerSkill()
     if self.db.skill then return self.db.skill, true end
-    return nil, false
+    local info = self:ReadSkill()
+    return info.value, false, info
 end
 
 function SR:SelectedSet()
@@ -197,10 +198,10 @@ local function listRegions(limit)
     local ctx = SR:Context()
     local ranked, hidden, anyPrice = SR:RankRegions(ctx)
     local level, simLevel = SR:PlayerLevel()
-    local skill, simSkill = SR:PlayerSkill()
-    SR:Say(("Level %d%s, skinning %s%s, %s. Items: %s."):format(
+    local skill, simSkill, info = SR:PlayerSkill()
+    SR:Say(("Level %d%s, %s, %s. Items: %s."):format(
         level, simLevel and " (simulated)" or "",
-        skill and tostring(skill) or "unknown (no limit applied, /sr skill <n>)", simSkill and " (simulated)" or "",
+        skill and ("skinning " .. skill .. (simSkill and " (simulated)" or "")) or SR.SkillText(info),
         ctx.bandOnly and ("mobs from level " .. (level + ctx.lo) .. " to " .. (level + ctx.hi)) or "all mob levels",
         itemNames(SR.db.items)))
     if #ranked == 0 then return SR:Say(("No region (%d without a mob in range)."):format(hidden)) end
@@ -243,9 +244,13 @@ local function setNumber(field, arg, label)
         SR.db[field] = math.floor(n)
     end
     SR:RefreshZones()
-    local value, simulated = (field == "level" and SR.PlayerLevel or SR.PlayerSkill)(SR)
-    SR:Say(("%s: %s%s."):format(label == "level" and "Level" or "Skinning skill", value and tostring(value) or "unknown",
-        simulated and " (simulated, /sr " .. label .. " auto to go back)" or ""))
+    local value, simulated, info = (field == "level" and SR.PlayerLevel or SR.PlayerSkill)(SR)
+    local name = label == "level" and "Level" or "Skinning skill"
+    if value then
+        SR:Say(("%s: %s%s."):format(name, tostring(value), simulated and " (simulated, /sr " .. label .. " auto to go back)" or " (read from the game)"))
+    else
+        SR:Say(("%s: %s."):format(name, SR.SkillText(info)))
+    end
 end
 
 local function handleSlash(msg)

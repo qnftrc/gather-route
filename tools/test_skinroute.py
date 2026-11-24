@@ -55,6 +55,7 @@ SlashCmdList = {}
 level = 21
 UnitLevel = function() return level end
 frames = {}
+failEvent = nil
 now = 0
 GetTime = function() return now end
 timers = {}
@@ -71,7 +72,10 @@ end
 hooksecurefunc = function() end
 local function newObject(kind)
     local o = {kind = kind, shown = false, scripts = {}, hooks = {}, children = {}, events = {}}
-    function o:RegisterEvent(e) self.events[e] = true end
+    function o:RegisterEvent(e)
+        if failEvent == e then error('unknown event ' .. e) end
+        self.events[e] = true
+    end
     function o:UnregisterEvent() end
     function o:SetScript(name, fn) self.scripts[name] = fn end
     function o:HookScript(name, fn) self.hooks[name] = fn end
@@ -179,7 +183,7 @@ function Slash(msg) SlashCmdList.SKINROUTE(msg) return Said() end
 
 LOAD = r'''
 SR = {}
-for _, f in ipairs({"Core", "Resolver", "Rules", "Zones", "Runner", "Overlay", "UI", "Probe"}) do
+for _, f in ipairs({"Core", "Resolver", "Rules", "Skill", "Zones", "Runner", "Overlay", "UI", "Probe"}) do
     local fh = assert(io.open(ROOT .. "/SkinRoute/" .. f .. ".lua"))
     local src = fh:read("a")
     fh:close()
@@ -371,7 +375,7 @@ def check_slash():
     out = lines(lua, 'return Slash("skill 100")')
     out = lines(lua, 'return Slash("regions")')
     assert "needs skinning 110" in out and "|cffff8040" in out, out
-    assert "unknown" in lines(lua, 'return Slash("skill auto")')
+    assert "not readable: no limit applied" in lines(lua, 'return Slash("skill auto")')
     out = lines(lua, 'return Slash("band 5 -3")')
     assert "from level -3 to +5" in out, out
     assert "off" in lines(lua, 'return Slash("band off")')
@@ -691,12 +695,12 @@ def check_ui_region_view():
     assert lua.eval("#SR.db.items") == 3
 
     lua.execute("Click(UI().noneButton); local r = UI().rows[3]; r:SetChecked(true); Click(r); Type(UI().skillEdit, '140')")
-    assert lua.eval("SR.db.skill") == 140 and lua.eval("UI().skillNote.text") == "simulated (not read yet)"
+    assert lua.eval("SR.db.skill") == 140 and lua.eval("UI().skillNote.text") == "simulated (not readable)"
     rows = rows_of(lua, "rows")
     assert "Light Leather" in rows[0] and "Medium Leather" in rows[1] and "63%" in rows[1], rows
     assert "|cff808080Heavy Leather|r" in rows[2] and "needs skinning 155" in rows[2], rows[2]
     lua.execute("Type(UI().skillEdit, '')")
-    assert lua.eval("SR.db.skill") is None and lua.eval("UI().skillNote.text") == "not set: no limit applied"
+    assert lua.eval("SR.db.skill") is None and lua.eval("UI().skillNote.text") == "not readable: no limit"
 
     lua.execute("Type(UI().levelEdit, '24')")
     assert lua.eval("SR.db.level") == 24 and lua.eval("UI().levelNote.text") == "simulated (you are 21)"
@@ -914,11 +918,22 @@ GetSkillLineInfo = function(i) local s = SKILLS[i] return s[1], s[2], s[3], s[4]
 """
 
 
-def probe_env(extra="", data=FIXTURE, skills=True):
+PROFESSIONS_MOCK = r"""
+GetProfessions = function() return 3, 4, nil, nil, nil, nil end
+GetProfessionInfo = function(i)
+    if i == 3 then return "Alchemy", "icon", 300, 300, 1, 146, 171, 0 end
+    return "Dépeçage", "icon", 125, 150, 1, 147, 393, 5
+end
+"""
+
+
+def probe_env(extra="", data=FIXTURE, skills=True, professions=True):
     lua = env(data=data)
     lua.execute("GetBuildInfo = function() return '1.60.1', '71037', 'Nov 24 2026', 16001 end; GetLocale = function() return 'frFR' end; date = os.date")
     if skills:
         lua.execute(SKILLS_MOCK)
+    if professions:
+        lua.execute(PROFESSIONS_MOCK)
     lua.execute(extra)
     return lua
 
@@ -939,28 +954,32 @@ def check_probe():
         "templates created: BasicFrameTemplateWithInset", "UIPanelScrollFrameTemplate", "BackdropTemplate",
         "GetNumSkillLines -> 4", 'headers: "Professions", "Languages" [collapsed]',
         'skills: "Dépeçage" 125/150, "Mining" 1/75', "1 header(s) collapsed",
-        "Skinning line 2 raw:", "RESULT: Skinning 125/150 via GetSkillLineInfo",
+        "Skinning line 2 raw:", "RESULT: Skinning 130 (rank 125 +5) of 150 via GetProfessionInfo, skill line 393",
+        "the classic API would give 125/150 (not used by the addon)", 'GetProfessionInfo(3) -> "Alchemy", "icon", 300, 300, 1, 146, 171, 0',
         "global functions with Skill in the name", "GetSkillLineInfo", "Probe done:",
     ):
         assert expected in out, (expected, out)
     assert "templates FAILED" not in out
     assert lua.eval("#SR.db.probe.lines") > 10 and lua.eval("SR.db.probe.date") != ""
 
-    out = probe(probe_env(skills=False, extra="GetNumSkillLines = nil; GetSkillLineInfo = nil"))
+    out = probe(probe_env(skills=False, professions=False))
     assert "GetNumSkillLines / GetSkillLineInfo: not available" in out and "GetProfessions: not available" in out, out
-    assert "RESULT: Skinning skill NOT found" in out
+    assert "RESULT: GetProfessions / GetProfessionInfo not usable" in out
 
-    out = probe(probe_env(skills=False, extra="GetProfessions = function() return 3, nil, nil, nil, nil, nil end; "
+    out = probe(probe_env(extra="GetProfessionInfo = function(i) return 'Alchemy', 'icon', 300, 300, 1, 146, 171, 0 end"))
+    assert "RESULT: Skinning is not among your professions (not learned)" in out and "the classic API would give" in out, out
+
+    out = probe(probe_env(skills=False, professions=False, extra="GetProfessions = function() return 3, nil, nil, nil, nil, nil end; "
                           "GetProfessionInfo = function(i) return 'Skinning', 'icon', 200, 300 end"))
     assert 'GetProfessions() -> 3, nil, nil, nil, nil, nil' in out and 'GetProfessionInfo(3) -> "Skinning", "icon", 200, 300' in out, out
-    assert "RESULT: Skinning 200/300 via GetProfessionInfo" in out
+    assert "RESULT: Skinning 200 (rank 200) of 300 via GetProfessionInfo, skill line nil" in out
 
     out = probe(probe_env(extra="issecretvalue = function(v) return v == 125 end"))
-    assert "<secret>/150" in out and "SECRET value" in out and "RESULT: Skinning 125" not in out, out
+    assert "SECRET value" in out and "RESULT: Skinning 130" not in out, out
 
     out = probe(probe_env(extra="GetSkillLineInfo = function(i) error('boom') end"))
     assert "GetNumSkillLines -> 4" in out and "GetSkillLineInfo(1): ERROR" in out and "boom" in out, out
-    assert "RESULT: Skinning skill NOT found" in out
+    assert "RESULT: Skinning 130" in out
 
     out = probe(probe_env(extra="local original = CreateFrame; CreateFrame = function(kind, name, parent, template) "
                           "if template == 'OptionsSliderTemplate' then error('no such template') end return original(kind, name, parent, template) end"))
@@ -972,17 +991,17 @@ def check_probe():
     assert "HereBeDragons-2.0: MISSING" in out and "map 25:" not in out
 
     out = probe(probe_env(extra="playerMap = nil"))
-    assert "player map nil" in out and "RESULT: Skinning 125/150" in out
+    assert "player map nil" in out and "RESULT: Skinning 130" in out
 
     out = probe(probe_env(extra="GetBuildInfo = nil; GetLocale = nil"))
     assert "client nil build nil" in out and "RESULT:" in out
 
     out = probe(probe_env(extra="TomTom.GetCurrentPlayerPosition = function() error('tomtom broke') end"))
-    assert "env: SECTION ERROR" in out and "tomtom broke" in out and "RESULT: Skinning 125/150" in out, out
+    assert "env: SECTION ERROR" in out and "tomtom broke" in out and "RESULT: Skinning 130" in out, out
 
     lua = probe_env()
     out = probe(lua, "skill")
-    assert "RESULT: Skinning 125/150" in out and "HereBeDragons" not in out and "templates created" not in out
+    assert "RESULT: Skinning 130" in out and "HereBeDragons" not in out and "templates created" not in out
     out = probe(lua, "env")
     assert "HereBeDragons-2.0: present" in out and "RESULT" not in out and "templates created" not in out
     out = probe(lua, "ui")
@@ -990,7 +1009,139 @@ def check_probe():
     assert "Usage: /sr probe" in probe(lua, "nonsense")
 
     out = probe(probe_env(data=None))
-    assert "DATA FILE MISSING" in out and "RESULT: Skinning 125/150" in out
+    assert "DATA FILE MISSING" in out and "RESULT: Skinning 130" in out
+
+
+PROF_API = r"""
+GetProfessions = function() return table.unpack(PIDX, 1, 6) end
+GetProfessionInfo = function(i) return table.unpack(PROFS[i], 1, 8) end
+"""
+ALCHEMY = '{"Alchemy", "i", 300, 300, 1, 1, 171, 0}'
+HERBALISM = '{"Herbalism", "i", 300, 300, 1, 1, 182, 0}'
+SKINNING = '{"Dépeçage", "i", 125, 150, 1, 1, 393, 5}'
+
+
+def prof_env(profs, idx="{1, 2, 3}", extra="", data=FIXTURE, pre=""):
+    lua = env(data=data, pre=pre)
+    lua.execute("PROFS = {%s}; PIDX = %s" % (", ".join(profs), idx))
+    lua.execute(PROF_API)
+    lua.execute(extra)
+    return lua
+
+
+def check_skill_reading():
+    lua = prof_env([ALCHEMY, SKINNING, HERBALISM])
+    info = lua.eval("SR:ReadSkill()")
+    assert info.status == "ok" and info.rank == 125 and info.modifier == 5 and info.value == 130 and info.max == 150 and info.line == 393
+    assert lua.eval("SR.SkillText(SR:ReadSkill())") == "your skill (Skinning 125+5/150)"
+    assert lua.eval("SR.SkillShort(SR:ReadSkill())") == "Skinning 125+5/150" and lua.eval("SR.SkillHave(SR:ReadSkill())") == "you have 130"
+
+    lua = prof_env(['{"Skinning", "i", 200, 300, 1, 1, 999, 0}'], idx="{1}")
+    info = lua.eval("SR:ReadSkill()")
+    assert info.status == "ok" and info.value == 200 and info.line == 999
+    assert lua.eval("SR.SkillShort(SR:ReadSkill())") == "Skinning 200/300"
+    lua = prof_env(['{"Dépeçage", "i", 100, 150}'], idx="{1}")
+    info = lua.eval("SR:ReadSkill()")
+    assert info.status == "ok" and info.value == 100 and info.modifier == 0 and info.line is None
+    lua = prof_env(['{"Whatever", "i", 50, 300, 1, 1, 393, 0}'], idx="{1}")
+    assert lua.eval("SR:ReadSkill().status") == "ok" and lua.eval("SR:ReadSkill().value") == 50
+
+    lua = prof_env([ALCHEMY, HERBALISM], idx="{1, 2}")
+    assert lua.eval("SR:ReadSkill().status") == "not learned"
+    assert "Skinning not learned: no limit applied" in lua.eval("SR.SkillText(SR:ReadSkill())")
+    assert lua.eval("SR.SkillShort(SR:ReadSkill())") == "not learned: no limit" and lua.eval("SR.SkillHave(SR:ReadSkill())") == "not learned"
+
+    lua = env()
+    assert lua.eval("SR:ReadSkill().status") == "unavailable"
+    assert lua.eval("SR.SkillShort(SR:ReadSkill())") == "not readable: no limit" and lua.eval("SR.SkillHave(SR:ReadSkill())") == "not readable"
+    lua = prof_env([ALCHEMY], idx="{1}", extra="GetProfessions = function() error('x') end")
+    assert lua.eval("SR:ReadSkill().status") == "unavailable"
+    lua = prof_env([ALCHEMY], idx="{1}", extra="GetProfessionInfo = function() error('x') end")
+    assert lua.eval("SR:ReadSkill().status") == "unavailable"
+
+    lua = prof_env([ALCHEMY, SKINNING], idx="{1, 2}", extra="issecretvalue = function(v) return v == 125 end")
+    assert lua.eval("SR:ReadSkill().status") == "secret"
+    assert "secret value" in lua.eval("SR.SkillText(SR:ReadSkill())") and lua.eval("SR.SkillShort(SR:ReadSkill())") == "secret: no limit"
+    lua = prof_env([ALCHEMY, SKINNING], idx="{1, 2}", extra="issecretvalue = function(v) return v == 1 end")
+    assert lua.eval("SR:ReadSkill().status") == "ok", "a secret index must not hide a readable skinning line"
+    lua = prof_env([ALCHEMY, HERBALISM], idx="{1, 2}", extra="issecretvalue = function(v) return v == 1 end")
+    assert lua.eval("SR:ReadSkill().status") == "secret"
+    lua = prof_env(['{"Whatever", "i", 50, 300, 1, 1, 400, 0}'], idx="{1}", extra="issecretvalue = function(v) return v == 'Whatever' end")
+    assert lua.eval("SR:ReadSkill().status") == "not learned"
+
+
+def check_player_skill():
+    lua = prof_env([ALCHEMY, SKINNING], idx="{1, 2}", data=ZONE_FIXTURE)
+    lua.execute("TomTom.NameToMapId['Test Valley'] = 77; SR.mapsBuilt = false")
+    real = lua.eval("(SR:PlayerSkill())")
+    assert real == 130 and lua.eval("(select(2, SR:PlayerSkill()))") is False and lua.eval("select(3, SR:PlayerSkill()).status") == "ok"
+    lua.execute("SR.db.skill = 200")
+    assert lua.eval("(SR:PlayerSkill())") == 200 and lua.eval("(select(2, SR:PlayerSkill()))") is True
+    lua.execute("SR.db.skill = nil")
+
+    assert "Skinning skill: 130 (read from the game)." in lines(lua, 'return Slash("skill")')
+    assert "Skinning skill: 200 (simulated, /sr skill auto to go back)." in lines(lua, 'return Slash("skill 200")')
+    assert "Skinning skill: 130 (read from the game)." in lines(lua, 'return Slash("skill auto")')
+
+    lines(lua, 'return Slash("items medium leather")')
+    lines(lua, 'return Slash("level 30")')
+    ctxe = lua.eval("SR:EvaluateRegion('Test Valley', SR:Context()).status")
+    assert ctxe == "partial", "the real skill 130 opens the bears (110) but not the lions (155)"
+    out = lines(lua, 'return Slash("regions")')
+    assert "skinning 130, " in out and "(simulated)" not in out.split("\n")[0].replace("Level 30 (simulated)", ""), out
+    lines(lua, 'return Slash("skill 200")')
+    assert "skinning 200 (simulated)" in lines(lua, 'return Slash("regions")')
+    assert lua.eval("SR:EvaluateRegion('Test Valley', SR:Context()).status") == "ok"
+
+    lua = prof_env([ALCHEMY], idx="{1}", data=ZONE_FIXTURE)
+    assert lua.eval("(SR:PlayerSkill())") is None
+    assert "Skinning not learned: no limit applied" in lines(lua, 'return Slash("skill")')
+    lines(lua, 'return Slash("items medium leather")')
+    out = lines(lua, 'return Slash("regions")')
+    assert "Skinning not learned: no limit applied" in out and "skinning Skinning" not in out, out
+    lines(lua, 'return Slash("skill 100")')
+    assert "skinning 100 (simulated)" in lines(lua, 'return Slash("regions")')
+
+
+def check_ui_skill():
+    lua = prof_env([ALCHEMY, SKINNING], idx="{1, 2}", data=ZONE_FIXTURE)
+    lua.execute("TomTom.NameToMapId['Test Valley'] = 77; SR.mapsBuilt = false")
+    lines(lua, 'return Slash("items medium leather")')
+    lines(lua, 'return Slash("level 30")')
+    lines(lua, 'return Slash("")')
+    assert lua.eval("UI().skillEdit.text") == "130" and lua.eval("UI().skillNote.text") == "Skinning 125+5/150"
+    assert lua.eval("UI().skillButton:IsEnabled()") is True
+    rows = rows_of(lua, "rows")
+    assert "Medium Leather" in rows[1] and "63%" in rows[1] and "needs skinning 155" in rows[2], rows
+    lua.execute("Type(UI().skillEdit, '130')")
+    assert lua.eval("SR.db.skill") is None and lua.eval("UI().skillNote.text") == "Skinning 125+5/150"
+    lua.execute("Type(UI().skillEdit, '200')")
+    assert lua.eval("SR.db.skill") == 200 and lua.eval("UI().skillNote.text") == "simulated (you have 130)"
+    rows = rows_of(lua, "rows")
+    assert not any("63%" in r or "needs skinning" in r for r in rows), rows
+    lua.execute("Click(UI().skillButton)")
+    assert lua.eval("SR.db.skill") is None and lua.eval("UI().skillEdit.text") == "130"
+    lua.execute("Type(UI().skillEdit, '')")
+    assert lua.eval("SR.db.skill") is None and lua.eval("UI().skillEdit.text") == "130"
+
+    lua.execute("PROFS[2][3] = 140; local f = EventFrame('SKILL_LINES_CHANGED'); f.scripts.OnEvent(f, 'SKILL_LINES_CHANGED')")
+    assert lua.eval("UI().skillEdit.text") == "145" and lua.eval("UI().skillNote.text") == "Skinning 140+5/150"
+    lua.execute("PROFS[2][3] = 150; local f = EventFrame('CHAT_MSG_SKILL'); f.scripts.OnEvent(f, 'CHAT_MSG_SKILL')")
+    assert lua.eval("UI().skillEdit.text") == "155"
+    rows = rows_of(lua, "rows")
+    assert not any("63%" in r or "needs skinning" in r for r in rows), "155 skins the lions too"
+
+    lua = prof_env([ALCHEMY], idx="{1}", data=ZONE_FIXTURE)
+    lines(lua, 'return Slash("")')
+    assert lua.eval("UI().skillEdit.text") == "" and lua.eval("UI().skillNote.text") == "not learned: no limit"
+    lua.execute("Type(UI().skillEdit, '120')")
+    assert lua.eval("SR.db.skill") == 120 and lua.eval("UI().skillNote.text") == "simulated (not learned)"
+
+    lua = prof_env([ALCHEMY, SKINNING], idx="{1, 2}", data=ZONE_FIXTURE, pre="failEvent = 'SKILL_LINES_CHANGED'")
+    lua.execute("local f = EventFrame('PLAYER_LEVEL_UP'); f.scripts.OnEvent(f, 'PLAYER_LEVEL_UP')")
+    assert lua.eval("EventFrame('SKILL_LINES_CHANGED')") is None and lua.eval("EventFrame('CHAT_MSG_SKILL') ~= nil") is True
+    lines(lua, 'return Slash("")')
+    assert lua.eval("UI().skillEdit.text") == "130"
 
 
 def check_missing_data():
@@ -1042,6 +1193,9 @@ def main():
     check_ui_buttons()
     check_ui_region_popup()
     check_probe()
+    check_skill_reading()
+    check_player_skill()
+    check_ui_skill()
     check_missing_data()
     check_lua51_constructs()
     real = os.environ.get("SKINROUTE_DATA")

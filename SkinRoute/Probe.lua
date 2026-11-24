@@ -10,8 +10,6 @@ local TEMPLATES = {
     {"Frame", "BackdropTemplate"},
 }
 
-local SKILL_NAMES = {skinning = true, depecage = true, kurschnerei = true}
-
 local lines
 
 local function add(fmt, ...)
@@ -59,10 +57,6 @@ local function addList(prefix, items)
         len = len + #item + 2
     end
     add("%s %s", prefix, table.concat(cur, ", "))
-end
-
-local function plainString(v)
-    return type(v) == "string" and not isSecret(v)
 end
 
 local function sectionHeader()
@@ -176,7 +170,7 @@ local function skillFromLines()
             else
                 skills[#skills + 1] = ("%s %s/%s"):format(show(name), show(r[5]), show(r[8]))
             end
-            if plainString(name) and SKILL_NAMES[SR.normalize(name)] and not header and not found then
+            if not header and not found and SR.IsSkinning(name) then
                 found, foundIndex = r, i
             end
         end
@@ -188,7 +182,7 @@ local function skillFromLines()
         local raw = {}
         for i = 2, math.min(found.n, 9) do raw[#raw + 1] = show(found[i]) end
         add("Skinning line %d raw: %s", foundIndex, table.concat(raw, ", "))
-        return {source = "GetSkillLineInfo", rank = found[5], max = found[8]}
+        return {rank = found[5], max = found[8]}
     end
 end
 
@@ -199,31 +193,30 @@ local function skillFromProfessions()
     end
     local r = try("GetProfessions()", GetProfessions)
     if not r or type(GetProfessionInfo) ~= "function" then return end
-    local found
     for i = 2, math.min(r.n, 7) do
         local idx = r[i]
         if type(idx) == "number" and not isSecret(idx) then
-            local info = try(("GetProfessionInfo(%d)"):format(idx), GetProfessionInfo, idx)
-            if info and plainString(info[2]) and SKILL_NAMES[SR.normalize(info[2])] and not found then
-                found = {source = "GetProfessionInfo", rank = info[4], max = info[5]}
-            end
+            try(("GetProfessionInfo(%d)"):format(idx), GetProfessionInfo, idx)
         end
     end
-    return found
 end
 
 local function sectionSkills()
     scanApis()
-    local a = skillFromLines()
-    local b = skillFromProfessions()
-    local result = a or b
-    if not result then
-        add("RESULT: Skinning skill NOT found by the known APIs (profession not learned, headers collapsed, or another API)")
-    elseif isSecret(result.rank) then
-        add("RESULT: Skinning found via %s but the value is a SECRET value (not readable by an addon)", result.source)
+    local classic = skillFromLines()
+    skillFromProfessions()
+    local info = SR:ReadSkill()
+    if info.status == "ok" then
+        add("RESULT: Skinning %d (rank %d%s) of %d via GetProfessionInfo, skill line %s", info.value, info.rank,
+            info.modifier ~= 0 and (" %+d"):format(info.modifier) or "", info.max, show(info.line))
+    elseif info.status == "secret" then
+        add("RESULT: Skinning found but its value is a SECRET value (not readable by an addon): no skill limit applied")
+    elseif info.status == "not learned" then
+        add("RESULT: Skinning is not among your professions (not learned): no skill limit applied")
     else
-        add("RESULT: Skinning %s/%s via %s", show(result.rank), show(result.max), result.source)
+        add("RESULT: GetProfessions / GetProfessionInfo not usable: no skill limit applied")
     end
+    if classic then add("the classic API would give %s/%s (not used by the addon)", show(classic.rank), show(classic.max)) end
 end
 
 local SECTIONS = {env = sectionEnvironment, ui = sectionTemplates, skill = sectionSkills}

@@ -519,9 +519,10 @@ function refreshFields()
     local real = (UnitLevel and UnitLevel("player")) or level
     ui.levelEdit:SetText(tostring(level))
     ui.levelNote:SetText(simLevel and ("simulated (you are " .. real .. ")") or "your level")
-    local skill = SR.db.skill
+    local skill, simSkill = SR:PlayerSkill()
+    local info = SR:ReadSkill()
     ui.skillEdit:SetText(skill and tostring(skill) or "")
-    ui.skillNote:SetText(skill and "simulated (not read yet)" or "not set: no limit applied")
+    ui.skillNote:SetText(simSkill and ("simulated (" .. SR.SkillHave(info) .. ")") or SR.SkillShort(info))
     ui.lowEdit:SetText(("%+d"):format(SR.db.bandLow))
     ui.highEdit:SetText(("%+d"):format(SR.db.bandHigh))
     ui.radiusEdit:SetText(tostring(SR.db.zoneRadius))
@@ -539,7 +540,8 @@ local function commitLevel(text)
 end
 
 local function commitSkill(text)
-    SR.db.skill = commitNumber(text, 1, 300)
+    local n = commitNumber(text, 1, 300)
+    SR.db.skill = (n and n ~= SR:ReadSkill().value) and n or nil
     refreshAll()
 end
 
@@ -639,8 +641,10 @@ local function build()
 
     label(ui.lower, "Skinning", "TOPLEFT", 16, -32)
     ui.skillEdit = editBox(ui.lower, 40, 74, -28, commitSkill)
-    ui.skillButton = button(ui.lower, "My skill", 90, "TOPLEFT", 122, -29, function() end)
-    ui.skillButton:SetEnabled(false)
+    ui.skillButton = button(ui.lower, "My skill", 90, "TOPLEFT", 122, -29, function()
+        SR.db.skill = nil
+        refreshAll()
+    end)
     ui.skillNote = ui.lower:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     ui.skillNote:SetPoint("TOPLEFT", ui.lower, "TOPLEFT", 222, -32)
     ui.skillNote:SetTextColor(1, 0.6, 0.24)
@@ -754,7 +758,9 @@ end
 
 function SR:InitUI()
     local f = CreateFrame("Frame")
-    f:RegisterEvent("PLAYER_LEVEL_UP")
+    for _, event in ipairs({"PLAYER_LEVEL_UP", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL"}) do
+        pcall(f.RegisterEvent, f, event)
+    end
     f:SetScript("OnEvent", function()
         SR:RefreshZones()
     end)
