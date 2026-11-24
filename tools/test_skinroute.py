@@ -738,6 +738,7 @@ def check_profit():
     assert lua.eval("UI().regionButton.text") == "Best leathers for each region (automatic)"
     assert lua.eval("UI().regionButton.enabled") is False and lua.eval("UI().noneButton.shown") is False
     assert lua.eval("UI().regionLabel.text") == "Auto"
+    assert lua.eval("UI().w") == 540 and lua.eval("UI().listScroll.w") == 480 and lua.eval("UI().regionButton.w") == 508
     items_before = lua.eval("#SR.db.items")
     out = lines(lua, 'Click(UI().generate) RunTimers() return Said()')
     assert lua.eval("SR.shown ~= nil") is True and lua.eval("#SR.shown.rows") > 0

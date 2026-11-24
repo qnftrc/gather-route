@@ -3,6 +3,7 @@ local addonName, SR = ...
 local ui
 
 local ROW, VROW = 24, 20
+local WIDTH, WIDE = 540, 160
 local VIEW_NAMES = {region = "Region", item = "Item", value = "Value", profit = "Profit"}
 local VIEWS = {
     {"region", "Region", "Choose a region, then the leathers inside it"},
@@ -195,7 +196,7 @@ local function fillRegionItems()
         cb:Show()
     end
     hideRowsFrom(ui.rows, #rows + 1)
-    ui.listChild:SetSize(270, math.max(1, #rows * ROW))
+    ui.listChild:SetSize(270 + WIDE, math.max(1, #rows * ROW))
     ui.listTitle:SetText(("Leathers (%d selected)"):format(selectedCount()))
     ui.regionButton:SetText(ui.region and SR.RegionLabel(ui.region) or "No region")
 end
@@ -218,7 +219,7 @@ local function fillRanking()
         if row.region == ui.region then keep = row.region end
     end
     hideRowsFrom(ui.rows, #rows + 1)
-    ui.listChild:SetSize(270, math.max(1, #rows * ROW))
+    ui.listChild:SetSize(270 + WIDE, math.max(1, #rows * ROW))
     if rows[1] then chooseRegion(keep or rows[1].region) end
     ui.listTitle:SetText(#SR.db.items == 0 and "Select leathers to list the regions"
         or ("Regions, most mobs first (%d)"):format(#rows))
@@ -257,7 +258,7 @@ local function fillAuto()
         if row.region == ui.region then keep = row.region end
     end
     hideRowsFrom(ui.rows, #rows + 1)
-    ui.listChild:SetSize(270, math.max(1, #rows * AUTO_ROW))
+    ui.listChild:SetSize(270 + WIDE, math.max(1, #rows * AUTO_ROW))
     if rows[1] then chooseRegion(keep or rows[1].region) end
     ui.listTitle:SetText(anyPrice and ("Regions, most gold per hour first (%d)"):format(#rows)
         or ("Regions, most items per hour first (%d)"):format(#rows))
@@ -284,7 +285,7 @@ local function fillValueItems()
         row:Show()
     end
     hideRowsFrom(ui.valItemRows, #all + 1)
-    ui.valChild1:SetSize(300, math.max(1, #all * VROW))
+    ui.valChild1:SetSize(300 + WIDE, math.max(1, #all * VROW))
     ui.valTitle1:SetText(("Leathers by value (%d)"):format(#all))
 end
 
@@ -314,7 +315,7 @@ local function fillZones()
         if row.region == ui.region then keep = row.region end
     end
     hideRowsFrom(ui.valZoneRows, #rows + 1)
-    ui.valChild2:SetSize(300, math.max(1, #rows * VROW))
+    ui.valChild2:SetSize(300 + WIDE, math.max(1, #rows * VROW))
     if rows[1] then chooseRegion(keep or rows[1].region) end
     ui.valTitle2:SetText(#SR.db.items == 0 and "Select leathers to list the zones"
         or ("Most valuable zones (%d)"):format(#rows))
@@ -475,7 +476,7 @@ end
 local function buildViewMenu()
     local menu = CreateFrame("Frame", nil, ui, "BackdropTemplate")
     menu:SetFrameStrata("DIALOG")
-    menu:SetSize(300, 168)
+    menu:SetSize(300 + WIDE, 168)
     menu:SetPoint("TOPRIGHT", ui.viewButton, "BOTTOMRIGHT", 0, -2)
     menu:SetBackdrop({
         bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -486,7 +487,7 @@ local function buildViewMenu()
     menu:Hide()
     for i, d in ipairs(VIEWS) do
         local b = CreateFrame("Button", nil, menu)
-        b:SetSize(288, 38)
+        b:SetSize(288 + WIDE, 38)
         b:SetPoint("TOPLEFT", menu, "TOPLEFT", 6, -6 - (i - 1) * 40)
         local title = b:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         title:SetPoint("TOPLEFT", 6, -4)
@@ -523,16 +524,16 @@ local function buildValueView()
     ui.valSearch = search
     ui.valScroll1 = add(CreateFrame("ScrollFrame", nil, ui, "UIPanelScrollFrameTemplate"))
     ui.valScroll1:SetPoint("TOPLEFT", ui, "TOPLEFT", 16, -82)
-    ui.valScroll1:SetSize(322, VROW * 4)
+    ui.valScroll1:SetSize(322 + WIDE, VROW * 4)
     ui.valChild1 = CreateFrame("Frame", nil, ui.valScroll1)
-    ui.valChild1:SetSize(300, 1)
+    ui.valChild1:SetSize(300 + WIDE, 1)
     ui.valScroll1:SetScrollChild(ui.valChild1)
     ui.valTitle2 = add(label(ui, "", "TOPLEFT", 16, -172))
     ui.valScroll2 = add(CreateFrame("ScrollFrame", nil, ui, "UIPanelScrollFrameTemplate"))
     ui.valScroll2:SetPoint("TOPLEFT", ui, "TOPLEFT", 16, -192)
-    ui.valScroll2:SetSize(322, VROW * 4)
+    ui.valScroll2:SetSize(322 + WIDE, VROW * 4)
     ui.valChild2 = CreateFrame("Frame", nil, ui.valScroll2)
-    ui.valChild2:SetSize(300, 1)
+    ui.valChild2:SetSize(300 + WIDE, 1)
     ui.valScroll2:SetScrollChild(ui.valChild2)
     ui.valInfo = add(ui:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall"))
     ui.valInfo:SetPoint("TOPLEFT", ui, "TOPLEFT", 16, -276)
@@ -645,7 +646,7 @@ end
 
 local function build()
     ui = CreateFrame("Frame", "SkinRouteFrame", UIParent, "BasicFrameTemplateWithInset")
-    ui:SetSize(380, SR.UIHeight("region", false))
+    ui:SetSize(WIDTH, SR.UIHeight("region", false))
     ui:SetPoint("CENTER")
     ui:SetMovable(true)
     ui:EnableMouse(true)
@@ -663,7 +664,7 @@ local function build()
     ui.viewButton = button(ui, "View: Region", 116, "TOPRIGHT", -16, -29, function()
         ui.viewMenu:SetShown(not ui.viewMenu:IsShown())
     end)
-    ui.regionButton = button(ui, "", 348, "TOPLEFT", 16, -52, function()
+    ui.regionButton = button(ui, "", 348 + WIDE, "TOPLEFT", 16, -52, function()
         if ui.mode == "item" then
             ui.itemPopup:SetShown(not ui.itemPopup:IsShown())
         else
@@ -689,14 +690,14 @@ local function build()
     local scroll = CreateFrame("ScrollFrame", nil, ui, "UIPanelScrollFrameTemplate")
     ui.listScroll = scroll
     scroll:SetPoint("TOPLEFT", 16, -104)
-    scroll:SetSize(320, 180)
+    scroll:SetSize(320 + WIDE, 180)
     ui.listChild = CreateFrame("Frame", nil, scroll)
-    ui.listChild:SetSize(270, 1)
+    ui.listChild:SetSize(270 + WIDE, 1)
     scroll:SetScrollChild(ui.listChild)
 
     ui.lower = CreateFrame("Frame", nil, ui)
     ui.lower:SetPoint("TOPLEFT", ui, "TOPLEFT", 0, -296)
-    ui.lower:SetSize(380, 260)
+    ui.lower:SetSize(WIDTH, 260)
     ui.optionWidgets = {}
     local function option(w)
         ui.optionWidgets[#ui.optionWidgets + 1] = w
@@ -757,7 +758,7 @@ local function build()
     ui.arrivalText = option(label(ui.lower, "", "TOPLEFT", 16, -200))
     local slider = option(CreateFrame("Slider", nil, ui.lower, "OptionsSliderTemplate"))
     slider:SetPoint("TOPLEFT", ui.lower, "TOPLEFT", 150, -202)
-    slider:SetSize(210, 16)
+    slider:SetSize(210 + WIDE, 16)
     slider:SetMinMaxValues(10, 500)
     slider:SetValueStep(10)
     slider:SetObeyStepOnDrag(true)
