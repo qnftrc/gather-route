@@ -101,7 +101,7 @@ local function grey(text)
     return "|cff808080" .. text .. "|r"
 end
 
-local function rowText(name, count, e, level)
+local function rowText(name, count, e, level, price)
     local usable = e.status == "ok" or e.status == "partial"
     local parts = {usable and name or grey(name), "|cff999999(" .. count .. ")|r"}
     local lv = SR.LevelText(e, level)
@@ -113,6 +113,7 @@ local function rowText(name, count, e, level)
     elseif e.status == "partial" then
         parts[#parts + 1] = SR.Paint("orange", ("%d%%"):format(math.floor(e.percent + 0.5)))
     end
+    if price then parts[#parts + 1] = price end
     return table.concat(parts, " ")
 end
 
@@ -180,7 +181,8 @@ local function fillRegionItems()
             SR:RefreshZones()
         end)
         local count = row.eval.status == "out" and row.eval.total or row.eval.inBand
-        cb.text:SetText(rowText(SR:ItemLabel(row.id), count, row.eval, c.level))
+        local unit = SR:ItemPrice(row.id)
+        cb.text:SetText(rowText(SR:ItemLabel(row.id), count, row.eval, c.level, unit and SR.Money(unit) or grey("no price")))
         cb:SetChecked(isSelected(row.id))
         cb:Show()
     end
@@ -201,7 +203,9 @@ local function fillRanking()
         cb.itemId, cb.region = nil, row.region
         cb:SetScript("OnClick", function() chooseRegion(row.region) end)
         local count = row.eval.status == "out" and row.eval.total or row.eval.inBand
-        cb.text:SetText(rowText(SR.RegionLabel(row.region), count, row.eval, c.level))
+        local worth
+        if row.eval.value > 0 then worth = SR.Money(row.eval.value) end
+        cb.text:SetText(rowText(SR.RegionLabel(row.region), count, row.eval, c.level, worth))
         cb:Show()
         if row.region == ui.region then keep = row.region end
     end

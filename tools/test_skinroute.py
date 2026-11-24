@@ -711,6 +711,16 @@ def rows_of(lua, pool):
     return out.split("\n") if out else []
 
 
+def check_prices_end_of_line():
+    lua = guide_env()
+    lines(lua, 'return Slash("")')
+    rows = rows_of(lua, "rows")
+    medium = [r for r in rows if "Medium Leather" in r][0]
+    assert medium.endswith(lua.eval("SR.Money(3420)")), medium
+    assert not rows[0].endswith(lua.eval("SR.Money(3420)"))
+    assert "no price" in rows[0], rows[0]
+
+
 def check_ui_region_view():
     lua = guide_env()
     assert lines(lua, 'return Slash("")') == ""
@@ -1564,6 +1574,7 @@ def main():
     check_zone_errors()
     check_map_test()
     check_fill()
+    check_prices_end_of_line()
     check_guide()
     check_guide_limits()
     check_ui_region_view()
