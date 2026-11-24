@@ -27,8 +27,13 @@ function R.difficulty(mid, level)
     return "gray"
 end
 
+function R.killTime(diff, base, fixed, slope)
+    local d = math.max(-10, math.min(10, diff))
+    return fixed + (base - fixed) * slope ^ d
+end
+
 function R.evaluate(entries, creatures, ctx)
-    local e = {total = 0, inBand = 0, skinnable = 0, drops = 0, value = 0, unpriced = {}}
+    local e = {total = 0, inBand = 0, skinnable = 0, drops = 0, value = 0, seconds = 0, unpriced = {}}
     local levelSum = 0
     for _, entry in ipairs(entries) do
         local c = creatures[entry.id]
@@ -58,11 +63,17 @@ function R.evaluate(entries, creatures, ctx)
                         e.skinnable = e.skinnable + entry.n
                         e.drops = e.drops + entry.n * per
                         e.value = e.value + entry.n * perValue
+                        if ctx.killBase then
+                            e.seconds = e.seconds + entry.n * R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope)
+                        end
                     end
                 end
             end
         end
     end
+    e.perHour = e.seconds > 0 and e.value / e.seconds * 3600 or 0
+    e.dropsHour = e.seconds > 0 and e.drops / e.seconds * 3600 or 0
+    e.avgSeconds = e.skinnable > 0 and e.seconds / e.skinnable or nil
     e.percent = e.inBand > 0 and e.skinnable / e.inBand * 100 or 0
     e.avgLevel = e.inBand > 0 and levelSum / e.inBand or nil
     if e.total == 0 then
@@ -84,7 +95,7 @@ function SR:EvaluateRegion(region, ctx)
     return R.evaluate(self:RegionEntries(region), self.Data.creatures, ctx)
 end
 
-local function sortRows(rows, ctx)
+local function sortRows(rows, ctx, hourly)
     local anyPrice = false
     for item in pairs(ctx.items) do
         if ctx.price and ctx.price(item) then anyPrice = true end
@@ -100,7 +111,7 @@ local function sortRows(rows, ctx)
             hidden = hidden + 1
         end
     end
-    local key = anyPrice and "value" or "drops"
+    local key = hourly and (anyPrice and "perHour" or "dropsHour") or (anyPrice and "value" or "drops")
     table.sort(open, function(a, b)
         if a.eval[key] ~= b.eval[key] then return a.eval[key] > b.eval[key] end
         return a.tie < b.tie
@@ -119,6 +130,14 @@ function SR:RankRegions(ctx)
         rows[#rows + 1] = {region = region, tie = region, eval = self:EvaluateRegion(region, ctx)}
     end
     return sortRows(rows, ctx)
+end
+
+function SR:RankRegionsByProfit(ctx)
+    local rows = {}
+    for _, region in ipairs(self:GetRegions()) do
+        rows[#rows + 1] = {region = region, tie = region, eval = self:EvaluateRegion(region, ctx)}
+    end
+    return sortRows(rows, ctx, true)
 end
 
 function SR:RankZones(set, ctx)

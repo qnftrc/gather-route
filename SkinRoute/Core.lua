@@ -3,6 +3,9 @@ _G.SkinRoute = SR
 
 local defaults = {
     browse = "region",
+    killBase = 25,
+    killFixed = 10,
+    killSlope = 1.10,
     optionsShown = false,
     items = {},
     bandOnly = true,
@@ -120,6 +123,9 @@ function SR:Context()
         hi = self.db.bandHigh,
         bandOnly = self.db.bandOnly ~= false,
         items = self:SelectedSet(),
+        killBase = self.db.killBase or 25,
+        killFixed = self.db.killFixed or 10,
+        killSlope = self.db.killSlope or 1.10,
         price = function(id) return (self:ItemPrice(id)) end,
     }
 end
@@ -179,6 +185,7 @@ local function usage()
     SR:Say("/sr go [region] - compute the zones, then guide you to the best one with TomTom; /sr skip - next zone; /sr stop - end the guide")
     SR:Say("/sr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > SkinRoute)")
     SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233) | /sr arrival [yd] - distance at which you count as arrived (default 233)")
+    SR:Say("/sr time [<seconds per mob> [fixed seconds] [slope]] - time model of the Profit view (default 25 10 1.10)")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
     SR:Say("/sr fill [test|<n>|path <texture>|on|off] - white transparent fill of the zones: run the test once, then pick the round disc")
     SR:Say("/sr probe [env|ui|skill] - read-only diagnostic: libraries, map sizes, interface templates, how your skinning skill can be read")
@@ -373,6 +380,23 @@ local function handleSlash(msg)
     elseif cmd == "clear" then
         SR:ClearZones()
         SR:Say("Zones removed from the map.")
+    elseif cmd == "time" then
+        local a, b, c = rest:match("^(%S+)%s*(%S*)%s*(%S*)$")
+        if a then
+            local base, fixed, slope = tonumber(a), tonumber(b), tonumber(c)
+            if not base or (b ~= "" and not fixed) or (c ~= "" and not slope) then
+                return SR:Say("Usage: /sr time <seconds per mob> [fixed seconds] [slope]")
+            end
+            fixed = fixed or SR.db.killFixed or 10
+            slope = slope or SR.db.killSlope or 1.10
+            if base < 1 or base > 300 or fixed < 0 or fixed >= base or slope < 1 or slope > 1.5 then
+                return SR:Say("Time per mob 1-300 s, fixed part below it, slope 1.00-1.50.")
+            end
+            SR.db.killBase, SR.db.killFixed, SR.db.killSlope = base, fixed, slope
+            SR:RefreshZones()
+        end
+        SR:Say(("Time per mob: %s s at your level (%s s fixed, the rest x%s per level of difference)."):format(
+            tostring(SR.db.killBase or 25), tostring(SR.db.killFixed or 10), tostring(SR.db.killSlope or 1.10)))
     elseif cmd == "radius" then
         local n = tonumber(rest)
         if rest ~= "" then

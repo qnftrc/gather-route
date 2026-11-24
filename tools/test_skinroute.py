@@ -712,6 +712,35 @@ def rows_of(lua, pool):
     return out.split("\n") if out else []
 
 
+def check_profit():
+    lua = guide_env()
+    kt = lambda d: lua.eval("SR.Rules.killTime(%s, 25, 10, 1.10)" % d)
+    assert abs(kt(0) - 25) < 1e-9
+    assert abs(kt(-8) - (10 + 15 * 1.1 ** -8)) < 1e-9 and abs(kt(5) - (10 + 15 * 1.1 ** 5)) < 1e-9
+    assert kt(25) == kt(10) and kt(-25) == kt(-10)
+    c = lua.eval("SR:Context()")
+    assert c.killBase == 25 and c.killFixed == 10 and abs(c.killSlope - 1.1) < 1e-9
+    e = lua.eval("SR:EvaluateRegion('Test Valley', SR:Context())")
+    assert e.seconds > 0 and e.perHour > 0 and abs(e.perHour - e.value / e.seconds * 3600) < 1e-6
+    assert 10 < e.avgSeconds < 60
+    assert "Time per mob: 25 s" in lines(lua, 'return Slash("time")')
+    assert "Usage" in lines(lua, 'return Slash("time abc")')
+    assert "1-300" in lines(lua, 'return Slash("time 30 40")')
+    assert "Time per mob: 30 s" in lines(lua, 'return Slash("time 30 12 1.2")')
+    assert lua.eval("SR.db.killBase") == 30 and lua.eval("SR.db.killFixed") == 12
+    lines(lua, 'return Slash("time 25 10 1.1")')
+    lua.execute("SR:SetBrowseMode('profit')")
+    assert lua.eval("UI().viewButton.text") == "View: Profit" and lua.eval("SR.db.browse") == "profit"
+    assert "gold per hour" in lua.eval("UI().listTitle.text")
+    rows = rows_of(lua, "rows")
+    assert rows and rows[0].startswith("Test Valley") and rows[0].endswith("/h"), rows
+    assert lua.eval("UI().regionButton.shown") is True and lua.eval("UI().noneButton.shown") is False
+    lua.execute("Click(UI().regionButton)")
+    assert lua.eval("UI().itemPopup:IsShown()") is True
+    lua.execute("SR.db.items = {}; SR:SetBrowseMode('profit')")
+    assert "Select leathers" in lua.eval("UI().listTitle.text")
+
+
 def check_label_font_scales():
     lua = guide_env()
     lines(lua, 'return Slash("zones test valley")')
@@ -852,10 +881,10 @@ def check_ui_options():
     assert lua.eval("UI().optionsButton.text") == "Options +"
     assert lua.eval("UI().showMap.shown") is False
     lua.execute("Click(UI().optionsButton)")
-    assert lua.eval("SR.db.optionsShown") is True and lua.eval("UI().height") == 610 and lua.eval("UI().optionsButton.text") == "Options -"
+    assert lua.eval("SR.db.optionsShown") is True and lua.eval("UI().height") == 640 and lua.eval("UI().optionsButton.text") == "Options -"
     assert all(lua.eval("UI().optionWidgets[%d].shown" % i) is True for i in range(1, lua.eval("#UI().optionWidgets") + 1))
     lua.execute("SR:SetBrowseMode('value')")
-    assert lua.eval("UI().height") == 620
+    assert lua.eval("UI().height") == 650
     lua.execute("SR:SetBrowseMode('region')")
     assert lua.eval("UI().showMap.checked") is True and lua.eval("UI().chat.checked") is False and lua.eval("UI().band.checked") is True
 
@@ -1590,6 +1619,7 @@ def main():
     check_map_test()
     check_fill()
     check_label_font_scales()
+    check_profit()
     check_prices_end_of_line()
     check_guide()
     check_guide_limits()

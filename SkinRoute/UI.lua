@@ -3,12 +3,17 @@ local addonName, SR = ...
 local ui
 
 local ROW, VROW = 24, 20
-local VIEW_NAMES = {region = "Region", item = "Item", value = "Value"}
+local VIEW_NAMES = {region = "Region", item = "Item", value = "Value", profit = "Profit"}
 local VIEWS = {
     {"region", "Region", "Choose a region, then the leathers inside it"},
     {"item", "Item", "Choose leathers, regions ranked by mobs"},
     {"value", "Value", "Choose leathers, zones ranked by value (prices set with /sr price)"},
+    {"profit", "Profit", "Choose leathers, regions ranked by gold per hour"},
 }
+
+local function browseMode(mode)
+    return (mode == "item" or mode == "value" or mode == "profit") and mode or "region"
+end
 
 local function label(parent, text, point, x, y)
     local fs = parent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -74,7 +79,7 @@ function SR.MatchLetters(query, name)
 end
 
 function SR.UIHeight(mode, optionsShown)
-    return (optionsShown and 610 or 472) + (mode == "value" and 10 or 0)
+    return (optionsShown and 640 or 472) + (mode == "value" and 10 or 0)
 end
 
 local function isSelected(id)
@@ -192,9 +197,14 @@ local function fillRegionItems()
     ui.regionButton:SetText(ui.region and SR.RegionLabel(ui.region) or "No region")
 end
 
-local function fillRanking()
+local function fillRanking(profit)
     local c = SR:Context()
-    local rows = SR:RankRegionsByMobs(c)
+    local rows, anyPrice
+    if profit then
+        rows, _, anyPrice = SR:RankRegionsByProfit(c)
+    else
+        rows = SR:RankRegionsByMobs(c)
+    end
     local keep
     for i, row in ipairs(rows) do
         local cb = getCheckRow(ui.rows, ui.listChild, i, ROW, "GameFontHighlight")
@@ -204,7 +214,13 @@ local function fillRanking()
         cb:SetScript("OnClick", function() chooseRegion(row.region) end)
         local count = row.eval.status == "out" and row.eval.total or row.eval.inBand
         local worth
-        if row.eval.value > 0 then worth = SR.Money(row.eval.value) end
+        if profit then
+            if row.eval.status == "ok" or row.eval.status == "partial" then
+                worth = anyPrice and (SR.Money(row.eval.perHour) .. "/h") or ("~%.0f items/h"):format(row.eval.dropsHour)
+            end
+        elseif row.eval.value > 0 then
+            worth = SR.Money(row.eval.value)
+        end
         cb.text:SetText(rowText(SR.RegionLabel(row.region), count, row.eval, c.level, worth))
         cb:Show()
         if row.region == ui.region then keep = row.region end
@@ -212,8 +228,13 @@ local function fillRanking()
     hideRowsFrom(ui.rows, #rows + 1)
     ui.listChild:SetSize(270, math.max(1, #rows * ROW))
     if rows[1] then chooseRegion(keep or rows[1].region) end
-    ui.listTitle:SetText(#SR.db.items == 0 and "Select leathers to list the regions"
-        or ("Regions, most mobs first (%d)"):format(#rows))
+    if profit then
+        ui.listTitle:SetText(#SR.db.items == 0 and "Select leathers to rank the regions"
+            or ("Regions, most gold per hour first (%d)"):format(#rows))
+    else
+        ui.listTitle:SetText(#SR.db.items == 0 and "Select leathers to list the regions"
+            or ("Regions, most mobs first (%d)"):format(#rows))
+    end
     ui.regionButton:SetText(itemButtonText())
 end
 
@@ -277,8 +298,8 @@ function refreshView()
     if not ui then return end
     if ui.mode == "region" then
         fillRegionItems()
-    elseif ui.mode == "item" then
-        fillRanking()
+    elseif ui.mode == "item" or ui.mode == "profit" then
+        fillRanking(ui.mode == "profit")
     else
         fillValueItems()
         fillZones()
@@ -426,7 +447,7 @@ end
 local function buildViewMenu()
     local menu = CreateFrame("Frame", nil, ui, "BackdropTemplate")
     menu:SetFrameStrata("DIALOG")
-    menu:SetSize(300, 128)
+    menu:SetSize(300, 168)
     menu:SetPoint("TOPRIGHT", ui.viewButton, "BOTTOMRIGHT", 0, -2)
     menu:SetBackdrop({
         bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -535,6 +556,9 @@ function refreshFields()
     ui.lowEdit:SetText(("%+d"):format(SR.db.bandLow))
     ui.highEdit:SetText(("%+d"):format(SR.db.bandHigh))
     ui.radiusEdit:SetText(tostring(SR.db.zoneRadius))
+    ui.killBaseEdit:SetText(tostring(SR.db.killBase or 25))
+    ui.killFixedEdit:SetText(tostring(SR.db.killFixed or 10))
+    ui.killSlopeEdit:SetText(("%.2f"):format(SR.db.killSlope or 1.10))
 end
 
 local function refreshAll()
@@ -572,6 +596,17 @@ local function commitRadius(text)
     refreshFields()
 end
 
+local function commitKill()
+    local base = tonumber(ui.killBaseEdit:GetText())
+    local fixed = tonumber(ui.killFixedEdit:GetText())
+    local slope = tonumber(ui.killSlopeEdit:GetText())
+    if base and fixed and slope and base >= 1 and base <= 300 and fixed >= 0 and fixed < base and slope >= 1 and slope <= 1.5 then
+        SR.db.killBase, SR.db.killFixed, SR.db.killSlope = base, fixed, slope
+        SR:RefreshZones()
+    end
+    refreshFields()
+end
+
 function SR.UIGenerate()
     if #SR.db.items == 0 then return SR:Say("Select at least one leather.") end
     local region = ui.region
@@ -600,7 +635,7 @@ local function build()
         ui.viewMenu:SetShown(not ui.viewMenu:IsShown())
     end)
     ui.regionButton = button(ui, "", 348, "TOPLEFT", 16, -52, function()
-        if ui.mode == "item" then
+        if ui.mode == "item" or ui.mode == "profit" then
             ui.itemPopup:SetShown(not ui.itemPopup:IsShown())
         else
             ui.regionPopup:SetShown(not ui.regionPopup:IsShown())
@@ -706,6 +741,13 @@ local function build()
     end)
     ui.slider = slider
 
+    option(label(ui.lower, "Time per mob", "TOPLEFT", 16, -232))
+    ui.killBaseEdit = option(editBox(ui.lower, 40, 104, -228, commitKill))
+    option(label(ui.lower, "s, fixed", "TOPLEFT", 150, -232))
+    ui.killFixedEdit = option(editBox(ui.lower, 40, 206, -228, commitKill))
+    option(label(ui.lower, "x", "TOPLEFT", 252, -232))
+    ui.killSlopeEdit = option(editBox(ui.lower, 48, 266, -228, commitKill))
+
     ui.generate = button(ui, "Generate", 100, "BOTTOMLEFT", 16, 40, function() SR.UIGenerate() end)
     ui.skip = button(ui, "Skip", 100, "BOTTOM", 0, 40, function() SR:SkipZone() end)
     ui.stop = button(ui, "Stop", 100, "BOTTOMRIGHT", -16, 40, function() SR:StopGuide() end)
@@ -723,7 +765,7 @@ local function build()
         SR:UpdateUI()
     end)
 
-    ui.mode = (SR.db.browse == "item" or SR.db.browse == "value") and SR.db.browse or "region"
+    ui.mode = browseMode(SR.db.browse)
     local region = SR:GetCurrentRegion()
     if not (region and hasRegion(region)) then
         region = SR.db.region
@@ -770,7 +812,7 @@ end
 
 function SR:SetBrowseMode(mode)
     if not ui then build() end
-    ui.mode = (mode == "item" or mode == "value") and mode or "region"
+    ui.mode = browseMode(mode)
     SR.db.browse = ui.mode
     applyMode()
 end
