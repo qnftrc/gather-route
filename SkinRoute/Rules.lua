@@ -128,3 +128,68 @@ function SR:RankZones(set, ctx)
     end
     return sortRows(rows, ctx)
 end
+
+local STATUS_ORDER = {ok = 1, partial = 1, locked = 2, out = 3}
+
+function SR:ItemTotals()
+    if self.itemTotals then return self.itemTotals end
+    local totals = {}
+    for _, zone in pairs(self.Data.zones) do
+        for cid, pts in pairs(zone) do
+            local c = self.Data.creatures[cid]
+            if c then
+                local n = math.floor(#pts / 2)
+                for item in pairs(c.d) do totals[item] = (totals[item] or 0) + n end
+            end
+        end
+    end
+    self.itemTotals = totals
+    return totals
+end
+
+function SR:RegionItems(region, ctx)
+    local entries = self:RegionEntries(region)
+    local rows = {}
+    for _, it in ipairs(self:AllItems()) do
+        local one = {level = ctx.level, skill = ctx.skill, lo = ctx.lo, hi = ctx.hi, bandOnly = ctx.bandOnly,
+            items = {[it.id] = true}, price = ctx.price}
+        local e = R.evaluate(entries, self.Data.creatures, one)
+        if e.total > 0 then rows[#rows + 1] = {id = it.id, name = it.name, eval = e} end
+    end
+    table.sort(rows, function(a, b)
+        local oa, ob = STATUS_ORDER[a.eval.status], STATUS_ORDER[b.eval.status]
+        if oa ~= ob then return oa < ob end
+        return a.name < b.name
+    end)
+    return rows
+end
+
+function SR:RankRegionsByMobs(ctx)
+    local rows = {}
+    for _, region in ipairs(self:GetRegions()) do
+        local e = self:EvaluateRegion(region, ctx)
+        if e.status ~= "empty" then rows[#rows + 1] = {region = region, eval = e} end
+    end
+    table.sort(rows, function(a, b)
+        local oa, ob = STATUS_ORDER[a.eval.status], STATUS_ORDER[b.eval.status]
+        if oa ~= ob then return oa < ob end
+        if oa == 1 and a.eval.inBand ~= b.eval.inBand then return a.eval.inBand > b.eval.inBand end
+        if oa == 2 and a.eval.minNeeded ~= b.eval.minNeeded then return a.eval.minNeeded < b.eval.minNeeded end
+        if oa == 3 and a.eval.total ~= b.eval.total then return a.eval.total > b.eval.total end
+        return a.region < b.region
+    end)
+    return rows
+end
+
+function SR:ValueItems()
+    local prices = self.db.prices
+    local list = self:AllItems()
+    for _, it in ipairs(list) do it.price = prices[it.id] end
+    table.sort(list, function(a, b)
+        if a.price and b.price and a.price ~= b.price then return a.price > b.price end
+        if (a.price ~= nil) ~= (b.price ~= nil) then return a.price ~= nil end
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
+    return list
+end

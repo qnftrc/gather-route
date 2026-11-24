@@ -16,6 +16,7 @@ function SR:LoadData()
         self:Say("Data\\SkinData.lua is missing: no region to show.")
     end
     wipe(self.entries)
+    self.itemTotals = nil
     wipe(self.regionNames)
     for region in pairs(self.Data.zones) do self.regionNames[#self.regionNames + 1] = region end
     table.sort(self.regionNames)

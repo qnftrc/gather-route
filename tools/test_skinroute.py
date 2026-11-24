@@ -70,14 +70,46 @@ function RunTimers()
 end
 hooksecurefunc = function() end
 local function newObject(kind)
-    local o = {kind = kind, shown = false, scripts = {}, hooks = {}, children = {}}
-    function o:RegisterEvent() end
+    local o = {kind = kind, shown = false, scripts = {}, hooks = {}, children = {}, events = {}}
+    function o:RegisterEvent(e) self.events[e] = true end
     function o:UnregisterEvent() end
     function o:SetScript(name, fn) self.scripts[name] = fn end
     function o:HookScript(name, fn) self.hooks[name] = fn end
-    function o:Show() self.shown = true end
-    function o:Hide() self.shown = false end
+    function o:Show()
+        if not self.shown then
+            self.shown = true
+            if self.scripts.OnShow then self.scripts.OnShow(self) end
+        end
+    end
+    function o:Hide()
+        if self.shown then
+            self.shown = false
+            if self.scripts.OnHide then self.scripts.OnHide(self) end
+        end
+    end
+    function o:SetShown(b) if b then self:Show() else self:Hide() end end
     function o:IsShown() return self.shown end
+    function o:SetEnabled(b) self.enabled = b ~= false end
+    function o:IsEnabled() return self.enabled ~= false end
+    function o:SetChecked(b) self.checked = b and true or false end
+    function o:GetChecked() return rawget(self, "checked") and true or false end
+    function o:SetSize(w, h) self.w, self.h = w, h end
+    function o:SetHeight(h) self.height = h end
+    function o:GetText() return rawget(self, "text") or "" end
+    function o:SetFocus() self.focused = true end
+    function o:SetValue(v)
+        self.value = v
+        if self.scripts.OnValueChanged then self.scripts.OnValueChanged(self, v) end
+    end
+    function o:GetFontString()
+        local fs = rawget(self, "fontString")
+        if not fs then
+            fs = newObject("fontstring")
+            self.fontString = fs
+        end
+        return fs
+    end
+    function o:SetScrollChild(c) self.scrollChild = c end
     function o:SetColorTexture(r, g, b, a) self.color = {r, g, b, a} end
     function o:SetThickness(t) self.thickness = t end
     function o:SetStartPoint(_, _, x, y) self.sx, self.sy = x, y end
@@ -91,14 +123,22 @@ local function newObject(kind)
     function o:CreateLine() local c = newObject("line") self.children[#self.children + 1] = c return c end
     function o:CreateFontString() local c = newObject("fontstring") self.children[#self.children + 1] = c return c end
     function o:CreateTexture() local c = newObject("texture") self.children[#self.children + 1] = c return c end
-    return setmetatable(o, {__index = function() return function() end end})
+    return setmetatable(o, {__index = function(_, k)
+        if k == "Low" or k == "High" or k == "Text" or k == "TitleText" then return nil end
+        return function() end
+    end})
 end
 CreateFrame = function(kind, name, parent)
     local o = newObject(kind)
     o.parent = parent
     frames[#frames + 1] = o
+    if type(name) == "string" then _G[name] = o end
     return o
 end
+UIParent = newObject("UIParent")
+UIParent.shown = true
+tinsert = table.insert
+UISpecialFrames = {}
 mapOpen, mapShown = false, 0
 WorldMapFrame = newObject("map")
 WorldMapFrame.canvas = newObject("canvas")
@@ -139,7 +179,7 @@ function Slash(msg) SlashCmdList.SKINROUTE(msg) return Said() end
 
 LOAD = r'''
 SR = {}
-for _, f in ipairs({"Core", "Resolver", "Rules", "Zones", "Runner", "Overlay"}) do
+for _, f in ipairs({"Core", "Resolver", "Rules", "Zones", "Runner", "Overlay", "UI"}) do
     local fh = assert(io.open(ROOT .. "/SkinRoute/" .. f .. ".lua"))
     local src = fh:read("a")
     fh:close()
@@ -167,6 +207,17 @@ function LineAt(n)
             if k == n then return c end
         end
     end
+end
+function UI() return SkinRouteFrame end
+function Type(edit, text) edit:SetText(text) edit.scripts.OnEditFocusLost(edit) end
+function Click(w) w.scripts.OnClick(w) end
+function RowTexts(pool)
+    local out = {}
+    for _, r in ipairs(pool) do if r.shown then out[#out + 1] = r.text.text end end
+    return table.concat(out, "\n")
+end
+function EventFrame(ev)
+    for _, f in ipairs(frames) do if f.events and f.events[ev] then return f end end
 end
 function ShownTexts()
     local out = {}
@@ -298,8 +349,8 @@ def check_ranking():
 
 def check_slash():
     lua = env()
-    out = lines(lua, 'return Slash("")')
-    assert "/sr regions" in out and "/sr level" in out
+    out = lines(lua, 'return Slash("help")')
+    assert "/sr regions" in out and "/sr level" in out and "/sr - open the window" in out
     assert "Select items first" in lines(lua, 'return Slash("regions")')
     assert "Items: Medium Leather" in lines(lua, 'return Slash("items medium leather")')
     assert lua.eval("#SR.db.items") == 1
@@ -432,7 +483,7 @@ def check_zones_pipeline():
     assert lua.eval("MapFrame().shown") is True
     assert lua.eval("Shown('line')") == 48 + 32 and lua.eval("Shown('fontstring')") == 4
     texts = lines(lua, "return ShownTexts()")
-    assert "1g 71s 0c" in texts and "Lv 21-22" in texts and "Lv 30-31" in texts and "needs skinning 155" in texts, texts
+    assert "UI-GoldIcon" in texts and "71" in texts and "Lv 21-22" in texts and "Lv 30-31" in texts and "needs skinning 155" in texts, texts
     gray, yellow = lua.eval("LineAt(1).color"), lua.eval("LineAt(49).color")
     assert abs(gray[1] - 0.62) < 1e-6 and abs(yellow[2] - 0.82) < 1e-6 and yellow[1] == 1, (gray, yellow)
     first = lua.eval("LineAt(1)")
@@ -610,6 +661,247 @@ def check_guide_limits():
     assert "Go to 1. zone (20, 20)" in out, out
 
 
+def rows_of(lua, pool):
+    out = lines(lua, "return RowTexts(UI().%s)" % pool)
+    return out.split("\n") if out else []
+
+
+def check_ui_region_view():
+    lua = guide_env()
+    assert lines(lua, 'return Slash("")') == ""
+    assert lua.eval("UI().shown") is True and lua.eval("UI().height") == 472
+    assert lua.eval("UI().status.text") == "No active guide"
+    assert lua.eval("UI().viewButton.text") == "View: Region" and lua.eval("UI().regionButton.text") == "Test Valley"
+    assert lua.eval("UI().listTitle.text") == "Leathers (1 selected)"
+    rows = rows_of(lua, "rows")
+    assert len(rows) == 3, rows
+    assert "Heavy Leather" in rows[0] and "(6)" in rows[0] and "|cffffd100Lv 30-31|r" in rows[0], rows[0]
+    assert "Light Leather" in rows[1] and "(10)" in rows[1] and "|cff9d9d9dLv 21-22|r" in rows[1], rows[1]
+    assert "Medium Leather" in rows[2] and "(16)" in rows[2] and "|cff40c040Lv 21-31|r" in rows[2], rows[2]
+    assert lua.eval("UI().rows[3].checked") is True and lua.eval("UI().rows[2].checked") is False
+
+    lua.execute("local r = UI().rows[2]; r:SetChecked(true); Click(r)")
+    assert lua.eval("#SR.db.items") == 2 and lua.eval("UI().listTitle.text") == "Leathers (2 selected)"
+    lua.execute("local r = UI().rows[2]; r:SetChecked(false); Click(r)")
+    assert lua.eval("#SR.db.items") == 1
+    lua.execute("Click(UI().noneButton)")
+    assert lua.eval("#SR.db.items") == 0 and lua.eval("UI().listTitle.text") == "Leathers (0 selected)"
+    assert lua.eval("UI().rows[3].checked") is False
+    lua.execute("Click(UI().allButton)")
+    assert lua.eval("#SR.db.items") == 3
+
+    lua.execute("Click(UI().noneButton); local r = UI().rows[3]; r:SetChecked(true); Click(r); Type(UI().skillEdit, '140')")
+    assert lua.eval("SR.db.skill") == 140 and lua.eval("UI().skillNote.text") == "simulated (not read yet)"
+    rows = rows_of(lua, "rows")
+    assert "Light Leather" in rows[0] and "Medium Leather" in rows[1] and "63%" in rows[1], rows
+    assert "|cff808080Heavy Leather|r" in rows[2] and "needs skinning 155" in rows[2], rows[2]
+    lua.execute("Type(UI().skillEdit, '')")
+    assert lua.eval("SR.db.skill") is None and lua.eval("UI().skillNote.text") == "not set: no limit applied"
+
+    lua.execute("Type(UI().levelEdit, '24')")
+    assert lua.eval("SR.db.level") == 24 and lua.eval("UI().levelNote.text") == "simulated (you are 21)"
+    rows = rows_of(lua, "rows")
+    assert "Heavy Leather" in rows[2] and "out of level range" in rows[2] and "(6)" in rows[2], rows[2]
+    lua.execute("Type(UI().levelEdit, '21')")
+    assert lua.eval("SR.db.level") is None and lua.eval("UI().levelNote.text") == "your level"
+    lua.execute("Type(UI().levelEdit, 'abc')")
+    assert lua.eval("SR.db.level") is None
+    lua.execute("Type(UI().levelEdit, '99')")
+    assert lua.eval("SR.db.level") == 80
+    lua.execute("Click(UI().viewButton)")
+    assert lua.eval("UI().viewMenu.shown") is True
+    lua.execute("SR:SetBrowseMode('region')")
+    assert lua.eval("UI().viewMenu.shown") is False
+    assert lines(lua, 'return Slash("")') == "" and lua.eval("UI().shown") is False
+
+
+def check_ui_item_view():
+    lua = guide_env()
+    lines(lua, 'return Slash("")')
+    lua.execute("SR:SetBrowseMode('item')")
+    assert lua.eval("SR.db.browse") == "item" and lua.eval("UI().viewButton.text") == "View: Item"
+    assert lua.eval("UI().regionLabel.text") == "Leather" and lua.eval("UI().regionButton.text") == "Medium Leather"
+    assert lua.eval("UI().listTitle.text") == "Regions, most mobs first (1)"
+    rows = rows_of(lua, "rows")
+    assert len(rows) == 1 and "Test Valley" in rows[0] and "(16)" in rows[0], rows
+    assert lua.eval("UI().rows[1].checked") is True
+    assert lua.eval("UI().noneButton.shown") is False and lua.eval("UI().allButton.shown") is False
+
+    lua.execute("Click(UI().regionButton)")
+    assert lua.eval("UI().itemPopup.shown") is True and lua.eval("UI().regionPopup.shown") is False
+    pop = rows_of(lua, "itemPopupRows")
+    assert "Heavy Leather" in pop[0] and "(6)" in pop[0] and "(12)" in pop[1] and "(16)" in pop[2], pop
+    lua.execute("local r = UI().itemPopupRows[2]; r:SetChecked(true); Click(r)")
+    assert lua.eval("UI().regionButton.text") == "Light Leather, Medium Leather" and lua.eval("#SR.db.items") == 2
+    lua.execute("UI().itemSearch:SetText('hv'); UI().itemSearch.scripts.OnTextChanged()")
+    assert lua.eval("UI().itemMatches") == 1 and lua.eval("UI().itemNone.shown") is False
+    lua.execute("UI().itemSearch:SetText('zzz'); UI().itemSearch.scripts.OnTextChanged()")
+    assert lua.eval("UI().itemMatches") == 0 and lua.eval("UI().itemNone.shown") is True
+    lua.execute("UI().itemSearch:SetText(''); UI().itemSearch.scripts.OnTextChanged()")
+    assert lua.eval("UI().itemMatches") == 3
+
+    lua.execute("SR.db.items = {}; SR:RefreshZones(); SR:SetBrowseMode('item')")
+    assert lua.eval("UI().listTitle.text") == "Select leathers to list the regions" and lua.eval("UI().regionButton.text") == "Select leathers"
+    lua.execute("SR.db.items = {2319, 2318, 4234}; SR:SetBrowseMode('item')")
+    assert lua.eval("UI().regionButton.text") == "Heavy Leather, Light Leather (+1)"
+
+
+def check_ui_value_view():
+    lua = guide_env()
+    lines(lua, 'return Slash("")')
+    lua.execute("SR:SetBrowseMode('value')")
+    assert lua.eval("UI().viewButton.text") == "View: Value" and lua.eval("UI().height") == 482
+    assert lua.eval("UI().regionButton.shown") is False and lua.eval("UI().valSearch.shown") is True
+    assert lua.eval("UI().listScroll.shown") is False and lua.eval("UI().listTitle.shown") is False
+    assert lua.eval("UI().valTitle1.text") == "Leathers by value (3)"
+    items = rows_of(lua, "valItemRows")
+    assert "Medium Leather" in items[0] and "UI-SilverIcon" in items[0] and "UI-GoldIcon" not in items[0], items
+    assert "no price" in items[1] and "no price" in items[2]
+    assert lua.eval("UI().valTitle2.text") == "Most valuable zones (1)"
+    zones = rows_of(lua, "valZoneRows")
+    assert "Test Valley" in zones[0] and "UI-GoldIcon" in zones[0], zones
+    lines(lua, 'return Slash("skill 140")')
+    lua.execute("UI().valSearch:SetText('medium'); UI().valSearch.scripts.OnTextChanged()")
+    assert lua.eval("UI().valTitle1.text") == "Leathers by value (1)"
+    lua.execute("UI().valSearch:SetText(''); UI().valSearch.scripts.OnTextChanged()")
+    zones = rows_of(lua, "valZoneRows")
+    assert "63%" in zones[0], zones
+    lua.execute("local r = UI().valItemRows[2]; r:SetChecked(true); Click(r)")
+    assert lua.eval("#SR.db.items") == 2
+    lua.execute("Click(UI().valZoneRows[1])")
+    assert lua.eval("UI().region") == "Test Valley" and lua.eval("UI().valZoneRows[1].checked") is True
+    lines(lua, 'return Slash("skill 100")')
+    lua.execute("SR:SetBrowseMode('value')")
+    zones = rows_of(lua, "valZoneRows")
+    assert "|cff808080Test Valley|r" in zones[0] and "needs skinning 110" in zones[0], zones
+
+
+def check_ui_options():
+    lua = guide_env()
+    lines(lua, 'return Slash("")')
+    assert lua.eval("UI().optionsButton.text") == "Options +"
+    assert lua.eval("UI().showMap.shown") is False
+    lua.execute("Click(UI().optionsButton)")
+    assert lua.eval("SR.db.optionsShown") is True and lua.eval("UI().height") == 610 and lua.eval("UI().optionsButton.text") == "Options -"
+    assert all(lua.eval("UI().optionWidgets[%d].shown" % i) is True for i in range(1, lua.eval("#UI().optionWidgets") + 1))
+    lua.execute("SR:SetBrowseMode('value')")
+    assert lua.eval("UI().height") == 620
+    lua.execute("SR:SetBrowseMode('region')")
+    assert lua.eval("UI().showMap.checked") is True and lua.eval("UI().chat.checked") is False and lua.eval("UI().band.checked") is True
+
+    lua.execute("UI().showMap:SetChecked(false); Click(UI().showMap)")
+    assert lua.eval("SR.db.showMap") is False
+    lua.execute("UI().chat:SetChecked(true); Click(UI().chat)")
+    assert lua.eval("SR.db.chat") is True
+    lua.execute("UI().band:SetChecked(false); Click(UI().band)")
+    assert lua.eval("SR.db.bandOnly") is False
+    lua.execute("UI().band:SetChecked(true); Click(UI().band)")
+    assert lua.eval("SR.db.bandOnly") is True
+
+    lua.execute("Type(UI().lowEdit, '-10'); Type(UI().highEdit, '+5')")
+    assert lua.eval("SR.db.bandLow") == -10 and lua.eval("SR.db.bandHigh") == 5
+    assert lua.eval("UI().lowEdit.text") == "-10" and lua.eval("UI().highEdit.text") == "+5"
+    lua.execute("Type(UI().highEdit, '-20')")
+    assert lua.eval("SR.db.bandLow") == -20 and lua.eval("SR.db.bandHigh") == -10
+    lua.execute("Type(UI().lowEdit, 'x')")
+    assert lua.eval("SR.db.bandLow") == -20 and lua.eval("UI().lowEdit.text") == "-20"
+
+    lines(lua, 'local s = Slash("zones test valley") RunTimers() return s')
+    lua.execute("Type(UI().radiusEdit, '300'); RunTimers()")
+    assert lua.eval("SR.db.zoneRadius") == 300 and lua.eval("SR.shown.set.radius") == 300
+    lua.execute("Type(UI().radiusEdit, '5')")
+    assert lua.eval("SR.db.zoneRadius") == 50 and lua.eval("UI().radiusEdit.text") == "50"
+    lua.execute("UI().slider.scripts.OnValueChanged(UI().slider, 120)")
+    assert lua.eval("SR.db.arrival") == 120 and lua.eval("UI().arrivalText.text") == "Arrival distance: 120 yd"
+    lua.execute("UI():Hide(); UI():Show()")
+    assert lua.eval("UI().slider.value") == 120
+    lua.execute("Click(UI().optionsButton)")
+    assert lua.eval("UI().height") == 472 and lua.eval("UI().showMap.shown") is False
+
+
+def check_ui_buttons():
+    lua = guide_env()
+    lines(lua, 'return Slash("")')
+    lua.execute("SR.db.items = {}")
+    lua.execute("Click(UI().generate)")
+    assert "Select at least one leather." in lines(lua, "return Said()")
+    assert lua.eval("UI().skip.enabled") is False and lua.eval("UI().stop.enabled") is False
+    lua.execute("SR.db.items = {2319}")
+    lua.execute("Click(UI().generate); RunTimers()")
+    assert lua.eval("#waypoints") == 1 and lua.eval("UI().status.text") == "Test Valley: zone 1 / 2"
+    assert lua.eval("UI().skip.enabled") is True and lua.eval("UI().stop.enabled") is True
+    lua.execute("Arrive(waypoints[1])")
+    assert lua.eval("UI().status.text") == "Test Valley: zone 1 / 2 (arrived)"
+    lua.execute("Click(UI().skip)")
+    assert lua.eval("UI().status.text") == "Test Valley: zone 2 / 2" and lua.eval("UI().skip.enabled") is True
+    lua.execute("Click(UI().skip)")
+    assert lua.eval("UI().status.text") == "No active guide" and lua.eval("UI().skip.enabled") is False
+    lua.execute("Click(UI().generate); RunTimers(); Click(UI().stop)")
+    assert lua.eval("SR.guide") is None and lua.eval("#waypoints") == 0 and lua.eval("UI().status.text") == "No active guide"
+    lua.execute("SR.computing = true; SR:UpdateUI()")
+    assert lua.eval("UI().status.text") == "Computing zones..." and lua.eval("UI().generate.enabled") is False
+    lua.execute("SR.computing = false; SR:UpdateUI()")
+    assert lua.eval("UI().generate.enabled") is True
+
+    lines(lua, 'return Slash("level auto")')
+    lua.execute("level = 25; local f = EventFrame('PLAYER_LEVEL_UP'); f.scripts.OnEvent(f, 'PLAYER_LEVEL_UP')")
+    assert lua.eval("UI().levelEdit.text") == "25"
+
+    lua = env(data=None)
+    assert "SkinData.lua is missing" in lines(lua, "return Said()")
+    lua.execute("SR:UpdateUI()")
+    assert lines(lua, 'return Slash("")') == ""
+    assert lua.eval("UI().regionButton.text") == "No region" and lua.eval("UI().listTitle.text") == "Leathers (0 selected)"
+    lua.execute("Click(UI().generate)")
+    assert "Select at least one leather." in lines(lua, "return Said()")
+
+
+def check_ui_region_popup():
+    lua = env()
+    lines(lua, 'return Slash("items medium leather")')
+    lines(lua, 'return Slash("level 24")')
+    lines(lua, 'return Slash("skill 140")')
+    lines(lua, 'return Slash("")')
+    assert lua.eval("UI().region") == "Hillsbrad Foothills"
+    lua.execute("Click(UI().regionButton)")
+    assert lua.eval("UI().regionPopup.shown") is True and lua.eval("UI().itemPopup.shown") is False
+    names = [lua.eval("UI().regionPopupRows[%d].text" % i) for i in range(1, 4)]
+    assert names == ["Elwynn Forest", "Hillsbrad Foothills", "Un'Goro Crater"], names
+    lua.execute("UI().regionSearch:SetText('zz'); UI().regionSearch.scripts.OnTextChanged()")
+    assert lua.eval("UI().regionNone.shown") is True
+    lua.execute("UI().regionSearch:SetText('ung'); UI().regionSearch.scripts.OnTextChanged()")
+    assert lua.eval("#UI().regionMatches") == 1 and lua.eval("UI().regionMatches[1]") == "Un'Goro Crater"
+    lua.execute("UI().regionSearch:SetText(''); UI().regionSearch.scripts.OnTextChanged()")
+    lua.execute("Click(UI().regionPopupRows[1])")
+    assert lua.eval("UI().region") == "Elwynn Forest" and lua.eval("UI().regionButton.text") == "Elwynn Forest"
+    assert lua.eval("UI().regionPopup.shown") is False and lua.eval("SR.db.region") == "Elwynn Forest"
+    rows = rows_of(lua, "rows")
+    assert len(rows) == 2 and "Light Leather" in rows[0] and "Medium Leather" in rows[1], rows
+    lua.execute("Click(UI().regionButton); UI().regionSearch:SetText('un'); UI().regionSearch.scripts.OnTextChanged(); UI().regionSearch.scripts.OnEnterPressed()")
+    assert lua.eval("UI().region") == "Un'Goro Crater"
+    rows = rows_of(lua, "rows")
+    assert len(rows) == 1 and "|cff808080Heavy Leather|r" in rows[0] and "(2)" in rows[0] and "out of level range" in rows[0], rows
+    assert lua.eval("UI().listTitle.text") == "Leathers (1 selected)"
+
+
+def check_real_ui(path):
+    lua = env(data=open(path, encoding="utf8").read())
+    lua.execute("TomTom.NameToMapId['Hillsbrad Foothills'] = 25; SR.mapsBuilt = false")
+    lines(lua, 'return Slash("items medium leather, heavy leather")')
+    lines(lua, 'return Slash("level 24")')
+    lines(lua, 'return Slash("skill 140")')
+    lines(lua, 'return Slash("")')
+    report = []
+    for mode in ("region", "item", "value"):
+        lua.execute("SR:SetBrowseMode('%s')" % mode)
+        pool = "valZoneRows" if mode == "value" else "rows"
+        rows = rows_of(lua, pool)
+        assert rows, mode
+        report.append("%s: %d row(s), first: %s" % (mode, len(rows), re.sub(r"\|c[0-9a-f]{8}|\|r|\|T[^|]*\|t", "", rows[0])))
+    lua.execute("Click(UI().optionsButton)")
+    return "\n".join(report)
+
+
 def check_missing_data():
     lua = env(data=None)
     assert lua.eval("SR.dataMissing") is True and lua.eval("#SR.regionNames") == 0
@@ -652,12 +944,19 @@ def main():
     check_map_test()
     check_guide()
     check_guide_limits()
+    check_ui_region_view()
+    check_ui_item_view()
+    check_ui_value_view()
+    check_ui_options()
+    check_ui_buttons()
+    check_ui_region_popup()
     check_missing_data()
     check_lua51_constructs()
     real = os.environ.get("SKINROUTE_DATA")
     if real:
         print(check_real_data(real))
         print(check_real_zones(real))
+        print(check_real_ui(real))
     print("SKINROUTE TESTS OK")
 
 

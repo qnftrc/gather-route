@@ -49,6 +49,7 @@ local function target(g, row)
         callbacks = callbacks,
     })
     announce(row)
+    SR:UpdateUI()
 end
 
 local function nextRow(g)
@@ -85,6 +86,7 @@ function SR:Arrive()
     removeUID(g.current)
     g.current = nil
     self:Print(("Arrived at the %s. /sr skip for the next zone, /sr stop to end."):format(zoneLabel(g.row)))
+    self:UpdateUI()
 end
 
 function SR:SkipZone()
@@ -96,6 +98,7 @@ function SR:SkipZone()
     if not row then
         self:Print("No more zone to go to.")
         self.guide = nil
+        self:UpdateUI()
         return
     end
     target(g, row)
@@ -110,6 +113,7 @@ function SR:StopGuide(silent)
     self.guide = nil
     removeUID(g.current)
     if not silent then self:Print("Guide stopped.") end
+    self:UpdateUI()
 end
 
 function SR:OnWaypointRemoved(uid)

@@ -2,6 +2,8 @@ local addonName, SR = ...
 _G.SkinRoute = SR
 
 local defaults = {
+    browse = "region",
+    optionsShown = false,
     items = {},
     bandOnly = true,
     bandLow = -8,
@@ -66,6 +68,20 @@ function SR.MoneyText(c)
     return (neg and "-" or "") .. table.concat(parts, " ")
 end
 
+local MONEY_ICON = "|TInterface\\MoneyFrame\\UI-%sIcon:14:14:2:0|t"
+
+function SR.Money(c)
+    c = math.floor((c or 0) + 0.5)
+    local neg = c < 0
+    if neg then c = -c end
+    local g, s, cp = math.floor(c / 10000), math.floor(c / 100) % 100, c % 100
+    local parts = {}
+    if g > 0 then parts[#parts + 1] = g .. MONEY_ICON:format("Gold") end
+    if g > 0 or s > 0 then parts[#parts + 1] = s .. MONEY_ICON:format("Silver") end
+    parts[#parts + 1] = cp .. MONEY_ICON:format("Copper")
+    return (neg and "-" or "") .. table.concat(parts, " ")
+end
+
 function SR:PlayerLevel()
     if self.db.level then return self.db.level, true end
     return (UnitLevel and UnitLevel("player")) or 1, false
@@ -110,6 +126,9 @@ local function levelText(e, level)
     return paint(color, text)
 end
 
+SR.Paint = paint
+SR.LevelText = levelText
+
 local function itemNames(ids)
     local names = {}
     for _, id in ipairs(ids) do names[#names + 1] = SR.Data.items[id] or tostring(id) end
@@ -134,6 +153,7 @@ local function describeRow(i, label, row, ctx, anyPrice)
 end
 
 local function usage()
+    SR:Say("/sr - open the window")
     SR:Say("/sr items <name>[, <name>] | clear - leathers and scales to count (partial names work)")
     SR:Say("/sr regions [n] - regions ranked by value for your level and skinning skill")
     SR:Say("/sr region <name> - one region in detail")
@@ -232,7 +252,9 @@ local function handleSlash(msg)
     local cmd, rest = msg:match("^%s*(%S*)%s*(.-)%s*$")
     cmd = cmd:lower()
 
-    if cmd == "" or cmd == "help" or cmd == "?" then
+    if cmd == "" then
+        SR:ToggleUI()
+    elseif cmd == "help" or cmd == "?" then
         usage()
     elseif cmd == "items" or cmd == "item" then
         local arg = rest:lower()
@@ -377,4 +399,5 @@ frame:SetScript("OnEvent", function(self, event, name)
     SR:LoadData()
     SR:InitOverlay()
     SR:InitRunner()
+    SR:InitUI()
 end)

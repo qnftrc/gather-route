@@ -87,7 +87,7 @@ local function zoneLabels(row, s)
         lines[1] = {level, color}
         lines[2] = {"needs skinning " .. e.minNeeded, COLORS.orange}
     else
-        lines[1] = {s.anyPrice and SR.MoneyText(e.value) or ("~%.0f items"):format(e.drops), {1, 1, 1}}
+        lines[1] = {s.anyPrice and SR.Money(e.value) or ("~%.0f items"):format(e.drops), {1, 1, 1}}
         lines[2] = {level, color}
         if e.status == "partial" then
             lines[3] = {("%d%% skinnable"):format(math.floor(e.percent + 0.5)), COLORS.orange}

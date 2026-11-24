@@ -145,10 +145,17 @@ function SR:ComputeZones(region, done)
     local co = coroutine.create(function()
         return Z.compute(points, radius, minCount, maxZones, coroutine.yield)
     end)
+    self.computing = true
+    self:UpdateUI()
     local function step()
         local ok, zones, left = coroutine.resume(co)
-        if not ok then return SR:Say("Error: " .. tostring(zones)) end
+        if not ok then
+            SR.computing = false
+            SR:UpdateUI()
+            return SR:Say("Error: " .. tostring(zones))
+        end
         if coroutine.status(co) == "dead" then
+            SR.computing = false
             local set = {region = region, mapID = mapID, radius = radius, size = size, zones = zones, leftover = left, points = #points}
             SR.zoneSets[key] = set
             done(set)
@@ -161,10 +168,13 @@ end
 
 function SR:RefreshZones()
     local s = self.shown
-    if not s then return end
-    s.ctx = self:Context()
-    s.rows, s.hidden, s.anyPrice = self:RankZones(s.set, s.ctx)
-    self:UpdateOverlay()
+    if s then
+        s.ctx = self:Context()
+        s.rows, s.hidden, s.anyPrice = self:RankZones(s.set, s.ctx)
+        self:UpdateOverlay()
+    end
+    self:UpdateUI()
+    self:RefreshUI()
 end
 
 function SR:ShowZones(region, go)
@@ -186,4 +196,5 @@ function SR:ClearZones()
     self.zoneToken = (self.zoneToken or 0) + 1
     self.shown = nil
     self:UpdateOverlay()
+    self:UpdateUI()
 end
