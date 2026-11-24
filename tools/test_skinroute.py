@@ -499,16 +499,17 @@ def check_zones_pipeline():
 
     lua.execute("mapOpen = true; mapShown = 77; SR:UpdateOverlay()")
     assert lua.eval("MapFrame().shown") is True
-    assert lua.eval("Shown('line')") == 48 + 32 and lua.eval("Shown('fontstring')") == 4
+    assert lua.eval("Shown('line')") == 48 + 32 and lua.eval("Shown('fontstring')") == 6
     texts = lines(lua, "return ShownTexts()")
     assert "UI-GoldIcon" in texts and "71" in texts and "Lv 21-22" in texts and "Lv 30-31" in texts and "needs skinning 155" in texts, texts
+    assert "10 mobs" in texts and "6 mobs" in texts, texts
     gray, yellow = lua.eval("LineAt(1).color"), lua.eval("LineAt(49).color")
     assert abs(gray[1] - 0.62) < 1e-6 and abs(yellow[2] - 0.82) < 1e-6 and yellow[1] == 1, (gray, yellow)
     first = lua.eval("LineAt(1)")
     assert first.thickness == 3
 
     lines(lua, 'return Slash("level 24")')
-    assert lua.eval("Shown('line')") == 48 and lua.eval("Shown('fontstring')") == 2
+    assert lua.eval("Shown('line')") == 48 and lua.eval("Shown('fontstring')") == 3
     green = lua.eval("LineAt(1).color")
     assert abs(green[2] - 0.75) < 1e-6 and abs(green[1] - 0.25) < 1e-6, green
 
