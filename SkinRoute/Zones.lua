@@ -115,7 +115,7 @@ function SR:ComputeZones(region, done)
     end
     local mapID = self:GetRegionMapID(region)
     if not mapID then
-        return self:Say(region .. " is not resolved to a map. Try /sr debug.")
+        return self:Say(SR.RegionLabel(region) .. " is not resolved to a map. Try /sr debug.")
     end
     local radius, minCount, maxZones = self.db.zoneRadius, self.db.zoneMin, self.db.zoneMax
     local key = ("%s:%d:%d:%d"):format(region, radius, minCount, maxZones)
@@ -125,7 +125,7 @@ function SR:ComputeZones(region, done)
     local x0, y0 = hbd:GetWorldCoordinatesFromZone(0, 0, mapID)
     local x1, y1 = hbd:GetWorldCoordinatesFromZone(1, 1, mapID)
     if not (x0 and x1) then
-        return self:Say(("The world position of %s is unknown (map %s)."):format(region, tostring(mapID)))
+        return self:Say(("The world position of %s is unknown (map %s)."):format(SR.RegionLabel(region), tostring(mapID)))
     end
     local size = {w = math.abs(x1 - x0), h = math.abs(y1 - y0)}
 
@@ -140,7 +140,7 @@ function SR:ComputeZones(region, done)
             if wx then points[#points + 1] = {wx = wx, wy = wy, x = flat[i], y = flat[i + 1], cid = cid} end
         end
     end
-    if #points == 0 then return self:Say("No point in " .. region .. ".") end
+    if #points == 0 then return self:Say("No point in " .. SR.RegionLabel(region) .. ".") end
 
     local co = coroutine.create(function()
         return Z.compute(points, radius, minCount, maxZones, coroutine.yield)

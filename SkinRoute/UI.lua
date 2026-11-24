@@ -136,7 +136,7 @@ local function chooseRegion(region)
     for _, row in ipairs(ui.rows) do row:SetChecked(row.region ~= nil and row.region == region) end
     for _, row in ipairs(ui.valZoneRows) do row:SetChecked(row.region ~= nil and row.region == region) end
     if ui.mode == "region" then
-        ui.regionButton:SetText(region)
+        ui.regionButton:SetText(SR.RegionLabel(region))
         ui.regionPopup:Hide()
         refreshView()
     end
@@ -150,7 +150,7 @@ local function itemButtonText()
     local ids = SR.db.items
     if #ids == 0 then return "Select leathers" end
     local names = {}
-    for _, id in ipairs(ids) do names[#names + 1] = SR.Data.items[id] or tostring(id) end
+    for _, id in ipairs(ids) do names[#names + 1] = SR:ItemLabel(id) end
     table.sort(names)
     local text = names[1]
     if #names > 1 then text = text .. ", " .. names[2] end
@@ -180,14 +180,14 @@ local function fillRegionItems()
             SR:RefreshZones()
         end)
         local count = row.eval.status == "out" and row.eval.total or row.eval.inBand
-        cb.text:SetText(rowText(row.name, count, row.eval, c.level))
+        cb.text:SetText(rowText(SR:ItemLabel(row.id), count, row.eval, c.level))
         cb:SetChecked(isSelected(row.id))
         cb:Show()
     end
     hideRowsFrom(ui.rows, #rows + 1)
     ui.listChild:SetSize(270, math.max(1, #rows * ROW))
     ui.listTitle:SetText(("Leathers (%d selected)"):format(selectedCount()))
-    ui.regionButton:SetText(ui.region or "No region")
+    ui.regionButton:SetText(ui.region and SR.RegionLabel(ui.region) or "No region")
 end
 
 local function fillRanking()
@@ -201,7 +201,7 @@ local function fillRanking()
         cb.itemId, cb.region = nil, row.region
         cb:SetScript("OnClick", function() chooseRegion(row.region) end)
         local count = row.eval.status == "out" and row.eval.total or row.eval.inBand
-        cb.text:SetText(rowText(row.region, count, row.eval, c.level))
+        cb.text:SetText(rowText(SR.RegionLabel(row.region), count, row.eval, c.level))
         cb:Show()
         if row.region == ui.region then keep = row.region end
     end
@@ -217,14 +217,14 @@ local function fillValueItems()
     local query = type(ui.valQuery) == "string" and ui.valQuery or ""
     local all = {}
     for _, it in ipairs(SR:ValueItems()) do
-        if SR.MatchLetters(query, it.name) then all[#all + 1] = it end
+        if SR.MatchLetters(query, SR:ItemLabel(it.id)) or SR.MatchLetters(query, it.name) then all[#all + 1] = it end
     end
     for i, it in ipairs(all) do
         local row = getCheckRow(ui.valItemRows, ui.valChild1, i, VROW, "GameFontHighlightSmall")
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", ui.valChild1, "TOPLEFT", 0, -(i - 1) * VROW)
         row.itemId = it.id
-        row.text:SetText(("%s  %s"):format(it.name, it.price and (SR.Money(it.price) .. (PRICE_TAG[it.src] or "")) or "|cff999999no price|r"))
+        row.text:SetText(("%s  %s"):format(SR:ItemLabel(it.id), it.price and (SR.Money(it.price) .. (PRICE_TAG[it.src] or "")) or "|cff999999no price|r"))
         row:SetChecked(isSelected(it.id))
         row:SetScript("OnClick", function(self)
             setSelected(self.itemId, self:GetChecked())
@@ -248,7 +248,8 @@ local function fillZones()
         cb.region = row.region
         cb:SetScript("OnClick", function() chooseRegion(row.region) end)
         local e = row.eval
-        local parts = {e.status == "locked" and grey(row.region) or row.region}
+        local label = SR.RegionLabel(row.region)
+        local parts = {e.status == "locked" and grey(label) or label}
         local lv = SR.LevelText(e, c.level)
         if lv ~= "" then parts[#parts + 1] = lv end
         if e.status == "locked" then
@@ -285,7 +286,7 @@ local function fillRegionPopup()
     local query = ui.regionSearch and ui.regionSearch:GetText() or ""
     local regions = {}
     for _, region in ipairs(SR:GetRegions()) do
-        if SR.MatchLetters(query, region) then regions[#regions + 1] = region end
+        if SR.MatchLetters(query, SR.RegionLabel(region)) or SR.MatchLetters(query, region) then regions[#regions + 1] = region end
     end
     ui.regionMatches = regions
     ui.regionNone:SetShown(#regions == 0)
@@ -298,14 +299,14 @@ local function fillRegionPopup()
             b:SetPoint("TOPLEFT", 0, -(i - 1) * 20)
             b:SetNormalFontObject("GameFontHighlight")
             b:SetHighlightFontObject("GameFontNormal")
-            b:SetText(region)
+            b:SetText(SR.RegionLabel(region))
             b:GetFontString():SetPoint("LEFT", 4, 0)
             local hl = b:CreateTexture(nil, "HIGHLIGHT")
             hl:SetAllPoints()
             hl:SetColorTexture(1, 1, 1, 0.12)
             ui.regionPopupRows[i] = b
         end
-        b:SetText(region)
+        b:SetText(SR.RegionLabel(region))
         b:SetScript("OnClick", function() chooseRegion(region) end)
         b:Show()
     end
@@ -317,7 +318,7 @@ local function fillItemPopup()
     local totals = SR:ItemTotals()
     local all = {}
     for _, it in ipairs(SR:AllItems()) do
-        if SR.MatchLetters(query, it.name) then all[#all + 1] = it end
+        if SR.MatchLetters(query, SR:ItemLabel(it.id)) or SR.MatchLetters(query, it.name) then all[#all + 1] = it end
     end
     ui.itemMatches = #all
     for i, it in ipairs(all) do
@@ -325,7 +326,7 @@ local function fillItemPopup()
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", ui.itemChild, "TOPLEFT", 4, -(i - 1) * ROW)
         row.itemId = it.id
-        row.text:SetText(("%s |cff999999(%d)|r"):format(it.name, totals[it.id] or 0))
+        row.text:SetText(("%s |cff999999(%d)|r"):format(SR:ItemLabel(it.id), totals[it.id] or 0))
         row:SetChecked(isSelected(it.id))
         row:SetScript("OnClick", function(self)
             setSelected(self.itemId, self:GetChecked())
@@ -735,9 +736,9 @@ function SR:UpdateUI()
         for i, row in ipairs(self.shown.rows) do
             if row == g.row then index = i end
         end
-        ui.status:SetText(("%s: zone %d / %d%s"):format(g.region, index, #self.shown.rows, g.arrived and " (arrived)" or ""))
+        ui.status:SetText(("%s: zone %d / %d%s"):format(SR.RegionLabel(g.region), index, #self.shown.rows, g.arrived and " (arrived)" or ""))
     elseif g then
-        ui.status:SetText(g.region .. ": guiding")
+        ui.status:SetText(SR.RegionLabel(g.region) .. ": guiding")
     else
         ui.status:SetText("No active guide")
     end

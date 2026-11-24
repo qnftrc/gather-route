@@ -27,10 +27,6 @@ function SR:GetRegions()
     return self.regionNames
 end
 
-function SR:ItemLabel(id)
-    return self.Data.items[id] or tostring(id)
-end
-
 function SR:AllItems()
     local list = {}
     for id, name in pairs(self.Data.items) do list[#list + 1] = {id = id, name = name} end
@@ -48,11 +44,19 @@ function SR:FindItems(names)
         local w = normalize(wanted)
         local hits = {}
         for _, it in ipairs(all) do
-            if normalize(it.name) == w then hits = {it} break end
+            for _, n in ipairs(self:ItemNames(it.id)) do
+                if normalize(n) == w then hits = {it} break end
+            end
+            if #hits > 0 then break end
         end
         if #hits == 0 and w ~= "" then
             for _, it in ipairs(all) do
-                if normalize(it.name):find(w, 1, true) then hits[#hits + 1] = it end
+                for _, n in ipairs(self:ItemNames(it.id)) do
+                    if normalize(n):find(w, 1, true) then
+                        hits[#hits + 1] = it
+                        break
+                    end
+                end
             end
         end
         if #hits == 0 then
@@ -73,13 +77,18 @@ function SR:FindRegion(name)
     local n = normalize(name)
     if n == "" then return nil end
     for _, region in ipairs(self.regionNames) do
-        if normalize(region) == n then return region end
+        for _, name in ipairs(SR.RegionNames(region)) do
+            if normalize(name) == n then return region end
+        end
     end
     local hit
     for _, region in ipairs(self.regionNames) do
-        if normalize(region):find(n, 1, true) then
-            if hit then return nil, "ambiguous" end
-            hit = region
+        for _, name in ipairs(SR.RegionNames(region)) do
+            if normalize(name):find(n, 1, true) then
+                if hit and hit ~= region then return nil, "ambiguous" end
+                hit = region
+                break
+            end
         end
     end
     return hit
@@ -109,11 +118,16 @@ function SR:BuildMaps()
 
     for _, region in ipairs(self.regionNames) do
         local id = self.db.overrides[region]
-        local n = normalize(region)
-        if not id then id = byName[n] end
-        if not id then
-            for key, candidate in pairs(byName) do
-                if key:sub(1, #n) == n and (not id or candidate < id) then id = candidate end
+        local names = SR.RegionNames(region)
+        for _, name in ipairs(names) do
+            if not id then id = byName[normalize(name)] end
+        end
+        for _, name in ipairs(names) do
+            local n = normalize(name)
+            if not id then
+                for key, candidate in pairs(byName) do
+                    if key:sub(1, #n) == n and (not id or candidate < id) then id = candidate end
+                end
             end
         end
         if id then

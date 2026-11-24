@@ -1,12 +1,13 @@
 ## Interface: 120105, 120007, 120100, 11509, 16001, 20506, 38002, 40402, 50504
 ## Title: SkinRoute
 ## Notes: Ranks skinning zones by value for your level and skinning skill and guides you there with TomTom
-## Version: 0.6.0
+## Version: 0.7.0
 ## Dependencies: TomTom
 ## SavedVariables: SkinRouteDB
 
 Data\SkinData.lua
 Core.lua
+Locale.lua
 Resolver.lua
 Rules.lua
 Skill.lua
@@ -16,4 +17,5 @@ Zones.lua
 Runner.lua
 Overlay.lua
 UI.lua
+SkipButton.lua
 Probe.lua

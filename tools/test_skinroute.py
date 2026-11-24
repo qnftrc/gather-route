@@ -128,6 +128,9 @@ local function newObject(kind)
     function o:GetWidth() return 1000 end
     function o:GetHeight() return 667 end
     function o:GetCanvas() return self.canvas end
+    function o:GetPoint() return 'CENTER', nil, 'CENTER', 10, 20 end
+    function o:StartMoving() self.moving = true end
+    function o:StopMovingOrSizing() self.moving = false end
     function o:CreateLine() local c = newObject("line") self.children[#self.children + 1] = c return c end
     function o:CreateFontString() local c = newObject("fontstring") self.children[#self.children + 1] = c return c end
     function o:CreateTexture() local c = newObject("texture") self.children[#self.children + 1] = c return c end
@@ -143,6 +146,9 @@ CreateFrame = function(kind, name, parent)
     if type(name) == "string" then _G[name] = o end
     return o
 end
+GameTooltip = newObject("tooltip")
+shift = false
+IsShiftKeyDown = function() return shift end
 UIParent = newObject("UIParent")
 UIParent.shown = true
 tinsert = table.insert
@@ -187,7 +193,7 @@ function Slash(msg) SlashCmdList.SKINROUTE(msg) return Said() end
 
 LOAD = r'''
 SR = {}
-for _, f in ipairs({"Core", "Resolver", "Rules", "Skill", "Prices", "Stats", "Zones", "Runner", "Overlay", "UI", "Probe"}) do
+for _, f in ipairs({"Core", "Locale", "Resolver", "Rules", "Skill", "Prices", "Stats", "Zones", "Runner", "Overlay", "UI", "SkipButton", "Probe"}) do
     local fh = assert(io.open(ROOT .. "/SkinRoute/" .. f .. ".lua"))
     local src = fh:read("a")
     fh:close()
@@ -1352,6 +1358,140 @@ def check_stats_events():
     assert lines(lua, "return SR.StatsText().names") == "Medium Leather x1"
 
 
+def check_toc_and_bindings():
+    import xml.etree.ElementTree as ET
+    folder = os.path.join(ROOT, "SkinRoute")
+    toc = [l.strip().replace("\\", "/") for l in open(os.path.join(folder, "SkinRoute.toc"), encoding="utf8") if l.strip() and not l.startswith("#")]
+    on_disk = {f for f in os.listdir(folder) if f.endswith(".lua")}
+    assert on_disk == {f for f in toc if f.endswith(".lua") and "/" not in f}, (on_disk ^ set(toc))
+    assert toc[0] == "Data/SkinData.lua" and toc.index("Core.lua") < toc.index("Locale.lua") < toc.index("Resolver.lua")
+    assert "Bindings.xml" not in toc, "Bindings.xml is loaded by the client without being listed"
+    lua = env()
+    bindings = ET.parse(os.path.join(folder, "Bindings.xml")).getroot().findall("Binding")
+    assert [b.get("name") for b in bindings] == ["SKINROUTE_SKIP", "SKINROUTE_STOP", "SKINROUTE_WINDOW", "SKINROUTE_STATS"]
+    assert bindings[0].get("header") == "SKINROUTE" and all(b.get("header") is None for b in bindings[1:])
+    assert lua.eval("BINDING_HEADER_SKINROUTE") == "SkinRoute"
+    for b in bindings:
+        call = re.fullmatch(r"\s*SkinRoute:(\w+)\(\)\s*", b.text)
+        assert call and lua.eval("type(SkinRoute.%s)" % call.group(1)) == "function", b.text
+        assert isinstance(lua.eval("BINDING_NAME_" + b.get("name")), str)
+
+
+def check_skip_button():
+    lua = guide_env()
+    lines(lua, 'return Slash("button")')
+    assert lua.eval("SkinRouteSkipButton.shown") is True and lua.eval("SkinRouteSkipButton.text") == "Skip"
+    assert lua.eval("SR.db.skipButton.shown") is True
+    assert lua.eval("SkinRouteSkipButton.px") == 0 and lua.eval("SkinRouteSkipButton.py") == -200
+    lines(lua, 'local s = Slash("go test valley") RunTimers() return s')
+    assert abs(lua.eval("waypoints[1].x") - 0.2) < 0.01
+    lua.execute("Click(SkinRouteSkipButton)")
+    assert abs(lua.eval("waypoints[1].x") - 0.8) < 0.01, "the button skips to the next zone"
+    lua.execute("local b = SkinRouteSkipButton; b.scripts.OnEnter(b); b.scripts.OnLeave(b)")
+
+    lua.execute("local b = SkinRouteSkipButton; shift = false; b.scripts.OnDragStart(b)")
+    assert lua.eval("SkinRouteSkipButton.moving") is not True
+    lua.execute("local b = SkinRouteSkipButton; shift = true; b.scripts.OnDragStart(b); b.scripts.OnDragStop(b)")
+    assert lua.eval("SkinRouteSkipButton.moving") is False
+    pos = lua.eval("SR.db.skipButton.pos")
+    assert [pos[1], pos[2], pos[3], pos[4]] == ["CENTER", "CENTER", 10, 20]
+    lines(lua, 'return Slash("button")')
+    assert lua.eval("SkinRouteSkipButton.shown") is False and lua.eval("SR.db.skipButton.shown") is False
+
+    lua = guide_env()
+    lua = env(data=ZONE_FIXTURE, pre="SkinRouteDB = {skipButton = {shown = true, pos = {'TOP', 'TOP', 5, -6}}}")
+    assert lua.eval("SkinRouteSkipButton.shown") is True and lua.eval("SkinRouteSkipButton.px") == 5 and lua.eval("SkinRouteSkipButton.py") == -6
+    lua = env(data=ZONE_FIXTURE)
+    assert lua.eval("SkinRouteSkipButton") is None, "the button is built on demand"
+    assert "/sr button" in lines(lua, 'return Slash("help")')
+
+
+FR_PRE = r"""
+GetLocale = function() return "frFR" end
+TomTom.NameToMapId = {["Contreforts de Hautebrande"] = 25, ["Forêt d'Elwynn"] = 37}
+FRN = {[2318] = "Cuir léger", [2319] = "Cuir intermédiaire", [4234] = "Cuir lourd"}
+GetItemInfo = function(id) return FRN[id], nil, nil, nil, nil, nil, nil, nil, nil, nil, 50 end
+"""
+
+
+def check_french():
+    lua = env(pre=FR_PRE)
+    assert lua.eval("SR.RegionLabel('Hillsbrad Foothills')") == "Contreforts de Hautebrande"
+    assert lua.eval("SR.RegionLabel(\"Un'Goro Crater\")") == "Cratère d'Un'Goro" and lua.eval("SR.RegionLabel('Test Valley')") == "Test Valley"
+    names = lua.eval("SR.RegionNames('Hillsbrad Foothills')")
+    assert [names[1], names[2]] == ["Hillsbrad Foothills", "Contreforts de Hautebrande"]
+    assert lua.eval("SR.RegionNames('Test Valley')")[2] is None
+    assert lua.eval("SR:FindRegion('hautebrande')") == "Hillsbrad Foothills" and lua.eval("SR:FindRegion('hillsbrad')") == "Hillsbrad Foothills"
+    assert lua.eval("SR:FindRegion(\"foret d'elwynn\")") == "Elwynn Forest" and lua.eval("SR:FindRegion('cratere')") == "Un'Goro Crater"
+    lua.execute("SR:BuildMaps()")
+    assert lua.eval("SR:GetRegionMapID('Hillsbrad Foothills')") == 25 and lua.eval("SR:GetRegionMapID('Elwynn Forest')") == 37
+    assert lua.eval("(SR:GetCurrentRegion())") == "Hillsbrad Foothills"
+
+    assert lua.eval("SR:ItemLabel(2319)") == "Cuir intermédiaire"
+    names = lua.eval("SR:ItemNames(2319)")
+    assert [names[1], names[2]] == ["Medium Leather", "Cuir intermédiaire"]
+    assert lua.eval("SR:FindItems({'cuir interm'})[1]") == 2319 and lua.eval("SR:FindItems({'medium leather'})[1]") == 2319
+    assert lua.eval("#SR:FindItems({'cuir'})") == 3
+    assert "Items: Cuir intermédiaire" in lines(lua, 'return Slash("items cuir interm")')
+    lines(lua, 'return Slash("level 24")')
+    lines(lua, 'return Slash("skill 140")')
+    out = lines(lua, 'return Slash("regions")')
+    assert "Contreforts de Hautebrande" in out and "Hillsbrad Foothills" not in out and "Cuir intermédiaire" in out, out
+    assert "Contreforts de Hautebrande: ok" in lines(lua, 'return Slash("region hautebrande")')
+    assert "Cuir intermédiaire: " in lines(lua, 'return Slash("price cuir interm: 100")')
+
+    lines(lua, 'return Slash("")')
+    assert lua.eval("UI().regionButton.text") == "Contreforts de Hautebrande"
+    rows = rows_of(lua, "rows")
+    assert any("Cuir intermédiaire" in r for r in rows) and not any("Medium Leather" in r for r in rows), rows
+    lua.execute("Click(UI().regionButton)")
+    texts = [lua.eval("UI().regionPopupRows[%d].text" % i) for i in range(1, 4)]
+    assert texts == ["Forêt d'Elwynn", "Contreforts de Hautebrande", "Cratère d'Un'Goro"], texts
+    lua.execute("UI().regionSearch:SetText('haute'); UI().regionSearch.scripts.OnTextChanged()")
+    assert lua.eval("#UI().regionMatches") == 1
+    lua.execute("UI().regionSearch:SetText('hillsbrad'); UI().regionSearch.scripts.OnTextChanged()")
+    assert lua.eval("#UI().regionMatches") == 1, "the English name still finds the region"
+    lua.execute("SR:SetBrowseMode('item')")
+    assert lua.eval("UI().regionButton.text") == "Cuir intermédiaire" and "Contreforts de Hautebrande" in rows_of(lua, "rows")[0]
+    lua.execute("SR:SetBrowseMode('value')")
+    assert "Cuir intermédiaire" in rows_of(lua, "valItemRows")[0] and "Contreforts de Hautebrande" in rows_of(lua, "valZoneRows")[0]
+    lua.execute("UI().valSearch:SetText('cuir lourd'); UI().valSearch.scripts.OnTextChanged()")
+    assert lua.eval("UI().valTitle1.text") == "Leathers by value (1)"
+    lua.execute("UI().valSearch:SetText('heavy'); UI().valSearch.scripts.OnTextChanged()")
+    assert lua.eval("UI().valTitle1.text") == "Leathers by value (1)"
+    lua.execute("SR:SetBrowseMode('region'); Click(UI().regionButton); UI().itemSearch:SetText('')")
+    lua.execute("SR:SetBrowseMode('item'); Click(UI().regionButton)")
+    assert any("Cuir lourd" in r for r in rows_of(lua, "itemPopupRows"))
+
+    lua.execute("issecretvalue = function(v) return v == 'Cuir intermédiaire' end")
+    assert lua.eval("SR:ItemLabel(2319)") == "Medium Leather", "a secret name falls back to the data name"
+    lua.execute("issecretvalue = nil; FRN[2319] = nil")
+    assert lua.eval("SR:ItemLabel(2319)") == "Medium Leather", "an item the client has not cached yet"
+    assert lua.eval("SR:ItemLabel(424242)") == "424242"
+
+    en = env()
+    assert en.eval("SR.RegionLabel('Hillsbrad Foothills')") == "Hillsbrad Foothills" and en.eval("SR:ItemLabel(2319)") == "Medium Leather"
+    assert en.eval("#SR.RegionNames('Hillsbrad Foothills')") == 2, "French names are accepted as input on any client"
+    assert en.eval("SR:FindRegion('hautebrande')") == "Hillsbrad Foothills" and en.eval("#SR:ItemNames(2319)") == 1
+
+
+def check_french_guide():
+    lua = env(data=ZONE_FIXTURE, pre=FR_PRE + "\nTomTom.NameToMapId['Test Valley'] = 77")
+    lines(lua, 'return Slash("items cuir interm")')
+    lines(lua, 'return Slash("level 30")')
+    lines(lua, 'return Slash("skill 300")')
+    out = lines(lua, 'local s = Slash("go test valley") RunTimers() return s .. Said()')
+    assert "Test Valley: 2 zone(s)" in out and "Go to 1." in out, out
+    lua = env(pre=FR_PRE)
+    lines(lua, 'return Slash("items cuir interm")')
+    lines(lua, 'return Slash("level 24")')
+    lines(lua, 'return Slash("skill 140")')
+    out = lines(lua, 'local s = Slash("zones hautebrande") RunTimers() return s .. Said()')
+    assert "not resolved" not in out and "Contreforts de Hautebrande:" in out, out
+    lua.execute("TomTom.NameToMapId = {}; SR.mapsBuilt = false")
+    assert "Contreforts de Hautebrande is not resolved to a map" in lines(lua, 'return Slash("zones hautebrande")')
+
+
 def check_missing_data():
     lua = env(data=None)
     assert lua.eval("SR.dataMissing") is True and lua.eval("#SR.regionNames") == 0
@@ -1407,6 +1547,10 @@ def main():
     check_prices()
     check_stats()
     check_stats_events()
+    check_toc_and_bindings()
+    check_skip_button()
+    check_french()
+    check_french_guide()
     check_missing_data()
     check_lua51_constructs()
     real = os.environ.get("SKINROUTE_DATA")

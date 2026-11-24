@@ -1,0 +1,14 @@
+<Bindings>
+  <Binding name="SKINROUTE_SKIP" header="SKINROUTE" category="ADDONS">
+    SkinRoute:SkipZone()
+  </Binding>
+  <Binding name="SKINROUTE_STOP" category="ADDONS">
+    SkinRoute:StopGuide()
+  </Binding>
+  <Binding name="SKINROUTE_WINDOW" category="ADDONS">
+    SkinRoute:ToggleUI()
+  </Binding>
+  <Binding name="SKINROUTE_STATS" category="ADDONS">
+    SkinRoute:ToggleStats()
+  </Binding>
+</Bindings>

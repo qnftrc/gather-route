@@ -40,7 +40,7 @@ local function target(g, row)
     g.visited[row.zone.id] = true
     g.arrived = false
     g.current = TomTom:SetCustomWaypoint(g.mapID, row.zone.x / 100, row.zone.y / 100, {
-        title = ("%s %s"):format(g.region, zoneLabel(row)),
+        title = ("%s %s"):format(SR.RegionLabel(g.region), zoneLabel(row)),
         from = FROM,
         silent = true,
         crazy = true,

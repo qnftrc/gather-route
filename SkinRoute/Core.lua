@@ -17,8 +17,15 @@ local defaults = {
     prices = {},
     ahPrices = {},
     statsWindow = {},
+    skipButton = {},
     overrides = {},
 }
+
+BINDING_HEADER_SKINROUTE = "SkinRoute"
+BINDING_NAME_SKINROUTE_SKIP = "Go to the next zone"
+BINDING_NAME_SKINROUTE_STOP = "Stop the guide"
+BINDING_NAME_SKINROUTE_WINDOW = "Open or close the window"
+BINDING_NAME_SKINROUTE_STATS = "Open or close the stats window"
 
 function SR:Say(msg)
     print("|cff33ff99SkinRoute|r: " .. tostring(msg))
@@ -134,7 +141,7 @@ SR.LevelText = levelText
 
 local function itemNames(ids)
     local names = {}
-    for _, id in ipairs(ids) do names[#names + 1] = SR.Data.items[id] or tostring(id) end
+    for _, id in ipairs(ids) do names[#names + 1] = SR:ItemLabel(id) end
     return table.concat(names, ", ")
 end
 
@@ -168,6 +175,7 @@ local function usage()
     SR:Say("/sr need <level> - skinning skill needed for a mob level")
     SR:Say("/sr zones [region] - compute the zones of a region (default: your region) and draw them on the world map")
     SR:Say("/sr go [region] - compute the zones, then guide you to the best one with TomTom; /sr skip - next zone; /sr stop - end the guide")
+    SR:Say("/sr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > SkinRoute)")
     SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233) | /sr arrival [yd] - distance at which you count as arrived (default 233)")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
     SR:Say("/sr probe [env|ui|skill] - read-only diagnostic: libraries, map sizes, interface templates, how your skinning skill can be read")
@@ -180,7 +188,7 @@ function SR:ReportZones()
     local s = self.shown
     if not s then return end
     self:Say(("%s: %d zone(s) of %d yd from %d points, %d without a mob in range, %d point(s) left outside any zone."):format(
-        s.region, #s.rows, s.set.radius, s.set.points, s.hidden or 0, s.set.leftover or 0))
+        SR.RegionLabel(s.region), #s.rows, s.set.radius, s.set.points, s.hidden or 0, s.set.leftover or 0))
     for i = 1, math.min(8, #s.rows) do
         local row = s.rows[i]
         self:Say(describeRow(i, ("(%.0f, %.0f)"):format(row.zone.x, row.zone.y), row, s.ctx, s.anyPrice))
@@ -208,7 +216,7 @@ local function listRegions(limit)
         ctx.bandOnly and ("mobs from level " .. (level + ctx.lo) .. " to " .. (level + ctx.hi)) or "all mob levels",
         itemNames(SR.db.items)))
     if #ranked == 0 then return SR:Say(("No region (%d without a mob in range)."):format(hidden)) end
-    for i = 1, math.min(limit, #ranked) do SR:Say(describeRow(i, ranked[i].region, ranked[i], ctx, anyPrice)) end
+    for i = 1, math.min(limit, #ranked) do SR:Say(describeRow(i, SR.RegionLabel(ranked[i].region), ranked[i], ctx, anyPrice)) end
     if #ranked > limit then SR:Say(("... %d more (/sr regions <n>)."):format(#ranked - limit)) end
 end
 
@@ -220,14 +228,14 @@ local function showRegion(name)
     local ctx = SR:Context()
     local e = SR:EvaluateRegion(region, ctx)
     SR:Say(("%s: %s, %d relevant mobs, %d in range, %d skinnable%s."):format(
-        region, e.status, e.total, e.inBand, e.skinnable, e.minNeeded and (", needs skinning " .. e.minNeeded .. " at least") or ""))
+        SR.RegionLabel(region), e.status, e.total, e.inBand, e.skinnable, e.minNeeded and (", needs skinning " .. e.minNeeded .. " at least") or ""))
     local shown = 0
     for _, entry in ipairs(SR:RegionEntries(region)) do
         local c = SR.Data.creatures[entry.id]
         if c and shown < 12 then
             local drops = {}
             for item, d in pairs(c.d) do
-                if ctx.items[item] then drops[#drops + 1] = ("%s %.0f%%"):format(SR.Data.items[item] or item, d[1]) end
+                if ctx.items[item] then drops[#drops + 1] = ("%s %.0f%%"):format(SR:ItemLabel(item), d[1]) end
             end
             if #drops > 0 then
                 table.sort(drops)
@@ -303,7 +311,7 @@ local function handleSlash(msg)
             local n = 0
             for id, copper in pairs(SR.db.prices) do
                 n = n + 1
-                SR:Say(("%s: %s"):format(SR.Data.items[id] or id, SR.MoneyText(copper)))
+                SR:Say(("%s: %s"):format(SR:ItemLabel(id), SR.MoneyText(copper)))
             end
             if n == 0 then SR:Say("No price set. /sr price <item>: <copper>") end
             return
@@ -315,7 +323,7 @@ local function handleSlash(msg)
         SR.db.prices[ids[1]] = tonumber(copper)
         SR:RefreshZones()
         local price, source = SR:ItemPrice(ids[1])
-        SR:Say(("%s: %s%s."):format(SR.Data.items[ids[1]], price and SR.MoneyText(price) or "no price", source and (" (" .. source .. ")") or ""))
+        SR:Say(("%s: %s%s."):format(SR:ItemLabel(ids[1]), price and SR.MoneyText(price) or "no price", source and (" (" .. source .. ")") or ""))
     elseif cmd == "need" then
         local level = tonumber(rest)
         if not level then return SR:Say("Usage: /sr need <mob level>") end
@@ -346,6 +354,8 @@ local function handleSlash(msg)
             if not region then return SR:Say("Your current zone has no data. Use /sr go <region>.") end
         end
         SR:ShowZones(region, true)
+    elseif cmd == "button" then
+        SR:ToggleSkipButton()
     elseif cmd == "skip" then
         SR:SkipZone()
     elseif cmd == "stop" then
@@ -423,5 +433,6 @@ frame:SetScript("OnEvent", function(self, event, name)
     SR:InitRunner()
     SR:InitPrices()
     SR:InitStats()
+    SR:InitSkipButton()
     SR:InitUI()
 end)
