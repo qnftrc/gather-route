@@ -78,17 +78,18 @@ function SR.MoneyText(c)
     return (neg and "-" or "") .. table.concat(parts, " ")
 end
 
-local MONEY_ICON = "|TInterface\\MoneyFrame\\UI-%sIcon:14:14:2:0|t"
+local MONEY_ICON = "|TInterface\\MoneyFrame\\UI-%sIcon:%d:%d:2:0|t"
 
-function SR.Money(c)
+function SR.Money(c, size)
+    size = size or 14
     c = math.floor((c or 0) + 0.5)
     local neg = c < 0
     if neg then c = -c end
     local g, s, cp = math.floor(c / 10000), math.floor(c / 100) % 100, c % 100
     local parts = {}
-    if g > 0 then parts[#parts + 1] = g .. MONEY_ICON:format("Gold") end
-    if g > 0 or s > 0 then parts[#parts + 1] = s .. MONEY_ICON:format("Silver") end
-    parts[#parts + 1] = cp .. MONEY_ICON:format("Copper")
+    if g > 0 then parts[#parts + 1] = g .. MONEY_ICON:format("Gold", size, size) end
+    if g > 0 or s > 0 then parts[#parts + 1] = s .. MONEY_ICON:format("Silver", size, size) end
+    parts[#parts + 1] = cp .. MONEY_ICON:format("Copper", size, size)
     return (neg and "-" or "") .. table.concat(parts, " ")
 end
 

@@ -32,12 +32,24 @@ local function getLine(i)
     return l
 end
 
-local function getLabel(i)
+local FONT_RATIO = 0.09
+local FONT_MIN = 6
+local FONT_MAX = 16
+
+local function fontSizeFor(rx)
+    return math.max(FONT_MIN, math.min(FONT_MAX, math.floor(2 * rx * FONT_RATIO + 0.5)))
+end
+
+local function getLabel(i, size)
     local f = mapLabels[i]
     if not f then
         f = mapFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         f:SetShadowOffset(1, -1)
         mapLabels[i] = f
+    end
+    if size and f.fontSize ~= size then
+        f:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", size, "OUTLINE")
+        f.fontSize = size
     end
     return f
 end
@@ -115,7 +127,7 @@ local function drawCircle(used, canvas, cx, cy, rx, ry, c, dashed)
     return used
 end
 
-local function zoneLabels(row, s)
+local function zoneLabels(row, s, size)
     local e = row.eval
     local lines = {}
     local level = ""
@@ -127,7 +139,7 @@ local function zoneLabels(row, s)
         lines[1] = {level, color}
         lines[2] = {"needs skinning " .. e.minNeeded, COLORS.orange}
     else
-        lines[1] = {s.anyPrice and SR.Money(e.value) or ("~%.0f items"):format(e.drops), {1, 1, 1}}
+        lines[1] = {s.anyPrice and SR.Money(e.value, size) or ("~%.0f items"):format(e.drops), {1, 1, 1}}
         lines[2] = {level, color}
         if e.status == "partial" then
             lines[3] = {("%d%% skinnable"):format(math.floor(e.percent + 0.5)), COLORS.orange}
@@ -173,12 +185,13 @@ function refreshMap()
                 fills = fills + 1
                 drawFill(fills, canvas, cx, cy, rx, ry, mask)
             end
-            local lines = zoneLabels(row, s)
+            local fs = fontSizeFor(rx)
+            local lines = zoneLabels(row, s, fs)
             for k, entry in ipairs(lines) do
                 labels = labels + 1
-                local f = getLabel(labels)
+                local f = getLabel(labels, fs)
                 f:ClearAllPoints()
-                f:SetPoint("CENTER", canvas, "TOPLEFT", cx, -(cy + (k - (#lines + 1) / 2) * 14))
+                f:SetPoint("CENTER", canvas, "TOPLEFT", cx, -(cy + (k - (#lines + 1) / 2) * (fs + 2)))
                 f:SetText(entry[1])
                 f:SetTextColor(entry[2][1], entry[2][2], entry[2][3])
                 f:Show()

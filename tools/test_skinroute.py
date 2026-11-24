@@ -133,6 +133,7 @@ local function newObject(kind)
     function o:StopMovingOrSizing() self.moving = false end
     function o:CreateLine() local c = newObject("line") self.children[#self.children + 1] = c return c end
     function o:CreateFontString() local c = newObject("fontstring") self.children[#self.children + 1] = c return c end
+    function o:SetFont(f, size) self.font, self.fontPx = f, size end
     function o:SetTexture(p) self.path = p end
     function o:CreateMaskTexture() local c = newObject("mask") self.children[#self.children + 1] = c return c end
     function o:AddMaskTexture(m) self.mask = m end
@@ -709,6 +710,20 @@ def check_guide_limits():
 def rows_of(lua, pool):
     out = lines(lua, "return RowTexts(UI().%s)" % pool)
     return out.split("\n") if out else []
+
+
+def check_label_font_scales():
+    lua = guide_env()
+    lines(lua, 'return Slash("zones test valley")')
+    lua.execute("RunTimers(); mapOpen = true; mapShown = 77; SR:UpdateOverlay()")
+    size = lua.eval("(function() for _, c in ipairs(MapFrame().children) do if c.kind == 'fontstring' and c.shown and c.fontPx then return c.fontPx end end end)()")
+    assert size is not None and 6 <= size <= 16, size
+    texts = ShownTextsOf(lua)
+    assert (":%d:%d:" % (size, size)) in texts, (size, texts)
+
+
+def ShownTextsOf(lua):
+    return lua.eval("ShownTexts()")
 
 
 def check_prices_end_of_line():
@@ -1574,6 +1589,7 @@ def main():
     check_zone_errors()
     check_map_test()
     check_fill()
+    check_label_font_scales()
     check_prices_end_of_line()
     check_guide()
     check_guide_limits()
