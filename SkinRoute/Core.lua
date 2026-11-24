@@ -166,6 +166,7 @@ local function usage()
     SR:Say("/sr go [region] - compute the zones, then guide you to the best one with TomTom; /sr skip - next zone; /sr stop - end the guide")
     SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233) | /sr arrival [yd] - distance at which you count as arrived (default 233)")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
+    SR:Say("/sr probe [env|ui|skill] - read-only diagnostic: libraries, map sizes, interface templates, how your skinning skill can be read")
     SR:Say("/sr chat [on|off] | setmap <region>: <mapID> | debug")
 end
 
@@ -359,6 +360,8 @@ local function handleSlash(msg)
         SR:Say("Zone radius: " .. SR.db.zoneRadius .. " yd (the minimap at zoom 0 shows about 233 yd around you).")
     elseif cmd == "map" then
         SR:MapTest()
+    elseif cmd == "probe" then
+        SR:Probe(rest)
     elseif cmd == "chat" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then SR.db.chat = arg == "on" end

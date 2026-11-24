@@ -179,7 +179,7 @@ function Slash(msg) SlashCmdList.SKINROUTE(msg) return Said() end
 
 LOAD = r'''
 SR = {}
-for _, f in ipairs({"Core", "Resolver", "Rules", "Zones", "Runner", "Overlay", "UI"}) do
+for _, f in ipairs({"Core", "Resolver", "Rules", "Zones", "Runner", "Overlay", "UI", "Probe"}) do
     local fh = assert(io.open(ROOT .. "/SkinRoute/" .. f .. ".lua"))
     local src = fh:read("a")
     fh:close()
@@ -902,6 +902,97 @@ def check_real_ui(path):
     return "\n".join(report)
 
 
+SKILLS_MOCK = r"""
+SKILLS = {
+    {"Professions", 1, 1, 0, 0},
+    {"Dépeçage", nil, nil, 125, 150},
+    {"Mining", nil, nil, 1, 75},
+    {"Languages", 1, nil, 0, 0},
+}
+GetNumSkillLines = function() return #SKILLS end
+GetSkillLineInfo = function(i) local s = SKILLS[i] return s[1], s[2], s[3], s[4], 0, 0, s[5] end
+"""
+
+
+def probe_env(extra="", data=FIXTURE, skills=True):
+    lua = env(data=data)
+    lua.execute("GetBuildInfo = function() return '1.60.1', '71037', 'Nov 24 2026', 16001 end; GetLocale = function() return 'frFR' end; date = os.date")
+    if skills:
+        lua.execute(SKILLS_MOCK)
+    lua.execute(extra)
+    return lua
+
+
+def probe(lua, arg=""):
+    out = lines(lua, 'return Slash("probe %s")' % arg)
+    return re.sub(r"\|cff33ff99SkinRoute\|r: ", "", out)
+
+
+def check_probe():
+    lua = probe_env()
+    out = probe(lua)
+    for expected in (
+        'locale "frFR"', 'build "71037"', 'UnitLevel("player") -> 21',
+        "SkinRoute data: 3 regions, 4 creatures, 3 items",
+        "HereBeDragons-2.0: present", "player map 25", "map 25: 2000 x 1000 yd",
+        "regions resolved 2/3", 'current region: "Hillsbrad Foothills"', "unresolved: Un'Goro Crater",
+        "templates created: BasicFrameTemplateWithInset", "UIPanelScrollFrameTemplate", "BackdropTemplate",
+        "GetNumSkillLines -> 4", 'headers: "Professions", "Languages" [collapsed]',
+        'skills: "Dépeçage" 125/150, "Mining" 1/75', "1 header(s) collapsed",
+        "Skinning line 2 raw:", "RESULT: Skinning 125/150 via GetSkillLineInfo",
+        "global functions with Skill in the name", "GetSkillLineInfo", "Probe done:",
+    ):
+        assert expected in out, (expected, out)
+    assert "templates FAILED" not in out
+    assert lua.eval("#SR.db.probe.lines") > 10 and lua.eval("SR.db.probe.date") != ""
+
+    out = probe(probe_env(skills=False, extra="GetNumSkillLines = nil; GetSkillLineInfo = nil"))
+    assert "GetNumSkillLines / GetSkillLineInfo: not available" in out and "GetProfessions: not available" in out, out
+    assert "RESULT: Skinning skill NOT found" in out
+
+    out = probe(probe_env(skills=False, extra="GetProfessions = function() return 3, nil, nil, nil, nil, nil end; "
+                          "GetProfessionInfo = function(i) return 'Skinning', 'icon', 200, 300 end"))
+    assert 'GetProfessions() -> 3, nil, nil, nil, nil, nil' in out and 'GetProfessionInfo(3) -> "Skinning", "icon", 200, 300' in out, out
+    assert "RESULT: Skinning 200/300 via GetProfessionInfo" in out
+
+    out = probe(probe_env(extra="issecretvalue = function(v) return v == 125 end"))
+    assert "<secret>/150" in out and "SECRET value" in out and "RESULT: Skinning 125" not in out, out
+
+    out = probe(probe_env(extra="GetSkillLineInfo = function(i) error('boom') end"))
+    assert "GetNumSkillLines -> 4" in out and "GetSkillLineInfo(1): ERROR" in out and "boom" in out, out
+    assert "RESULT: Skinning skill NOT found" in out
+
+    out = probe(probe_env(extra="local original = CreateFrame; CreateFrame = function(kind, name, parent, template) "
+                          "if template == 'OptionsSliderTemplate' then error('no such template') end return original(kind, name, parent, template) end"))
+    assert "templates FAILED: OptionsSliderTemplate" in out and "no such template" in out, out
+    created = re.search(r"templates created: (.*)", out).group(1)
+    assert "OptionsSliderTemplate" not in created and "InputBoxTemplate" in created
+
+    out = probe(probe_env(extra="hbdAvailable = false"))
+    assert "HereBeDragons-2.0: MISSING" in out and "map 25:" not in out
+
+    out = probe(probe_env(extra="playerMap = nil"))
+    assert "player map nil" in out and "RESULT: Skinning 125/150" in out
+
+    out = probe(probe_env(extra="GetBuildInfo = nil; GetLocale = nil"))
+    assert "client nil build nil" in out and "RESULT:" in out
+
+    out = probe(probe_env(extra="TomTom.GetCurrentPlayerPosition = function() error('tomtom broke') end"))
+    assert "env: SECTION ERROR" in out and "tomtom broke" in out and "RESULT: Skinning 125/150" in out, out
+
+    lua = probe_env()
+    out = probe(lua, "skill")
+    assert "RESULT: Skinning 125/150" in out and "HereBeDragons" not in out and "templates created" not in out
+    out = probe(lua, "env")
+    assert "HereBeDragons-2.0: present" in out and "RESULT" not in out and "templates created" not in out
+    out = probe(lua, "ui")
+    assert "templates created" in out and "HereBeDragons" not in out
+    assert "Usage: /sr probe" in probe(lua, "nonsense")
+
+    out = probe(probe_env(data=None))
+    assert "DATA FILE MISSING" in out and "RESULT: Skinning 125/150" in out
+
+
 def check_missing_data():
     lua = env(data=None)
     assert lua.eval("SR.dataMissing") is True and lua.eval("#SR.regionNames") == 0
@@ -950,6 +1041,7 @@ def main():
     check_ui_options()
     check_ui_buttons()
     check_ui_region_popup()
+    check_probe()
     check_missing_data()
     check_lua51_constructs()
     real = os.environ.get("SKINROUTE_DATA")
