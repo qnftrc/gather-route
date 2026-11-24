@@ -17,8 +17,9 @@
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await fetch(path, {credentials: "same-origin"});
-        if (res.status === 403 || res.status === 429) {
+        if (res.status === 403 || res.status === 405 || res.status === 429) {
           blocked.n++;
+          if (res.status === 405) return {status: 405, html: ""};
           await sleep(DELAY * 4);
           continue;
         }
@@ -111,9 +112,19 @@
   console.log(`Créatures à lire : ${ids.length}`);
 
   const npcRows = [];
+  if (!out.partial && ids.length) {
+    const test = await grab(`/forever/npc=${ids[0]}`);
+    out.npcs[ids[0]] = {title: title(test.html), http: test.status, data: mapperData(test.html)};
+    if (test.status !== 200) {
+      out.partial = true;
+      out.error = `Test npc=${ids[0]}: HTTP ${test.status}`;
+      console.error(`${out.error} : les pages de créatures sont refusées, arrêt avant la boucle.`);
+    }
+  }
   if (!out.partial) {
     let done = 0;
     for (const id of ids) {
+      if (out.npcs[id]) continue;
       const res = await grab(`/forever/npc=${id}`);
       const data = mapperData(res.html);
       out.npcs[id] = {title: title(res.html), http: res.status, data};
