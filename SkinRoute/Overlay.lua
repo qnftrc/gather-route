@@ -11,7 +11,16 @@ local COLORS = {
     gray = {0.62, 0.62, 0.62},
 }
 
-local mapFrame, mapLines, mapLabels
+local FILL_ALPHA = 0.18
+local FILL_TEST_SECONDS = 30
+SR.FILL_MASKS = {
+    "Interface\\CharacterFrame\\TempPortraitAlphaMask",
+    "Interface\\Minimap\\UI-Minimap-Background",
+    "Interface\\CharacterFrame\\TempPortraitAlphaMaskSmall",
+    "Interface\\COMMON\\Indicator-Gray",
+}
+
+local mapFrame, mapLines, mapLabels, mapFills
 local refreshMap
 
 local function getLine(i)
@@ -35,6 +44,37 @@ end
 
 local function hideFrom(pool, n)
     for i = n, #pool do pool[i]:Hide() end
+end
+
+local function getFill(i)
+    local f = mapFills[i]
+    if not f then
+        local tex = mapFrame:CreateTexture(nil, "BACKGROUND")
+        local mask = mapFrame:CreateMaskTexture()
+        mask:SetAllPoints(tex)
+        tex:AddMaskTexture(mask)
+        f = {tex = tex, mask = mask}
+        mapFills[i] = f
+    end
+    return f
+end
+
+local function drawFill(i, canvas, cx, cy, rx, ry, path)
+    local f = getFill(i)
+    f.mask:SetTexture(path, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    f.tex:SetColorTexture(1, 1, 1, FILL_ALPHA)
+    f.tex:ClearAllPoints()
+    f.tex:SetSize(2 * rx, 2 * ry)
+    f.tex:SetPoint("CENTER", canvas, "TOPLEFT", cx, -cy)
+    f.tex:Show()
+    f.mask:Show()
+end
+
+local function hideFills(n)
+    for i = n, #mapFills do
+        mapFills[i].tex:Hide()
+        mapFills[i].mask:Hide()
+    end
 end
 
 local function ensureMapFrame()
@@ -99,16 +139,17 @@ end
 function refreshMap()
     local s = SR.shown
     local test = SR.mapTest and GetTime() < SR.mapTest.untilT and SR.mapTest
-    if not (s or test) or SR.db.showMap == false or not WorldMapFrame or not WorldMapFrame:IsShown() then
+    local fillTest = SR.fillTest and GetTime() < SR.fillTest.untilT
+    if not (s or test or fillTest) or SR.db.showMap == false or not WorldMapFrame or not WorldMapFrame:IsShown() then
         if mapFrame then mapFrame:Hide() end
         return
     end
     if not ensureMapFrame() then return end
     local canvas = WorldMapFrame:GetCanvas()
-    local wantedMap = s and s.mapID or test.mapID
-    local wantedName = s and s.region or test.region
+    local wantedMap = s and s.mapID or (test and test.mapID)
+    local wantedName = s and s.region or (test and test.region)
     local shownMap = WorldMapFrame:GetMapID()
-    if shownMap ~= wantedMap then
+    if wantedMap and shownMap ~= wantedMap then
         local info = C_Map and C_Map.GetMapInfo and shownMap and C_Map.GetMapInfo(shownMap)
         if not (info and type(info.name) == "string" and SR.normalize(info.name) == SR.normalize(wantedName)) then
             mapFrame:Hide()
@@ -118,7 +159,8 @@ function refreshMap()
     mapFrame:Show()
 
     local w, h = canvas:GetWidth(), canvas:GetHeight()
-    local used, labels = 0, 0
+    local used, labels, fills = 0, 0, 0
+    local mask = SR.db.fill == true and SR.db.fillMask or nil
     if s then
         local size = s.set.size
         local rx, ry = s.set.radius / size.w * w, s.set.radius / size.h * h
@@ -127,6 +169,10 @@ function refreshMap()
             local e = row.eval
             local mid = e.avgLevel or ((e.lmin + e.lmax) / 2)
             used = drawCircle(used, canvas, cx, cy, rx, ry, COLORS[SR.Rules.difficulty(mid, s.ctx.level)], e.status == "locked")
+            if mask then
+                fills = fills + 1
+                drawFill(fills, canvas, cx, cy, rx, ry, mask)
+            end
             local lines = zoneLabels(row, s)
             for k, entry in ipairs(lines) do
                 labels = labels + 1
@@ -139,12 +185,39 @@ function refreshMap()
             end
         end
     end
+    if fillTest then
+        for n, path in ipairs(SR.FILL_MASKS) do
+            fills = fills + 1
+            local cx = w * (0.1 + 0.2 * n)
+            drawFill(fills, canvas, cx, h * 0.5, w * 0.07, w * 0.07, path)
+            labels = labels + 1
+            local f = getLabel(labels)
+            f:ClearAllPoints()
+            f:SetPoint("CENTER", canvas, "TOPLEFT", cx, -h * 0.5)
+            f:SetText(tostring(n))
+            f:SetTextColor(1, 0.82, 0)
+            f:Show()
+        end
+    end
     if test then
         local size = test.size
         used = drawCircle(used, canvas, test.x / 100 * w, test.y / 100 * h, test.radius / size.w * w, test.radius / size.h * h, {1, 0, 1}, false)
     end
     hideFrom(mapLines, used + 1)
     hideFrom(mapLabels, labels + 1)
+    hideFills(fills + 1)
+end
+
+function SR:FillTest()
+    self.fillTest = {untilT = GetTime() + FILL_TEST_SECONDS}
+    self:Say(("Fill test: open the world map. For %d s you see 4 white discs numbered 1 to 4, each with another mask texture."):format(FILL_TEST_SECONDS))
+    self:Say("Pick the number of a ROUND disc with /sr fill <n>. A square or nothing means that texture does not exist on this client. /sr fill path <texture> tries another one.")
+    refreshMap()
+    C_Timer.After(FILL_TEST_SECONDS, function() refreshMap() end)
+end
+
+function SR:FillStatus()
+    self:Say(("Zone fill: %s, mask %s."):format(self.db.fill == true and "on" or "off", self.db.fillMask or "not chosen (/sr fill test)"))
 end
 
 function SR:UpdateOverlay()
@@ -182,7 +255,7 @@ function SR:MapTest()
 end
 
 function SR:InitOverlay()
-    mapLines, mapLabels = {}, {}
+    mapLines, mapLabels, mapFills = {}, {}, {}
     ensureMapFrame()
     local f = CreateFrame("Frame")
     f:RegisterEvent("ADDON_LOADED")

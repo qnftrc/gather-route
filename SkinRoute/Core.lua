@@ -10,6 +10,7 @@ local defaults = {
     bandHigh = 2,
     chat = false,
     showMap = true,
+    fill = false,
     zoneRadius = 233,
     zoneMin = 5,
     zoneMax = 12,
@@ -178,6 +179,7 @@ local function usage()
     SR:Say("/sr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > SkinRoute)")
     SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233) | /sr arrival [yd] - distance at which you count as arrived (default 233)")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
+    SR:Say("/sr fill [test|<n>|path <texture>|on|off] - white transparent fill of the zones: run the test once, then pick the round disc")
     SR:Say("/sr probe [env|ui|skill] - read-only diagnostic: libraries, map sizes, interface templates, how your skinning skill can be read")
     SR:Say("/sr chat [on|off] | setmap <region>: <mapID> | debug")
 end
@@ -380,6 +382,26 @@ local function handleSlash(msg)
         SR:Say("Zone radius: " .. SR.db.zoneRadius .. " yd (the minimap at zoom 0 shows about 233 yd around you).")
     elseif cmd == "map" then
         SR:MapTest()
+    elseif cmd == "fill" then
+        local arg = rest:lower()
+        local n = tonumber(arg)
+        if arg == "test" then
+            return SR:FillTest()
+        elseif n then
+            if not SR.FILL_MASKS[n] then return SR:Say("Usage: /sr fill <1 to " .. #SR.FILL_MASKS .. ">") end
+            SR.db.fillMask, SR.db.fill = SR.FILL_MASKS[n], true
+        elseif arg:match("^path%s+%S") then
+            SR.db.fillMask, SR.db.fill = rest:match("^%S+%s+(.+)$"), true
+        elseif arg == "on" then
+            if not SR.db.fillMask then return SR:Say("No mask chosen yet: /sr fill test") end
+            SR.db.fill = true
+        elseif arg == "off" then
+            SR.db.fill = false
+        elseif arg ~= "" then
+            return SR:Say("Usage: /sr fill [test|<n>|path <texture>|on|off]")
+        end
+        SR:UpdateOverlay()
+        SR:FillStatus()
     elseif cmd == "probe" then
         SR:Probe(rest)
     elseif cmd == "prices" then

@@ -133,6 +133,9 @@ local function newObject(kind)
     function o:StopMovingOrSizing() self.moving = false end
     function o:CreateLine() local c = newObject("line") self.children[#self.children + 1] = c return c end
     function o:CreateFontString() local c = newObject("fontstring") self.children[#self.children + 1] = c return c end
+    function o:SetTexture(p) self.path = p end
+    function o:CreateMaskTexture() local c = newObject("mask") self.children[#self.children + 1] = c return c end
+    function o:AddMaskTexture(m) self.mask = m end
     function o:CreateTexture() local c = newObject("texture") self.children[#self.children + 1] = c return c end
     return setmetatable(o, {__index = function(_, k)
         if k == "Low" or k == "High" or k == "Text" or k == "TitleText" then return nil end
@@ -568,6 +571,34 @@ def check_map_test():
     assert lua.eval("MapFrame().shown") is False
     lua.execute("playerMap = nil")
     assert "No player position" in lines(lua, 'return Slash("map")')
+
+
+def check_fill():
+    lua = guide_env()
+    lines(lua, 'return Slash("zones test valley")')
+    lua.execute("RunTimers()")
+    lua.execute("mapOpen = true; mapShown = 77; SR:UpdateOverlay()")
+    assert lua.eval("Shown('texture')") == 0, "fill is off by default"
+    assert "No mask chosen" in lines(lua, 'return Slash("fill on")')
+    assert "Usage" in lines(lua, 'return Slash("fill 9")')
+    out = lines(lua, 'return Slash("fill test")')
+    assert "Fill test" in out, out
+    assert lua.eval("Shown('texture')") == 4
+    paths = lua.eval("(function() local t = {} for _, c in ipairs(MapFrame().children) do if c.kind == 'mask' then t[#t + 1] = c.path end end return table.concat(t, '|') end)()")
+    assert "TempPortraitAlphaMask" in paths and paths.count("|") == 3, paths
+    lua.execute("now = now + 31; RunTimers()")
+    assert lua.eval("Shown('texture')") == 0
+    out = lines(lua, 'return Slash("fill 1")')
+    assert "Zone fill: on" in out and "TempPortraitAlphaMask" in out, out
+    n = lua.eval("#SR.shown.rows")
+    assert lua.eval("Shown('texture')") == n and n > 0
+    tex = lua.eval("(function() for _, c in ipairs(MapFrame().children) do if c.kind == 'texture' and c.shown then return c end end end)()")
+    assert tex.color[1] == 1 and tex.color[2] == 1 and tex.color[3] == 1 and abs(tex.color[4] - 0.18) < 1e-6
+    assert tex.mask.path.endswith("TempPortraitAlphaMask")
+    lines(lua, 'return Slash("fill off")')
+    assert lua.eval("Shown('texture')") == 0
+    lines(lua, 'return Slash("fill path Interface\\\\Foo\\\\Bar")')
+    assert lua.eval("SR.db.fillMask") == "Interface\\Foo\\Bar" and lua.eval("SR.db.fill") is True
 
 
 def check_real_zones(path):
@@ -1532,6 +1563,7 @@ def main():
     check_zones_pipeline()
     check_zone_errors()
     check_map_test()
+    check_fill()
     check_guide()
     check_guide_limits()
     check_ui_region_view()

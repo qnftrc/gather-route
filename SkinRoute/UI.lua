@@ -664,6 +664,14 @@ local function build()
         SR.db.showMap = self:GetChecked() and true or false
         SR:UpdateOverlay()
     end))
+    ui.fill = option(check(ui.lower, "Fill", 262, -86, function(self)
+        if self:GetChecked() and not SR.db.fillMask then
+            self:SetChecked(false)
+            return SR:Say("No mask chosen yet: /sr fill test")
+        end
+        SR.db.fill = self:GetChecked() and true or false
+        SR:UpdateOverlay()
+    end))
     ui.chat = option(check(ui.lower, "Show SkinRoute messages in the chat", 12, -110, function(self)
         SR.db.chat = self:GetChecked() and true or false
     end))
@@ -702,6 +710,7 @@ local function build()
 
     ui:SetScript("OnShow", function()
         ui.showMap:SetChecked(SR.db.showMap ~= false)
+        ui.fill:SetChecked(SR.db.fill == true)
         ui.chat:SetChecked(SR.db.chat == true)
         ui.band:SetChecked(SR.db.bandOnly ~= false)
         ui.slider:SetValue(SR.db.arrival)
