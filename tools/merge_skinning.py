@@ -8,6 +8,11 @@ import re
 import sys
 
 
+DEFAULT_SKIP_ZONES = ["Orgrimmar", "Stormwind City", "Ironforge", "Darnassus", "Undercity", "Thunder Bluff",
+                      "Alterac Valley", "Kalimdor", "Eastern Kingdoms"]
+QUEST_CLASS = "12"
+
+
 def read_text(path):
     opener = gzip.open if path.endswith(".gz") else open
     with opener(path, "rt", encoding="utf8", errors="replace") as f:
@@ -64,6 +69,15 @@ def table_rows(sql, table):
             yield row
 
 
+def quest_item_ids(sql, items):
+    found = set()
+    for m in re.finditer(r"^INSERT INTO `item_template` VALUES (.*);$", sql, re.M):
+        for t in re.finditer(r"\((\d+),(\d+),\d+,'", m.group(1)):
+            if t.group(2) == QUEST_CLASS and int(t.group(1)) in items:
+                found.add(int(t.group(1)))
+    return found
+
+
 def load_cmangos(path, ranks):
     sql = read_text(path)
     cols = table_columns(sql, "creature_template")
@@ -86,14 +100,14 @@ def load_cmangos(path, ranks):
         loot[int(d["entry"])].append((item, float(d["ChanceOrQuestChance"]), int(d["groupid"]), int(d["mincountOrRef"]), int(d["maxcount"])))
         if d.get("comments") and item not in names:
             names[item] = d["comments"]
-    return creatures, ranked_out, loot, names
+    return creatures, ranked_out, loot, names, quest_item_ids(sql, {r[0] for rows in loot.values() for r in rows})
 
 
-def effective_drops(rows):
+def effective_drops(rows, skip_items=()):
     out = {}
     groups = collections.defaultdict(list)
     for item, chance, group, mn, mx in rows:
-        if mn < 0:
+        if mn < 0 or chance < 0 or item in skip_items:
             continue
         if group == 0:
             out[item] = (chance, mn, max(mx, mn))
@@ -213,19 +227,23 @@ def main(argv=None):
     ap.add_argument("--pfquest", required=True, help="pfQuest db directory (units.lua, enUS/zones.lua)")
     ap.add_argument("--wowhead", help="Wowhead skinning export (wowhead_skinning_all_zones.json or the earlier partial format)")
     ap.add_argument("--out", required=True, help="Lua file to write")
+    ap.add_argument("--skip-zone", action="append", default=[], help="zone name to leave out, repeatable (added to the default list of capitals, battleground and continent maps)")
     ap.add_argument("--ranks", default="0", help="creature ranks kept, comma separated (0 normal, 1 elite, 2 rare elite, 3 boss, 4 rare)")
     args = ap.parse_args(argv)
     ranks = {int(r) for r in args.ranks.split(",")}
 
-    creatures, ranked_out, loot, loot_names = load_cmangos(args.cmangos, ranks)
+    creatures, ranked_out, loot, loot_names, quest_items = load_cmangos(args.cmangos, ranks)
+    skip_zones = {z.lower() for z in DEFAULT_SKIP_ZONES + args.skip_zone}
     zone_names = load_zone_names(args.pfquest)
     points, bad = load_pfquest_points(args.pfquest, set(creatures), zone_names)
 
     items = dict(loot_names)
     final, zones, src_count = {}, collections.defaultdict(dict), collections.Counter()
-    no_loot = 0
+    no_loot = quest_rows = 0
     for cid, c in creatures.items():
-        d = effective_drops(loot.get(c["loot"], []))
+        rows = loot.get(c["loot"], [])
+        quest_rows += sum(1 for r in rows if r[0] in quest_items or r[1] < 0)
+        d = effective_drops(rows, quest_items)
         if not d:
             no_loot += 1
             continue
@@ -258,6 +276,19 @@ def main(argv=None):
             points[cid] = pts
             wh_added += 1
 
+    skipped_points, skipped_names = 0, set()
+    for cid in list(points):
+        kept = {}
+        for zone, pts in points[cid].items():
+            if zone.lower() in skip_zones:
+                skipped_points += len(pts)
+                skipped_names.add(zone)
+            else:
+                kept[zone] = pts
+        points[cid] = kept
+        if not kept:
+            del points[cid]
+
     no_points = []
     for cid in list(final):
         if cid not in points:
@@ -277,6 +308,8 @@ def main(argv=None):
     print("ranks filtered out: %d | no loot rows: %d | no points: %d | bad pfQuest coords: %d" % (
         len(ranked_out), no_loot, len(no_points), bad))
     print("wowhead: %d creature(s) added, %d zone(s) filled in" % (wh_added, wh_zones))
+    print("quest loot removed: %d row(s), %d quest item(s) | skipped zones: %d point(s) in %d zone(s)" % (
+        quest_rows, len(quest_items), skipped_points, len(skipped_names)))
     print("items: %d | zones: %d | points: %d" % (len(items), len(zones), total_points))
     for zone, per in sorted(zones.items(), key=lambda kv: -sum(len(p) for p in kv[1].values()))[:10]:
         print("  %-28s %4d creatures %6d points" % (zone, len(per), sum(len(p) for p in per.values())))

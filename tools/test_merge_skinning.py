@@ -20,7 +20,7 @@ CREATE TABLE `creature_template` (
   `SkinningLootId` mediumint unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`Entry`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
-INSERT INTO `creature_template` VALUES (100,'Gray Bear',21,22,0,100),(101,'Elite Bear',30,31,1,101),(102,'Rock',5,5,0,0),(103,'O\\'Brien''s Boar',7,8,0,103),(104,'Lonely Wolf',9,9,0,104),(105,'Group Beast',12,12,0,105);
+INSERT INTO `creature_template` VALUES (100,'Gray Bear',21,22,0,100),(101,'Elite Bear',30,31,1,101),(102,'Rock',5,5,0,0),(103,'O\\'Brien''s Boar',7,8,0,103),(104,'Lonely Wolf',9,9,0,104),(105,'Group Beast',12,12,0,105),(106,'Capital Rat',3,3,0,106);
 CREATE TABLE `skinning_loot_template` (
   `entry` mediumint unsigned NOT NULL DEFAULT '0',
   `item` mediumint unsigned NOT NULL DEFAULT '0',
@@ -32,7 +32,8 @@ CREATE TABLE `skinning_loot_template` (
   `comments` varchar(300) DEFAULT '',
   PRIMARY KEY (`entry`,`item`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
-INSERT INTO `skinning_loot_template` VALUES (100,2318,40,1,1,2,0,'Light Leather'),(100,2934,60,1,1,1,0,'Ruined Leather Scraps'),(101,2318,100,1,1,1,0,'Light Leather'),(103,2318,100,0,1,1,0,'Light Leather'),(104,2318,100,1,1,1,0,'Light Leather'),(105,2318,30,1,1,1,0,'Light Leather'),(105,2934,0,1,1,1,0,'Ruined Leather Scraps'),(105,783,0,1,1,1,0,'Light Hide');
+INSERT INTO `skinning_loot_template` VALUES (100,2318,40,1,1,2,0,'Light Leather'),(100,2934,60,1,1,1,0,'Ruined Leather Scraps'),(101,2318,100,1,1,1,0,'Light Leather'),(103,2318,100,0,1,1,0,'Light Leather'),(104,2318,100,1,1,1,0,'Light Leather'),(105,2318,30,1,1,1,0,'Light Leather'),(105,2934,0,1,1,1,0,'Ruined Leather Scraps'),(105,783,0,1,1,1,0,'Light Hide'),(100,9999,10,1,1,1,0,'Quest Skin'),(105,9998,-100,1,1,1,0,'Quest Neg'),(106,2318,100,0,1,1,0,'Light Leather');
+INSERT INTO `item_template` VALUES (2318,7,0,'Light Leather',1,0),(2934,7,0,'Ruined Leather Scraps',1,0),(783,7,0,'Light Hide',1,0),(9999,12,0,'Quest Skin',1,0);
 """
 
 UNITS = """pfDB["units"]["data"] = {
@@ -52,8 +53,16 @@ UNITS = """pfDB["units"]["data"] = {
   [103] = {
     ["coords"] = {
       [1] = { 10, 20, 490, 300 },
+      [2] = { 5, 5, 1637, 300 },
     },
     ["lvl"] = "7-8",
+  },
+  [106] = {
+    ["coords"] = {
+      [1] = { 30, 30, 1637, 300 },
+      [2] = { 31, 31, 1637, 300 },
+    },
+    ["lvl"] = "3",
   },
   [105] = {
     ["coords"] = {
@@ -70,6 +79,7 @@ ZONES = """pfDB["zones"]["enUS"] = {
   [14] = "Durotar",
   [267] = "Hillsbrad Foothills",
   [490] = "Un\\'Goro Crater",
+  [1637] = "Orgrimmar",
 }
 """
 
@@ -99,7 +109,7 @@ V3 = {
 }
 
 
-def build(tmp, wowhead=None, ranks="0"):
+def build(tmp, wowhead=None, ranks="0", extra=None):
     paths = {}
     paths["sql"] = os.path.join(tmp, "db.sql")
     with open(paths["sql"], "w", encoding="utf8") as f:
@@ -111,7 +121,7 @@ def build(tmp, wowhead=None, ranks="0"):
     with open(os.path.join(pf, "enUS", "zones.lua"), "w", encoding="utf8") as f:
         f.write(ZONES)
     out = os.path.join(tmp, "out.lua")
-    argv = ["--cmangos", paths["sql"], "--pfquest", pf, "--out", out, "--ranks", ranks]
+    argv = ["--cmangos", paths["sql"], "--pfquest", pf, "--out", out, "--ranks", ranks] + (extra or [])
     if wowhead is not None:
         w = os.path.join(tmp, "wh.json")
         with open(w, "w", encoding="utf8") as f:
@@ -148,7 +158,17 @@ def check_base(tmp):
     assert flat(d.zones["Elwynn Forest"][105]) == [5, 5.5]
     assert 104 not in keys(d.creatures) and 101 not in keys(d.creatures) and 102 not in keys(d.creatures)
     assert d["items"][2318] == "Light Leather" and d["items"][783] == "Light Hide"
-    assert "no points: 1" in report and "ranks filtered out: 1" in report and "bad pfQuest coords: 1" in report, report
+    assert "no points: 2" in report and "ranks filtered out: 1" in report and "bad pfQuest coords: 1" in report, report
+    assert "quest loot removed: 2 row(s), 1 quest item(s)" in report and "skipped zones: 3 point(s) in 1 zone(s)" in report, report
+    assert 9999 not in keys(bear.d) and 9998 not in keys(group) and 9999 not in keys(d["items"]) and 9998 not in keys(d["items"])
+    assert "Orgrimmar" not in keys(d.zones) and 106 not in keys(d.creatures) and 103 in keys(d.creatures)
+
+
+def check_skip_zone(tmp):
+    d, report = build(tmp, extra=["--skip-zone", "elwynn forest"])
+    assert "Elwynn Forest" not in keys(d.zones) and 105 not in keys(d.creatures), keys(d.zones)
+    assert "skipped zones: 4 point(s) in 2 zone(s)" in report, report
+    assert 100 in keys(d.creatures)
 
 
 def check_ranks(tmp):
@@ -171,7 +191,7 @@ def check_wowhead(tmp, data):
 
 
 def main():
-    for name, fn in [("base", lambda t: check_base(t)), ("ranks", lambda t: check_ranks(t)),
+    for name, fn in [("base", lambda t: check_base(t)), ("ranks", lambda t: check_ranks(t)), ("skip zone", lambda t: check_skip_zone(t)),
                      ("wowhead legacy", lambda t: check_wowhead(t, LEGACY)), ("wowhead v3", lambda t: check_wowhead(t, V3))]:
         with tempfile.TemporaryDirectory() as tmp:
             fn(tmp)
