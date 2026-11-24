@@ -498,3 +498,58 @@ end
 function HR.StatsWin()
     return win
 end
+
+-- Herbs or ore nodes of the category with the price of one unit, dearest first.
+function HR:ValueItems(category)
+    category = category or "herbs"
+    local ids, list = HR.NodeItems(), {}
+    for _, e in ipairs(self:GetAllItems(category)) do
+        local id = ids[e.item]
+        local price, src, at = 0, nil, nil
+        if id then price, src, at = HR.ItemPrice(id) end
+        list[#list + 1] = {item = e.item, total = e.total, price = price or 0, src = src, at = at}
+    end
+    table.sort(list, function(a, b)
+        if a.price ~= b.price then return a.price > b.price end
+        return a.item < b.item
+    end)
+    return list
+end
+
+-- Regions holding the items, most valuable first: price of each item times its points.
+function HR:RankZones(category, items)
+    category = category or "herbs"
+    local ids, data, price, list = HR.NodeItems(), self:DataFor(category), {}, {}
+    for _, item in ipairs(items) do
+        local id = ids[item]
+        price[item] = id and (HR.ItemPrice(id)) or 0
+    end
+    for _, region in ipairs(self:GetRegions(category)) do
+        local value, points = 0, 0
+        for _, item in ipairs(items) do
+            local pts = data[region] and data[region][item]
+            if pts then
+                points = points + #pts
+                value = value + #pts * price[item]
+            end
+        end
+        if points > 0 then list[#list + 1] = {region = region, value = value, points = points} end
+    end
+    table.sort(list, function(a, b)
+        if a.value ~= b.value then return a.value > b.value end
+        if a.points ~= b.points then return a.points > b.points end
+        return a.region < b.region
+    end)
+    return list
+end
+
+function HR.PriceLine()
+    local newest
+    for _, m in pairs(HR.db and HR.db.prices or {}) do
+        if m.at and (not newest or m.at > newest) then newest = m.at end
+    end
+    if newest then
+        return "Prices: Auctionator scan of " .. date("%Y-%m-%d %H:%M", newest) .. ", else vendor"
+    end
+    return "Prices: vendor only (no Auctionator scan seen yet)"
+end

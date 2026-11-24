@@ -79,8 +79,14 @@ local function chooseRankedRegion(region)
     for _, row in ipairs(ui.rows) do row:SetChecked(row.region ~= nil and row.region == region) end
 end
 
+local function chooseZone(region)
+    ui.region = region
+    for _, row in ipairs(ui.valZoneRows or {}) do row:SetChecked(row.region ~= nil and row.region == region) end
+end
+
 local function setRegion(region)
     if ui.mode == "item" then return chooseRankedRegion(region) end
+    if ui.mode == "value" then return chooseZone(region) end
     ui.region = region
     ui.regionButton:SetText(HR.RegionLabel(region))
     ui.regionPopup:Hide()
@@ -227,21 +233,197 @@ local function fillItemPopup()
     if ui.itemNone then ui.itemNone:SetShown(#all == 0) end
 end
 
+local VROW = 20
+
+local function optionsShown()
+    return HR.db.optionsShown == true
+end
+
+function HR.UIHeight(mode, shown)
+    return (shown and 672 or 420) + (mode == "value" and 10 or 0)
+end
+
+local function applyLayout()
+    local value = ui.mode == "value"
+    ui.lower:ClearAllPoints()
+    ui.lower:SetPoint("TOPLEFT", ui, "TOPLEFT", 0, -(296 + (value and 10 or 0)))
+    for _, w in ipairs(ui.optionWidgets) do w:SetShown(optionsShown()) end
+    ui.optionsButton:SetText(optionsShown() and "Options -" or "Options +")
+    ui:SetHeight(HR.UIHeight(ui.mode, optionsShown()))
+end
+
+local function priceText(e)
+    if e.src == "ah" then return HR.Money(e.price) .. " |cff999999AH|r" end
+    if e.src == "vendor" then return HR.Money(e.price) .. " |cffcc7777vendor|r" end
+    return "|cff999999no price|r"
+end
+
+local function refreshZones(top)
+    local items = selectedItems()
+    local zones = HR:RankZones(ui.category, items)
+    ui.zones = zones
+    for i, e in ipairs(zones) do
+        local row = ui.valZoneRows[i]
+        if not row then
+            row = CreateFrame("CheckButton", nil, ui.valChild2, "UICheckButtonTemplate")
+            row:SetSize(20, 20)
+            row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            row.text:SetPoint("LEFT", row, "RIGHT", 2, 1)
+            ui.valZoneRows[i] = row
+        end
+        row:SetScript("OnClick", function() chooseZone(e.region) end)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", ui.valChild2, "TOPLEFT", 0, -(i - 1) * VROW)
+        row.region = e.region
+        row.text:SetText(("%s  %s |cff999999%d pts|r"):format(HR.RegionLabel(e.region), HR.Money(e.value), e.points))
+        row:Show()
+    end
+    for i = #zones + 1, #ui.valZoneRows do
+        ui.valZoneRows[i].region = nil
+        ui.valZoneRows[i]:SetChecked(false)
+        ui.valZoneRows[i]:Hide()
+    end
+    ui.valChild2:SetSize(300, math.max(1, #zones * VROW))
+    local keep
+    if not top then
+        for _, e in ipairs(zones) do if e.region == ui.region then keep = e.region end end
+    end
+    if zones[1] then chooseZone(keep or zones[1].region) end
+    ui.valTitle2:SetText(#items == 0 and "Select items to list the zones"
+        or ("Most valuable zones (%d)"):format(#zones))
+end
+
+local function fillValueItems()
+    local query = type(ui.valQuery) == "string" and ui.valQuery or ""
+    local all, sel = {}, itemSelection()
+    for _, e in ipairs(HR:ValueItems(ui.category)) do
+        if HR.MatchRegion(query, e.item) then all[#all + 1] = e end
+    end
+    ui.valMatches = #all
+    for i, e in ipairs(all) do
+        local row = ui.valItemRows[i]
+        if not row then
+            row = CreateFrame("CheckButton", nil, ui.valChild1, "UICheckButtonTemplate")
+            row:SetSize(20, 20)
+            row.text = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            row.text:SetPoint("LEFT", row, "RIGHT", 2, 1)
+            ui.valItemRows[i] = row
+        end
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", ui.valChild1, "TOPLEFT", 0, -(i - 1) * VROW)
+        row.item = e.item
+        row.text:SetText(("%s  %s"):format(e.item, priceText(e)))
+        row:SetChecked(sel[e.item] and true or false)
+        row:SetScript("OnClick", function(self)
+            itemSelection()[self.item] = self:GetChecked() and true or nil
+            refreshZones(true)
+        end)
+        row:Show()
+    end
+    for i = #all + 1, #ui.valItemRows do ui.valItemRows[i]:Hide() end
+    ui.valChild1:SetSize(300, math.max(1, #all * VROW))
+    ui.valTitle1:SetText(("%s by value (%d)"):format(HR.categories[ui.category].label, #all))
+end
+
+local VIEW_NAMES = {region = "Region", item = "Item", value = "Value"}
+
 local function applyMode()
-    local item = ui.mode == "item"
-    ui.byItem:SetChecked(item)
-    ui.regionLabel:SetText(item and (HR.categories[ui.category].item:gsub("^%l", string.upper)) or "Region")
+    local mode = ui.mode
+    local value = mode == "value"
+    ui.viewButton:SetText("View: " .. VIEW_NAMES[mode])
+    ui.regionLabel:SetText(mode == "region" and "Region" or (HR.categories[ui.category].item:gsub("^%l", string.upper)))
     ui.regionPopup:Hide()
     ui.itemPopup:Hide()
-    ui.noneButton:SetShown(not item)
-    ui.allButton:SetShown(not item)
-    if item then
+    ui.viewMenu:Hide()
+    ui.regionButton:SetShown(not value)
+    ui.herbTitle:SetShown(not value)
+    ui.herbScroll:SetShown(not value)
+    ui.noneButton:SetShown(mode == "region")
+    ui.allButton:SetShown(mode == "region")
+    for _, w in ipairs(ui.valueWidgets) do w:SetShown(value) end
+    if value then
+        fillValueItems()
+        refreshZones(false)
+        ui.valPrices:SetText(HR.PriceLine())
+    elseif mode == "item" then
         fillItemPopup()
         refreshRanking()
     else
         ui.regionButton:SetText(HR.RegionLabel(ui.region))
         fillHerbs(ui.region)
     end
+    applyLayout()
+end
+
+local function buildValueView()
+    ui.valueWidgets = {}
+    ui.valItemRows, ui.valZoneRows = {}, {}
+    local function add(w)
+        ui.valueWidgets[#ui.valueWidgets + 1] = w
+        return w
+    end
+    ui.valTitle1 = add(label(ui, "", "TOPLEFT", 16, -62))
+    local search = add(CreateFrame("EditBox", nil, ui, "InputBoxTemplate"))
+    search:SetSize(150, 18)
+    search:SetPoint("TOPRIGHT", ui, "TOPRIGHT", -20, -58)
+    search:SetAutoFocus(false)
+    search:SetScript("OnTextChanged", function()
+        ui.valQuery = search:GetText()
+        fillValueItems()
+        ui.valScroll1:SetVerticalScroll(0)
+    end)
+    search:SetScript("OnEscapePressed", function() search:ClearFocus() end)
+    ui.valSearch = search
+    ui.valScroll1 = add(CreateFrame("ScrollFrame", nil, ui, "UIPanelScrollFrameTemplate"))
+    ui.valScroll1:SetPoint("TOPLEFT", ui, "TOPLEFT", 16, -82)
+    ui.valScroll1:SetSize(322, VROW * 4)
+    ui.valChild1 = CreateFrame("Frame", nil, ui.valScroll1)
+    ui.valChild1:SetSize(300, 1)
+    ui.valScroll1:SetScrollChild(ui.valChild1)
+    ui.valTitle2 = add(label(ui, "", "TOPLEFT", 16, -172))
+    ui.valScroll2 = add(CreateFrame("ScrollFrame", nil, ui, "UIPanelScrollFrameTemplate"))
+    ui.valScroll2:SetPoint("TOPLEFT", ui, "TOPLEFT", 16, -192)
+    ui.valScroll2:SetSize(322, VROW * 4)
+    ui.valChild2 = CreateFrame("Frame", nil, ui.valScroll2)
+    ui.valChild2:SetSize(300, 1)
+    ui.valScroll2:SetScrollChild(ui.valChild2)
+    ui.valPrices = add(ui:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall"))
+    ui.valPrices:SetPoint("TOPLEFT", ui, "TOPLEFT", 16, -276)
+end
+
+local function buildViewMenu()
+    local menu = CreateFrame("Frame", nil, ui, "BackdropTemplate")
+    menu:SetFrameStrata("DIALOG")
+    menu:SetSize(300, 128)
+    menu:SetPoint("TOPRIGHT", ui.viewButton, "BOTTOMRIGHT", 0, -2)
+    menu:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12, insets = {left = 3, right = 3, top = 3, bottom = 3},
+    })
+    menu:SetBackdropColor(0.05, 0.05, 0.05, 0.97)
+    menu:Hide()
+    local defs = {
+        {"region", "Region", "Choose a region, then the items inside it"},
+        {"item", "Item", "Choose items, regions ranked by points"},
+        {"value", "Value", "Choose items, zones ranked by value (Auctionator prices)"},
+    }
+    for i, d in ipairs(defs) do
+        local b = CreateFrame("Button", nil, menu)
+        b:SetSize(288, 38)
+        b:SetPoint("TOPLEFT", menu, "TOPLEFT", 6, -6 - (i - 1) * 40)
+        local title = b:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        title:SetPoint("TOPLEFT", 6, -4)
+        title:SetText(d[2])
+        local sub = b:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        sub:SetPoint("TOPLEFT", 6, -20)
+        sub:SetText(d[3])
+        b:SetScript("OnClick", function() HR:SetBrowseMode(d[1]) end)
+        local hl = b:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints()
+        hl:SetColorTexture(1, 1, 1, 0.1)
+    end
+    ui.viewMenu = menu
 end
 
 local function buildItemPopup()
@@ -355,17 +537,17 @@ local function setCategory(category)
         region = (current and hasData(current, category) and current) or HR:GetRegions(category)[1]
     end
     fillRegionPopup()
-    if ui.mode == "item" then
+    if ui.mode == "region" then
+        setRegion(region)
+    else
         ui.region = region
         applyMode()
-    else
-        setRegion(region)
     end
 end
 
 local function build()
     ui = CreateFrame("Frame", "HerbRouteFrame", UIParent, "BasicFrameTemplateWithInset")
-    ui:SetSize(360, 672)
+    ui:SetSize(380, 672)
     ui:SetPoint("CENTER")
     ui:SetMovable(true)
     ui:EnableMouse(true)
@@ -381,12 +563,10 @@ local function build()
     ui.regionLabel = label(ui, "Region", "TOPLEFT", 16, -34)
     ui.catHerbs = check(ui, "Herbs", 96, -30, function() setCategory("herbs") end)
     ui.catOres = check(ui, "Ores", 166, -30, function() setCategory("ores") end)
-    ui.byItem = check(ui, "By item", 240, -30, function(self)
-        ui.mode = self:GetChecked() and "item" or "region"
-        HR.db.browse = ui.mode
-        applyMode()
+    ui.viewButton = button(ui, "View: Region", 116, "TOPRIGHT", -16, -29, function()
+        ui.viewMenu:SetShown(not ui.viewMenu:IsShown())
     end)
-    ui.regionButton = button(ui, "", 328, "TOPLEFT", 16, -52, function()
+    ui.regionButton = button(ui, "", 348, "TOPLEFT", 16, -52, function()
         if ui.mode == "item" then
             ui.itemPopup:SetShown(not ui.itemPopup:IsShown())
         else
@@ -395,6 +575,8 @@ local function build()
     end)
     buildRegionPopup()
     buildItemPopup()
+    buildValueView()
+    buildViewMenu()
 
     ui.herbTitle = label(ui, "Herbs", "TOPLEFT", 16, -84)
     ui.noneButton = button(ui, "None", 50, "TOPRIGHT", -16, -80, function()
@@ -407,82 +589,96 @@ local function build()
     end)
 
     local scroll = CreateFrame("ScrollFrame", nil, ui, "UIPanelScrollFrameTemplate")
+    ui.herbScroll = scroll
     scroll:SetPoint("TOPLEFT", 16, -104)
-    scroll:SetSize(300, 180)
+    scroll:SetSize(320, 180)
     ui.herbChild = CreateFrame("Frame", nil, scroll)
     ui.herbChild:SetSize(270, 1)
     scroll:SetScrollChild(ui.herbChild)
 
-    label(ui, "Start position (%)", "TOPLEFT", 16, -296)
+    ui.lower = CreateFrame("Frame", nil, ui)
+    ui.lower:SetPoint("TOPLEFT", ui, "TOPLEFT", 0, -296)
+    ui.lower:SetSize(380, 320)
+    ui.optionWidgets = {}
+    local function option(w)
+        ui.optionWidgets[#ui.optionWidgets + 1] = w
+        return w
+    end
+
+    label(ui.lower, "Start position (%)", "TOPLEFT", 16, 0)
     local function editBox(x)
-        local e = CreateFrame("EditBox", nil, ui, "InputBoxTemplate")
+        local e = CreateFrame("EditBox", nil, ui.lower, "InputBoxTemplate")
         e:SetSize(48, 20)
-        e:SetPoint("TOPLEFT", ui, "TOPLEFT", x, -318)
+        e:SetPoint("TOPLEFT", ui.lower, "TOPLEFT", x, -22)
         e:SetAutoFocus(false)
         e:SetScript("OnTextChanged", function(_, userInput) if userInput then dirty = true end end)
         return e
     end
     ui.x = editBox(26)
     ui.y = editBox(86)
-    label(ui, "X", "TOPLEFT", 16, -320)
-    label(ui, "Y", "TOPLEFT", 76, -320)
-    button(ui, "My position", 100, "TOPLEFT", 150, -317, function()
+    label(ui.lower, "X", "TOPLEFT", 16, -24)
+    label(ui.lower, "Y", "TOPLEFT", 76, -24)
+    button(ui.lower, "My position", 100, "TOPLEFT", 150, -21, function()
         fillPosition()
         local region = HR:GetCurrentRegion()
         if region and hasData(region, ui.category) then setRegion(region) end
     end)
+    ui.optionsButton = button(ui.lower, "Options +", 100, "TOPRIGHT", -16, -21, function()
+        HR.db.optionsShown = not optionsShown()
+        applyLayout()
+    end)
 
-    ui.showMap = check(ui, "Draw route on the world map", 12, -346, function(self)
+    ui.showMap = option(check(ui.lower, "Draw route on the world map", 12, -50, function(self)
         HR.db.showMap = self:GetChecked() and true or false
         HR:UpdateOverlay()
-    end)
-    ui.showMini = check(ui, "Draw route on the minimap", 12, -370, function(self)
+    end))
+    ui.showMini = option(check(ui.lower, "Draw route on the minimap", 12, -74, function(self)
         HR.db.showMinimap = self:GetChecked() and true or false
         HR:UpdateOverlay()
-    end)
+    end))
 
-    ui.isolate = check(ui, "Keep only Find Herbs tracking during a route", 12, -394, function(self)
+    ui.isolate = option(check(ui.lower, "Keep only Find Herbs tracking during a route", 12, -98, function(self)
         HR.db.isolateTracking = self:GetChecked() and true or false
         if not HR.db.isolateTracking then
             HR:RestoreTracking()
         elseif HR.route then
             HR:IsolateTracking()
         end
-    end)
+    end))
 
-    ui.verify = check(ui, "Verify the next point on the minimap", 12, -418, function(self)
+    ui.verify = option(check(ui.lower, "Verify the next point on the minimap", 12, -122, function(self)
         if self:GetChecked() then
             HR.db.verify = HR.db.verifyLast or "report"
         else
             if HR.db.verify ~= "off" then HR.db.verifyLast = HR.db.verify end
             HR.db.verify = "off"
         end
-    end)
+    end))
 
-    ui.reroute = check(ui, "Reorder the points ahead after removals", 12, -442, function(self)
+    ui.reroute = option(check(ui.lower, "Reorder the points ahead after removals", 12, -146, function(self)
         HR.db.reroute = self:GetChecked() and true or false
-    end)
+    end))
 
-    ui.revive = check(ui, "Put points back in the route when they reappear", 12, -466, function(self)
+    ui.revive = option(check(ui.lower, "Put points back in the route when they reappear", 12, -170, function(self)
         HR.db.revive = self:GetChecked() and true or false
-    end)
+    end))
 
-    ui.nearest = check(ui, "Go to the nearest filled point first", 12, -490, function(self)
+    ui.nearest = option(check(ui.lower, "Go to the nearest filled point first", 12, -194, function(self)
         HR.db.nearest = self:GetChecked() and true or false
-    end)
+    end))
 
-    ui.combat = check(ui, "Probe the minimap during combat", 12, -514, function(self)
+    ui.combat = option(check(ui.lower, "Probe the minimap during combat", 12, -218, function(self)
         HR.db.verifyCombat = self:GetChecked() and true or false
-    end)
+    end))
 
-    ui.chat = check(ui, "Show HerbRoute messages in the chat", 12, -538, function(self)
+    ui.chat = option(check(ui.lower, "Show HerbRoute messages in the chat", 12, -242, function(self)
         HR.db.chat = self:GetChecked() and true or false
-    end)
+    end))
 
-    ui.radiusText = label(ui, "", "TOPLEFT", 16, -574)
-    local slider = CreateFrame("Slider", nil, ui, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", ui, "TOPLEFT", 150, -576)
-    slider:SetSize(190, 16)
+    ui.radiusText = option(label(ui.lower, "", "TOPLEFT", 16, -278))
+    local slider = option(CreateFrame("Slider", nil, ui.lower, "OptionsSliderTemplate"))
+    slider:SetPoint("TOPLEFT", ui.lower, "TOPLEFT", 150, -280)
+    slider:SetSize(210, 16)
     slider:SetMinMaxValues(5, 40)
     slider:SetValueStep(1)
     slider:SetObeyStepOnDrag(true)
@@ -497,10 +693,11 @@ local function build()
 
     ui.generate = button(ui, "Generate", 100, "BOTTOMLEFT", 16, 40, function() HR.UIGenerate() end)
     function HR.UIGenerate()
-        local item = ui.mode == "item"
-        local herbs = item and selectedItems() or selectedHerbs()
+        local mode = ui.mode
+        local herbs = mode ~= "region" and selectedItems() or selectedHerbs()
         if #herbs == 0 then return HR:Print("Select at least one " .. HR.categories[ui.category].item .. ".") end
-        if item and not (ui.ranking and #ui.ranking > 0) then
+        local ranked = mode == "value" and ui.zones or ui.ranking
+        if mode ~= "region" and not (ranked and #ranked > 0) then
             return HR:Print("No region has the selected " .. HR.categories[ui.category].item .. "s.")
         end
         local start
@@ -530,7 +727,6 @@ local function build()
         ui.nearest:SetChecked(HR.db.nearest ~= false)
         ui.combat:SetChecked(HR.db.verifyCombat == true)
         ui.chat:SetChecked(HR.db.chat ~= false)
-        ui.byItem:SetChecked(ui.mode == "item")
         ui.slider:SetValue(HR.db.radius)
         if not dirty then fillPosition() end
         HR:UpdateUI()
@@ -543,7 +739,7 @@ local function build()
         if not (region and hasData(region, ui.category)) then region = HR:GetRegions(ui.category)[1] end
     end
     ui.region = region
-    ui.mode = HR.db.browse == "item" and "item" or "region"
+    ui.mode = (HR.db.browse == "item" or HR.db.browse == "value") and HR.db.browse or "region"
     setCategory(ui.category)
 end
 
@@ -621,7 +817,7 @@ end
 
 function HR:SetBrowseMode(mode)
     if not ui then build() end
-    ui.mode = mode == "item" and "item" or "region"
+    ui.mode = (mode == "item" or mode == "value") and mode or "region"
     HR.db.browse = ui.mode
     applyMode()
 end
@@ -630,15 +826,22 @@ function HR:ToggleBrowseItem(item)
     if not ui then build() end
     local sel = itemSelection()
     sel[item] = not sel[item] or nil
-    if ui.mode == "item" then fillItemPopup() refreshRanking(true) end
+    if ui.mode == "item" then
+        fillItemPopup()
+        refreshRanking(true)
+    elseif ui.mode == "value" then
+        fillValueItems()
+        refreshZones(true)
+    end
 end
 
 function HR:SelectBrowseRegion(region)
-    if ui and ui.mode == "item" then chooseRankedRegion(region) end
+    if not ui then return end
+    if ui.mode == "item" then chooseRankedRegion(region) elseif ui.mode == "value" then chooseZone(region) end
 end
 
 function HR:BrowseState()
-    return ui and ui.mode, ui and ui.ranking, ui and ui.region
+    return ui and ui.mode, ui and (ui.mode == "value" and ui.zones or ui.ranking), ui and ui.region
 end
 
 function HR:BrowseItemSearch(query)
@@ -646,4 +849,18 @@ function HR:BrowseItemSearch(query)
     ui.itemQuery = query or ""
     fillItemPopup()
     return ui.itemMatches
+end
+
+function HR:BrowseValueSearch(query)
+    if not ui then build() end
+    ui.valQuery = query or ""
+    fillValueItems()
+    return ui.valMatches
+end
+
+function HR:SetOptionsShown(shown)
+    if not ui then build() end
+    HR.db.optionsShown = shown and true or false
+    applyLayout()
+    return HR.UIHeight(ui.mode, HR.db.optionsShown)
 end

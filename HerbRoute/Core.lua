@@ -20,7 +20,8 @@ local defaults = {
     verifyCombat = false,
     gatherDebug = false,
     ambiguityMarks = true,
-    chat = true,
+    chat = false,
+    optionsShown = false,
     browse = "region",
     browseItems = {},
     skipButton = {shown = false},
@@ -309,6 +310,13 @@ SlashCmdList["HERBROUTE"] = function(msg)
     if not ok then error(err, 0) end
 end
 
+function HR.MigrateDB(db)
+    if not db.chatOffMigrated then
+        db.chat = false
+        db.chatOffMigrated = true
+    end
+end
+
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:SetScript("OnEvent", function(self, event, name)
@@ -319,6 +327,7 @@ frame:SetScript("OnEvent", function(self, event, name)
         if HerbRouteDB[k] == nil then HerbRouteDB[k] = copy(v) end
     end
     HR.db = HerbRouteDB
+    HR.MigrateDB(HR.db)
     HR:OnLoaded()
 end)
 

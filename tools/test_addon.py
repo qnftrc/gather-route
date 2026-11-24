@@ -1835,6 +1835,72 @@ do
   io.write("BROWSE BY ITEM OK\n")
 end
 
+-- 25. value view, options button, chat default
+do
+  local db = {chat = true}
+  HR.MigrateDB(db)
+  assert(db.chat == false and db.chatOffMigrated == true, "the chat messages are switched off once")
+  db.chat = true
+  HR.MigrateDB(db)
+  assert(db.chat == true, "the player's own choice is kept afterwards")
+  assert(HR.UIHeight("region", false) == 420 and HR.UIHeight("region", true) == 672)
+  assert(HR.UIHeight("value", false) == 430 and HR.UIHeight("value", true) == 682)
+
+  HR.db.prices = {[7911] = {c = 8500, at = 1700000000}, [10620] = {c = 12000, at = 1700000000}, [13468] = {c = 380000, at = 1700000000}, [13463] = {c = 15000, at = 1700000000}}
+  HR.db.mergeDuplicates = true
+  local vi = HR:ValueItems("ores")
+  assert(vi[1].price == 12000 and vi[1].src == "ah", "dearest first: " .. vi[1].item)
+  for i = 2, #vi do assert(vi[i - 1].price >= vi[i].price, "descending prices") end
+  local byName = {}
+  for _, e in ipairs(vi) do byName[e.item] = e end
+  assert(byName["Truesilver Deposit"].price == 8500 and byName["Rich Thorium Vein"].price == 12000 and byName["Ooze Covered Rich Thorium Vein"].price == 12000)
+  assert(byName["Copper Vein"].src == nil or byName["Copper Vein"].src == "vendor", "no AH price falls back")
+  local zones = HR:RankZones("ores", {"Truesilver Deposit", "Rich Thorium Vein"})
+  assert(#zones > 3)
+  for i, z in ipairs(zones) do
+    local want = HR:CountPoints(z.region, "Truesilver Deposit", "ores") * 8500 + HR:CountPoints(z.region, "Rich Thorium Vein", "ores") * 12000
+    assert(z.value == want, z.region)
+    if i > 1 then assert(zones[i - 1].value >= z.value, "most valuable first") end
+  end
+  assert(#HR:RankZones("ores", {}) == 0)
+  assert(HR.PriceLine():find("Auctionator scan of", 1, true))
+  HR.db.prices = {}
+  assert(HR.PriceLine():find("vendor only", 1, true))
+  HR.db.prices = {[13468] = {c = 380000, at = 1700000000}, [13463] = {c = 15000, at = 1700000000}}
+
+  local seen, mid = {}, 700
+  for _, cat in ipairs({"herbs", "ores"}) do
+    for _, region in ipairs(HR:GetRegions(cat)) do
+      if not seen[region] then seen[region] = true mid = mid + 1 HR.db.overrides[region] = mid end
+    end
+  end
+  HR:BuildMaps()
+  HR:SetBrowseMode("value")
+  assert(HR.db.browse == "value")
+  HR.db.browseItems = {}
+  HR:ToggleBrowseItem("Black Lotus"); HR:ToggleBrowseItem("Dreamfoil")
+  local mode, ranking, region = HR:BrowseState()
+  assert(mode == "value" and #ranking >= 2 and region == ranking[1].region, "best zone chosen first")
+  assert(ranking[1].value >= ranking[2].value)
+  assert(HR:BrowseValueSearch("") >= 28)
+  assert(HR:BrowseValueSearch("lotus") >= 2 and HR:BrowseValueSearch("lotus") < 28, "letters narrow the value list")
+  assert(HR:BrowseValueSearch("zzz") == 0)
+  HR:BrowseValueSearch("")
+  HR:SelectBrowseRegion(ranking[2].region)
+  printed = {}; HR.UIGenerate(); RunTimers()
+  assert(HR.route and HR.route.region == ranking[2].region and HR.route.category == "herbs", msgs())
+  go("stop")
+  HR:ToggleBrowseItem("Black Lotus"); HR:ToggleBrowseItem("Dreamfoil")
+  printed = {}; HR.UIGenerate()
+  assert(msgs():find("Select at least one", 1, true), msgs())
+  assert(HR:SetOptionsShown(true) == 682 and HR:SetOptionsShown(false) == 430)
+  HR:SetBrowseMode("region")
+  assert(HR:SetOptionsShown(true) == 672 and HR:SetOptionsShown(false) == 420)
+  HR.db.browseItems = {}
+  HR.db.overrides = {}; HR:BuildMaps()
+  io.write("VALUE VIEW OK\n")
+end
+
 -- 8. off, and commands
 reset(); HR.db.verify = "off"; nodes = {{first.x, first.y}}
 go("peacebloom"); assert(HR.route.vstats.probes == 0)
