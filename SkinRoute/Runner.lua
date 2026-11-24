@@ -76,6 +76,7 @@ function SR:StartGuide()
     self:StopGuide(true)
     local g = {region = s.region, mapID = s.mapID, visited = {}}
     self.guide = g
+    self:StatsStart()
     target(g, first)
 end
 
@@ -98,6 +99,7 @@ function SR:SkipZone()
     if not row then
         self:Print("No more zone to go to.")
         self.guide = nil
+        self:StatsStop()
         self:UpdateUI()
         return
     end
@@ -112,6 +114,7 @@ function SR:StopGuide(silent)
     end
     self.guide = nil
     removeUID(g.current)
+    self:StatsStop()
     if not silent then self:Print("Guide stopped.") end
     self:UpdateUI()
 end

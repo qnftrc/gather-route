@@ -93,6 +93,10 @@ local function setSelected(id, on)
     SR.db.items = list
 end
 
+local PRICE_TAG = {
+    ah = " |cff999999AH|r", vendor = " |cffcc7777vendor|r", manual = " |cff999999manual|r",
+}
+
 local function grey(text)
     return "|cff808080" .. text .. "|r"
 end
@@ -220,7 +224,7 @@ local function fillValueItems()
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", ui.valChild1, "TOPLEFT", 0, -(i - 1) * VROW)
         row.itemId = it.id
-        row.text:SetText(("%s  %s"):format(it.name, it.price and SR.Money(it.price) or "|cff999999no price|r"))
+        row.text:SetText(("%s  %s"):format(it.name, it.price and (SR.Money(it.price) .. (PRICE_TAG[it.src] or "")) or "|cff999999no price|r"))
         row:SetChecked(isSelected(it.id))
         row:SetScript("OnClick", function(self)
             setSelected(self.itemId, self:GetChecked())
@@ -273,6 +277,7 @@ function refreshView()
     else
         fillValueItems()
         fillZones()
+        ui.valInfo:SetText(SR.PriceLine())
     end
 end
 
@@ -475,9 +480,8 @@ local function buildValueView()
     ui.valChild2 = CreateFrame("Frame", nil, ui.valScroll2)
     ui.valChild2:SetSize(300, 1)
     ui.valScroll2:SetScrollChild(ui.valChild2)
-    local info = add(ui:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall"))
-    info:SetPoint("TOPLEFT", ui, "TOPLEFT", 16, -276)
-    info:SetText("Prices: set with /sr price <item>: <copper> (Auctionator comes later)")
+    ui.valInfo = add(ui:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall"))
+    ui.valInfo:SetPoint("TOPLEFT", ui, "TOPLEFT", 16, -276)
 end
 
 function applyLayout()
@@ -585,6 +589,7 @@ local function build()
     tinsert(UISpecialFrames, "SkinRouteFrame")
     ui.rows = {}
 
+    ui.statsButton = button(ui, "Stats", 60, "TOPRIGHT", -34, -3, function() SR:ToggleStats() end)
     ui.regionLabel = label(ui, "Region", "TOPLEFT", 16, -34)
     ui.viewButton = button(ui, "View: Region", 116, "TOPRIGHT", -16, -29, function()
         ui.viewMenu:SetShown(not ui.viewMenu:IsShown())

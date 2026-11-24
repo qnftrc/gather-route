@@ -55,7 +55,7 @@ SlashCmdList = {}
 level = 21
 UnitLevel = function() return level end
 frames = {}
-failEvent = nil
+failEvent, failUnitEvent = nil, nil
 now = 0
 GetTime = function() return now end
 timers = {}
@@ -75,6 +75,10 @@ local function newObject(kind)
     function o:RegisterEvent(e)
         if failEvent == e then error('unknown event ' .. e) end
         self.events[e] = true
+    end
+    function o:RegisterUnitEvent(e, unit)
+        if failUnitEvent == e then error('unknown event ' .. e) end
+        self.events[e] = unit
     end
     function o:UnregisterEvent() end
     function o:SetScript(name, fn) self.scripts[name] = fn end
@@ -183,7 +187,7 @@ function Slash(msg) SlashCmdList.SKINROUTE(msg) return Said() end
 
 LOAD = r'''
 SR = {}
-for _, f in ipairs({"Core", "Resolver", "Rules", "Skill", "Zones", "Runner", "Overlay", "UI", "Probe"}) do
+for _, f in ipairs({"Core", "Resolver", "Rules", "Skill", "Prices", "Stats", "Zones", "Runner", "Overlay", "UI", "Probe"}) do
     local fh = assert(io.open(ROOT .. "/SkinRoute/" .. f .. ".lua"))
     local src = fh:read("a")
     fh:close()
@@ -1144,6 +1148,210 @@ def check_ui_skill():
     assert lua.eval("UI().skillEdit.text") == "130"
 
 
+PRICE_MOCK = r"""
+date = os.date; time = os.time
+VENDOR = {[2318] = 15, [2319] = 50, [4234] = 150}
+GetItemInfo = function(id) return "Item" .. id, nil, nil, nil, nil, nil, nil, nil, nil, nil, VENDOR[id] end
+AH = {[2319] = 3420}
+dbUpdate = nil
+Auctionator = {API = {v1 = {
+    GetAuctionPriceByItemID = function(caller, id) return AH[id] end,
+    RegisterForDBUpdate = function(caller, fn) dbUpdate = fn end,
+}}}
+"""
+
+
+def price_env(extra="", pre="", data=ZONE_FIXTURE):
+    lua = env(data=data, pre=PRICE_MOCK + "\n" + pre)
+    lua.execute("TomTom.NameToMapId['Test Valley'] = 77; SR.mapsBuilt = false")
+    lua.execute(extra)
+    return lua
+
+
+def check_prices():
+    lua = env(data=ZONE_FIXTURE)
+    lua.execute("date = os.date; time = os.time")
+    assert lua.eval("(SR:ItemPrice(2319))") is None and lua.eval("SR:ReadPrices()") == 0
+    assert "vendor only" in lua.eval("SR.PriceLine()")
+
+    lua = price_env(pre="Auctionator = nil")
+    price, source = lua.eval("SR:ItemPrice(2319)")
+    assert (price, source) == (50, "vendor")
+    assert lua.eval("(SR:ItemPrice(9999))") is None
+
+    lua = price_env()
+    assert lua.eval("SR:ReadPrices()") == 1, "InitPrices already read it"
+    price, source, at = lua.eval("SR:ItemPrice(2319)")
+    assert (price, source) == (3420, "ah") and at > 0
+    assert lua.eval("select(2, SR:ItemPrice(2318))") == "vendor"
+    assert "Auctionator scan of" in lua.eval("SR.PriceLine()")
+    lua.execute("SR.db.prices[2319] = 5000")
+    assert tuple(lua.eval("SR:ItemPrice(2319)"))[:2] == (5000, "manual")
+    out = lines(lua, 'return Slash("price medium leather: off")')
+    assert "Medium Leather: 34s 20c (ah)" in out, out
+    assert "Medium Leather: 1s 0c (manual)" not in out
+    out = lines(lua, 'return Slash("price medium leather: 777")')
+    assert "Medium Leather: 7s 77c (manual)" in out, out
+    lines(lua, 'return Slash("price medium leather: off")')
+    assert "Usage: /sr price" in lines(lua, 'return Slash("price : 5")')
+
+    lua.execute("AH[2319] = 'x'; AH[2318] = 0; AH[4234] = -5")
+    assert lua.eval("SR:ReadPrices()") == 0 and lua.eval("(SR:ItemPrice(2319))") == 3420, "bad values keep the memory"
+    lua.execute("issecretvalue = function(v) return v == 999 end; AH[2319] = 999")
+    assert lua.eval("SR:ReadPrices()") == 0 and lua.eval("(SR:ItemPrice(2319))") == 3420
+    lua.execute("issecretvalue = nil; AH[2319] = 4000; local f = EventFrame('AUCTION_HOUSE_CLOSED'); f.scripts.OnEvent(f, 'AUCTION_HOUSE_CLOSED')")
+    assert lua.eval("(SR:ItemPrice(2319))") == 4000
+    lua.execute("AH[2319] = 4500; dbUpdate()")
+    assert lua.eval("(SR:ItemPrice(2319))") == 4500
+    lua.execute("Auctionator.API.v1.GetAuctionPriceByItemID = function() error('boom') end")
+    assert lua.eval("SR:ReadPrices()") == 0 and lua.eval("(SR:ItemPrice(2319))") == 4500
+
+    lua = price_env()
+    out = lines(lua, 'return Slash("prices")')
+    assert "Auctionator found, API v1 price function present" in out and "Medium Leather (2319) from Auctionator: 34s 20c" in out, out
+    assert "1 of 3 item(s) priced and remembered" in out and "Auctionator scan of" in out, out
+    lua = price_env(pre="Auctionator = nil")
+    assert "Auctionator not found" in lines(lua, 'return Slash("prices")')
+    lua = price_env(pre="AH = {}")
+    assert "none (no scan yet?)" in lines(lua, 'return Slash("prices")')
+
+    lua = price_env(pre="Auctionator = nil; VENDOR = {[2319] = 50}")
+    lines(lua, 'return Slash("items medium leather")')
+    lines(lua, 'return Slash("level 30")')
+    lines(lua, 'return Slash("skill 300")')
+    out = lines(lua, 'return Slash("regions")')
+    assert "~" not in out and "items" not in out.split("\n")[1], out
+    assert lua.eval("select(3, SR:RankRegions(SR:Context()))") is True, "vendor prices count as prices"
+
+    lua = price_env()
+    lines(lua, 'return Slash("items medium leather")')
+    lines(lua, 'return Slash("")')
+    lua.execute("SR:SetBrowseMode('value')")
+    items = rows_of(lua, "valItemRows")
+    assert "Medium Leather" in items[0] and "UI-SilverIcon" in items[0] and "AH" in items[0], items
+    assert "vendor" in items[1] and "vendor" in items[2], items
+    assert "Auctionator scan of" in lua.eval("UI().valInfo.text")
+    lua.execute("SR.db.prices[2318] = 99; SR:RefreshZones()")
+    items = rows_of(lua, "valItemRows")
+    assert any("manual" in i and "Light Leather" in i for i in items), items
+    lua.execute("VENDOR = {}; SR.db.prices = {}; SR.db.ahPrices = {}; SR:RefreshZones()")
+    items = rows_of(lua, "valItemRows")
+    assert all("no price" in i for i in items), items
+
+
+LOOT_MOCK = r"""
+LOOT_ITEM_SELF = "You receive loot: %s."
+LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d."
+LOOT_ITEM_PUSHED_SELF = "You receive item: %s."
+LOOT_ITEM_PUSHED_SELF_MULTIPLE = "You receive item: %sx%d."
+BAGS = {}
+GetItemCount = function(id) return BAGS[id] or 0 end
+function Link(id, name) return "|cffffffff|Hitem:" .. id .. "::::::::|h[" .. name .. "]|h|r" end
+function Loot(text) local f = EventFrame("CHAT_MSG_LOOT"); f.scripts.OnEvent(f, "CHAT_MSG_LOOT", text) end
+function Cast(event, spell, unit) SR.CastEvent(event, unit or "player", "guid", spell) end
+"""
+
+
+def stats_env():
+    lua = price_env(LOOT_MOCK)
+    lines(lua, 'return Slash("items medium leather")')
+    lines(lua, 'return Slash("level 30")')
+    lines(lua, 'return Slash("skill 300")')
+    lines(lua, 'return Slash("price medium leather: 3420")')
+    return lua
+
+
+def check_stats():
+    lua = stats_env()
+    lines(lua, 'return Slash("stats")')
+    win = "SkinRouteStatsFrame"
+    assert lua.eval(win + ".shown") is True and lua.eval(win + ".duration.text") == "Guide time: 0:00:00, 0 skinned"
+    assert lua.eval(win + ".rows[1].name.text") == "No guide yet."
+    assert lua.eval(win + ".total.text") == "Total: 0" + "|TInterface\\MoneyFrame\\UI-CopperIcon:14:14:2:0|t"
+    lines(lua, 'return Slash("stats")')
+    assert lua.eval(win + ".shown") is False and lua.eval("SR.db.statsWindow.shown") is False
+
+    lines(lua, 'local s = Slash("go test valley") RunTimers() return s')
+    lua.execute("Loot('You receive loot: ' .. Link(2319, 'Medium Leather') .. 'x2.')")
+    assert lua.eval("SR.StatsText().names") == "Nothing skinned yet."
+
+    lua.execute("Cast('UNIT_SPELLCAST_START', 8613)")
+    lua.execute("Loot('You receive loot: ' .. Link(2319, 'Medium Leather') .. 'x2.')")
+    lua.execute("Loot('You receive loot: ' .. Link(2318, 'Light Leather') .. '.')")
+    lua.execute("Loot('Bob receives loot: ' .. Link(2319, 'Medium Leather') .. '.')")
+    lua.execute("Cast('UNIT_SPELLCAST_SUCCEEDED', 8613)")
+    lua.execute("Cast('UNIT_SPELLCAST_START', 9999, 'party1'); Cast('UNIT_SPELLCAST_SUCCEEDED', 8613, 'party1')")
+    names = lines(lua, "return SR.StatsText().names").split("\n")
+    assert names == ["Medium Leather x2", "Light Leather x1"], names
+    text = lua.eval("SR.StatsText()")
+    assert text.duration == "Guide time: 0:00:00, 1 skinned", text.duration
+    assert "68|TInterface\\MoneyFrame\\UI-SilverIcon" in text.total and "unpriced" not in text.total, text.total
+    lua.execute("VENDOR[2318] = nil")
+    assert "(1 unpriced)" in lua.eval("SR.StatsText().total") and "no price" in lua.eval("SR.StatsText().values")
+    lua.execute("VENDOR[2318] = 15")
+    lua.execute("now = now + 9; RunTimers()")
+    lua.execute("Loot('You receive loot: ' .. Link(4234, 'Heavy Leather') .. '.')")
+    assert "Heavy Leather" not in lines(lua, "return SR.StatsText().names"), "loot after the window does not count"
+
+    lua.execute("now = now + 3600")
+    text = lua.eval("SR.StatsText()")
+    assert text.duration.startswith("Guide time: 1:00:09") and "/h" in text.perHour and "..." not in text.perHour
+
+    lua.execute("Cast('UNIT_SPELLCAST_START', 4321)")
+    lua.execute("Loot('You receive loot: ' .. Link(4234, 'Heavy Leather') .. '.')")
+    assert "Heavy Leather" not in lines(lua, "return SR.StatsText().names"), "not a skinning spell"
+    lua.execute("C_Spell = {GetSpellName = function(id) if id == 7777 then return 'Dépeçage' end end}")
+    lua.execute("Cast('UNIT_SPELLCAST_START', 7777)")
+    lua.execute("Loot('You receive loot: ' .. Link(4234, 'Heavy Leather') .. '.')")
+    assert "Heavy Leather x1" in lines(lua, "return SR.StatsText().names"), "a skinning spell is recognised by its name"
+    lua.execute("Cast('UNIT_SPELLCAST_FAILED', 7777); now = now + 9; RunTimers()")
+
+    lines(lua, 'return Slash("stats")')
+    assert lua.eval(win + ".rows[1].name.text") == "Medium Leather x2" and "UI-SilverIcon" in lua.eval(win + ".rows[1].value.text")
+    lua.execute("Click(" + win + ".resetButton)")
+    assert lua.eval("SR.StatsText().names") == "Nothing skinned yet." and lua.eval("SR.StatsText().duration") == "Guide time: 0:00:00, 0 skinned"
+    lua.execute("BAGS[2318] = 3; Cast('UNIT_SPELLCAST_START', 8613)")
+    lua.execute("BAGS[2318] = 5; issecretvalue = function(v) return v == 'SECRET' end; Loot('SECRET')")
+    lua.execute("Cast('UNIT_SPELLCAST_SUCCEEDED', 8613); now = now + 9; RunTimers()")
+    assert lines(lua, "return SR.StatsText().names") == "Light Leather x2", "the bags settle a window with unreadable loot"
+    lines(lua, 'return Slash("stats")')
+    lua.execute("local f = SkinRouteStatsFrame; f.scripts.OnHide(f)")
+
+    lines(lua, 'return Slash("stop")')
+    assert "(stopped)" in lua.eval("SR.StatsText().duration")
+    lua.execute("Cast('UNIT_SPELLCAST_START', 8613); Loot('You receive loot: ' .. Link(4234, 'Heavy Leather') .. '.')")
+    assert "Heavy Leather" not in lines(lua, "return SR.StatsText().names"), "a stopped session counts nothing"
+    lua.execute("SR.StatsReset()")
+    assert "(stopped)" in lua.eval("SR.StatsText().duration")
+    lines(lua, 'return Slash("stats reset")')
+
+    lua = price_env(LOOT_MOCK, pre="SkinRouteDB = {statsWindow = {shown = true}}")
+    assert lua.eval("SkinRouteStatsFrame.shown") is True, "the stats window reopens when it was open"
+    lines(lua, 'return Slash("items medium leather")')
+    lines(lua, 'return Slash("level 30")')
+    lines(lua, 'return Slash("skill 300")')
+    lines(lua, 'return Slash("go test valley")')
+    lines(lua, 'return Slash("skip")')
+    lines(lua, 'return Slash("skip")')
+    assert "(stopped)" in lua.eval("SR.StatsText().duration"), "the guide ended with no more zone"
+    lines(lua, 'return Slash("")')
+    lua.execute("Click(UI().statsButton)")
+    assert lua.eval("SkinRouteStatsFrame.shown") is False
+    lua.execute("Click(UI().statsButton)")
+    assert lua.eval("SkinRouteStatsFrame.shown") is True
+    lua.execute("Click(UI().statsButton); RunTimers()")
+
+
+def check_stats_events():
+    lua = stats_env()
+    assert lua.eval("#SR.castEvents") == 7
+    lua = price_env(LOOT_MOCK, pre="failUnitEvent = 'UNIT_SPELLCAST_CHANNEL_START'")
+    assert lua.eval("#SR.castEvents") == 6
+    lines(lua, 'return Slash("items medium leather")')
+    lua.execute("SR:StatsStart(); Cast('UNIT_SPELLCAST_START', 8613); Loot('You receive loot: ' .. Link(2319, 'Medium Leather') .. '.')")
+    assert lines(lua, "return SR.StatsText().names") == "Medium Leather x1"
+
+
 def check_missing_data():
     lua = env(data=None)
     assert lua.eval("SR.dataMissing") is True and lua.eval("#SR.regionNames") == 0
@@ -1196,6 +1404,9 @@ def main():
     check_skill_reading()
     check_player_skill()
     check_ui_skill()
+    check_prices()
+    check_stats()
+    check_stats_events()
     check_missing_data()
     check_lua51_constructs()
     real = os.environ.get("SKINROUTE_DATA")

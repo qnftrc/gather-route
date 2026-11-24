@@ -27,6 +27,10 @@ function SR:GetRegions()
     return self.regionNames
 end
 
+function SR:ItemLabel(id)
+    return self.Data.items[id] or tostring(id)
+end
+
 function SR:AllItems()
     local list = {}
     for id, name in pairs(self.Data.items) do list[#list + 1] = {id = id, name = name} end

@@ -182,9 +182,8 @@ function SR:RankRegionsByMobs(ctx)
 end
 
 function SR:ValueItems()
-    local prices = self.db.prices
     local list = self:AllItems()
-    for _, it in ipairs(list) do it.price = prices[it.id] end
+    for _, it in ipairs(list) do it.price, it.src = self:ItemPrice(it.id) end
     table.sort(list, function(a, b)
         if a.price and b.price and a.price ~= b.price then return a.price > b.price end
         if (a.price ~= nil) ~= (b.price ~= nil) then return a.price ~= nil end

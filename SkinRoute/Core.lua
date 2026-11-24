@@ -15,6 +15,8 @@ local defaults = {
     zoneMax = 12,
     arrival = 233,
     prices = {},
+    ahPrices = {},
+    statsWindow = {},
     overrides = {},
 }
 
@@ -109,7 +111,7 @@ function SR:Context()
         hi = self.db.bandHigh,
         bandOnly = self.db.bandOnly ~= false,
         items = self:SelectedSet(),
-        price = function(id) return self.db.prices[id] end,
+        price = function(id) return (self:ItemPrice(id)) end,
     }
 end
 
@@ -161,7 +163,8 @@ local function usage()
     SR:Say("/sr level [n|auto] - simulate a character level (auto = the real one)")
     SR:Say("/sr skill [n|auto] - simulate a skinning skill (auto = the real one)")
     SR:Say("/sr band [<low> <high>|off] - count only mobs from level+low to level+high (default -8 +2)")
-    SR:Say("/sr price <item>: <copper> - price used for the value (Auctionator comes later)")
+    SR:Say("/sr price <item>: <copper>|off - your own price for an item (otherwise Auctionator, else the vendor price); /sr prices - reread Auctionator")
+    SR:Say("/sr stats [reset] - show or hide the stats window: guide time, what you skinned, gold estimate")
     SR:Say("/sr need <level> - skinning skill needed for a mob level")
     SR:Say("/sr zones [region] - compute the zones of a region (default: your region) and draw them on the world map")
     SR:Say("/sr go [region] - compute the zones, then guide you to the best one with TomTom; /sr skip - next zone; /sr stop - end the guide")
@@ -306,11 +309,13 @@ local function handleSlash(msg)
             return
         end
         local name, copper = rest:match("^(.-)%s*:%s*(%d+)$")
+        if not name then name, copper = rest:match("^(.-)%s*:%s*(off)$") end
         local ids = name and SR:FindItems({name})
-        if not ids or #ids ~= 1 then return SR:Say("Usage: /sr price <one item>: <copper>") end
+        if not ids or #ids ~= 1 then return SR:Say("Usage: /sr price <one item>: <copper> or /sr price <one item>: off") end
         SR.db.prices[ids[1]] = tonumber(copper)
         SR:RefreshZones()
-        SR:Say(("%s: %s."):format(SR.Data.items[ids[1]], SR.MoneyText(tonumber(copper))))
+        local price, source = SR:ItemPrice(ids[1])
+        SR:Say(("%s: %s%s."):format(SR.Data.items[ids[1]], price and SR.MoneyText(price) or "no price", source and (" (" .. source .. ")") or ""))
     elseif cmd == "need" then
         local level = tonumber(rest)
         if not level then return SR:Say("Usage: /sr need <mob level>") end
@@ -367,6 +372,15 @@ local function handleSlash(msg)
         SR:MapTest()
     elseif cmd == "probe" then
         SR:Probe(rest)
+    elseif cmd == "prices" then
+        SR:PricesProbe()
+    elseif cmd == "stats" then
+        if rest:lower() == "reset" then
+            SR.StatsReset()
+            SR:Say("Stats reset.")
+        else
+            SR:ToggleStats()
+        end
     elseif cmd == "chat" then
         local arg = rest:lower()
         if arg == "on" or arg == "off" then SR.db.chat = arg == "on" end
@@ -407,5 +421,7 @@ frame:SetScript("OnEvent", function(self, event, name)
     SR:LoadData()
     SR:InitOverlay()
     SR:InitRunner()
+    SR:InitPrices()
+    SR:InitStats()
     SR:InitUI()
 end)
