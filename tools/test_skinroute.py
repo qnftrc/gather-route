@@ -734,11 +734,58 @@ def check_profit():
     assert "gold per hour" in lua.eval("UI().listTitle.text")
     rows = rows_of(lua, "rows")
     assert rows and rows[0].startswith("Test Valley") and rows[0].endswith("/h"), rows
-    assert lua.eval("UI().regionButton.shown") is True and lua.eval("UI().noneButton.shown") is False
-    lua.execute("Click(UI().regionButton)")
-    assert lua.eval("UI().itemPopup:IsShown()") is True
-    lua.execute("SR.db.items = {}; SR:SetBrowseMode('profit')")
-    assert "Select leathers" in lua.eval("UI().listTitle.text")
+    assert lua.eval("UI().rows[1].sub.text") == "-> Medium Leather", lua.eval("UI().rows[1].sub.text")
+    assert lua.eval("UI().regionButton.text") == "Best leathers for each region (automatic)"
+    assert lua.eval("UI().regionButton.enabled") is False and lua.eval("UI().noneButton.shown") is False
+    assert lua.eval("UI().regionLabel.text") == "Auto"
+    items_before = lua.eval("#SR.db.items")
+    out = lines(lua, 'Click(UI().generate) RunTimers() return Said()')
+    assert lua.eval("SR.shown ~= nil") is True and lua.eval("#SR.shown.rows") > 0
+    assert lua.eval("SR.auto.ids[1]") == 2319 and lua.eval("#SR.auto.ids") == 1
+    assert lua.eval("#SR.db.items") == items_before, "profit choices stay separate from the selection"
+    lua.execute("SR:SetBrowseMode('region')")
+    assert lua.eval("SR:Context().items[2319]") is True
+    lua.execute("SR:SetBrowseMode('item')")
+    assert lua.eval("UI().regionButton.enabled") is True
+
+
+def check_auto_plan():
+    lua = zone_env()
+    lines(lua, 'return Slash("level 24")')
+    lines(lua, 'return Slash("skill 300")')
+    lines(lua, 'return Slash("price light leather: 500")')
+    lines(lua, 'return Slash("price medium leather: 3000")')
+    lines(lua, 'return Slash("price heavy leather: 100")')
+    plan = lua.eval("SR:AutoPlan('Test Valley')")
+    ids = [lua.eval("SR:AutoPlan('Test Valley').ids[%d]" % i) for i in (1, 2, 3)]
+    assert ids[0] == 2319, ids
+    assert plan.perHour > 0 and plan.usable is True
+    lines(lua, 'return Slash("keep 100")')
+    only = lua.eval("#SR:AutoPlan('Test Valley').ids")
+    lines(lua, 'return Slash("keep 1")')
+    wide = lua.eval("#SR:AutoPlan('Test Valley').ids")
+    assert wide >= only
+    assert abs(lua.eval("SR.db.autoKeep") - 1) < 1e-9
+    assert "Usage" in lines(lua, 'return Slash("keep 0")')
+    lines(lua, 'return Slash("skill 10")')
+    locked = lua.eval("SR:AutoPlan('Test Valley')")
+    assert locked.perHour == 0 and locked.usable is False
+    assert lua.eval("#SR:AutoPlan('Test Valley').ids") >= 1
+    lua.execute("SR:SetBrowseMode('profit')")
+    rows = rows_of(lua, "rows")
+    assert rows and "needs skinning" in rows[0] and "/h" not in rows[0], rows
+
+
+def check_auto_no_price():
+    lua = zone_env()
+    lines(lua, 'return Slash("level 24")')
+    lines(lua, 'return Slash("skill 300")')
+    lua.execute("SR.ItemPrice = function() return nil end; SR:SetBrowseMode('profit')")
+    assert lua.eval("SR:AnyPrice()") is False
+    assert "scan the auction house" in lua.eval("UI().regionButton.text")
+    assert "items per hour" in lua.eval("UI().listTitle.text")
+    rows = rows_of(lua, "rows")
+    assert rows and "items/h" in rows[0], rows
 
 
 def check_label_font_scales():
@@ -1620,6 +1667,8 @@ def main():
     check_fill()
     check_label_font_scales()
     check_profit()
+    check_auto_plan()
+    check_auto_no_price()
     check_prices_end_of_line()
     check_guide()
     check_guide_limits()

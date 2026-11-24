@@ -61,8 +61,11 @@ local function getCheckRow(pool, parent, i, size, font)
         row:SetSize(size, size)
         row.text = row:CreateFontString(nil, "ARTWORK", font)
         row.text:SetPoint("LEFT", row, "RIGHT", 2, 1)
+        row.sub = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        row.sub:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 8, -1)
         pool[i] = row
     end
+    row.sub:SetText("")
     return row
 end
 
@@ -197,14 +200,9 @@ local function fillRegionItems()
     ui.regionButton:SetText(ui.region and SR.RegionLabel(ui.region) or "No region")
 end
 
-local function fillRanking(profit)
+local function fillRanking()
     local c = SR:Context()
-    local rows, anyPrice
-    if profit then
-        rows, _, anyPrice = SR:RankRegionsByProfit(c)
-    else
-        rows = SR:RankRegionsByMobs(c)
-    end
+    local rows = SR:RankRegionsByMobs(c)
     local keep
     for i, row in ipairs(rows) do
         local cb = getCheckRow(ui.rows, ui.listChild, i, ROW, "GameFontHighlight")
@@ -214,13 +212,7 @@ local function fillRanking(profit)
         cb:SetScript("OnClick", function() chooseRegion(row.region) end)
         local count = row.eval.status == "out" and row.eval.total or row.eval.inBand
         local worth
-        if profit then
-            if row.eval.status == "ok" or row.eval.status == "partial" then
-                worth = anyPrice and (SR.Money(row.eval.perHour) .. "/h") or ("~%.0f items/h"):format(row.eval.dropsHour)
-            end
-        elseif row.eval.value > 0 then
-            worth = SR.Money(row.eval.value)
-        end
+        if row.eval.value > 0 then worth = SR.Money(row.eval.value) end
         cb.text:SetText(rowText(SR.RegionLabel(row.region), count, row.eval, c.level, worth))
         cb:Show()
         if row.region == ui.region then keep = row.region end
@@ -228,14 +220,48 @@ local function fillRanking(profit)
     hideRowsFrom(ui.rows, #rows + 1)
     ui.listChild:SetSize(270, math.max(1, #rows * ROW))
     if rows[1] then chooseRegion(keep or rows[1].region) end
-    if profit then
-        ui.listTitle:SetText(#SR.db.items == 0 and "Select leathers to rank the regions"
-            or ("Regions, most gold per hour first (%d)"):format(#rows))
-    else
-        ui.listTitle:SetText(#SR.db.items == 0 and "Select leathers to list the regions"
-            or ("Regions, most mobs first (%d)"):format(#rows))
-    end
+    ui.listTitle:SetText(#SR.db.items == 0 and "Select leathers to list the regions"
+        or ("Regions, most mobs first (%d)"):format(#rows))
     ui.regionButton:SetText(itemButtonText())
+end
+
+local AUTO_ROW = 36
+local NO_PRICE_ALERT = "|cffff4040No AH price known: scan the auction house|r"
+
+local function itemsLine(plan)
+    local names = {}
+    for k = 1, math.min(3, #plan.ids) do names[#names + 1] = SR:ItemLabel(plan.ids[k]) end
+    local text = table.concat(names, ", ")
+    if #plan.ids > 3 then text = text .. (" (+%d)"):format(#plan.ids - 3) end
+    return text ~= "" and ("-> " .. text) or ""
+end
+
+local function fillAuto()
+    local c = SR:Context()
+    local rows, anyPrice = SR:RankAuto()
+    local keep
+    for i, row in ipairs(rows) do
+        local cb = getCheckRow(ui.rows, ui.listChild, i, ROW, "GameFontHighlight")
+        cb:ClearAllPoints()
+        cb:SetPoint("TOPLEFT", ui.listChild, "TOPLEFT", 0, -(i - 1) * AUTO_ROW)
+        cb.itemId, cb.region = nil, row.region
+        cb:SetScript("OnClick", function() chooseRegion(row.region) end)
+        local e = row.eval
+        local suffix
+        if e.status == "ok" or e.status == "partial" then
+            suffix = anyPrice and (SR.Money(row.plan.perHour) .. "/h") or ("~%.0f items/h"):format(row.plan.perHour)
+        end
+        cb.text:SetText(rowText(SR.RegionLabel(row.region), e.inBand, e, c.level, suffix))
+        cb.sub:SetText(itemsLine(row.plan))
+        cb:Show()
+        if row.region == ui.region then keep = row.region end
+    end
+    hideRowsFrom(ui.rows, #rows + 1)
+    ui.listChild:SetSize(270, math.max(1, #rows * AUTO_ROW))
+    if rows[1] then chooseRegion(keep or rows[1].region) end
+    ui.listTitle:SetText(anyPrice and ("Regions, most gold per hour first (%d)"):format(#rows)
+        or ("Regions, most items per hour first (%d)"):format(#rows))
+    ui.regionButton:SetText(anyPrice and "Best leathers for each region (automatic)" or NO_PRICE_ALERT)
 end
 
 local function fillValueItems()
@@ -298,8 +324,10 @@ function refreshView()
     if not ui then return end
     if ui.mode == "region" then
         fillRegionItems()
-    elseif ui.mode == "item" or ui.mode == "profit" then
-        fillRanking(ui.mode == "profit")
+    elseif ui.mode == "item" then
+        fillRanking()
+    elseif ui.mode == "profit" then
+        fillAuto()
     else
         fillValueItems()
         fillZones()
@@ -524,7 +552,8 @@ function applyMode()
     local mode = ui.mode
     local value = mode == "value"
     ui.viewButton:SetText("View: " .. VIEW_NAMES[mode])
-    ui.regionLabel:SetText(mode == "region" and "Region" or "Leather")
+    ui.regionLabel:SetText(mode == "region" and "Region" or (mode == "profit" and "Auto" or "Leather"))
+    ui.regionButton:SetEnabled(mode ~= "profit")
     ui.regionPopup:Hide()
     ui.itemPopup:Hide()
     ui.viewMenu:Hide()
@@ -608,7 +637,7 @@ local function commitKill()
 end
 
 function SR.UIGenerate()
-    if #SR.db.items == 0 then return SR:Say("Select at least one leather.") end
+    if ui.mode ~= "profit" and #SR.db.items == 0 then return SR:Say("Select at least one leather.") end
     local region = ui.region
     if not region then return SR:Say("Select a region.") end
     SR:ShowZones(region, true)
@@ -635,7 +664,7 @@ local function build()
         ui.viewMenu:SetShown(not ui.viewMenu:IsShown())
     end)
     ui.regionButton = button(ui, "", 348, "TOPLEFT", 16, -52, function()
-        if ui.mode == "item" or ui.mode == "profit" then
+        if ui.mode == "item" then
             ui.itemPopup:SetShown(not ui.itemPopup:IsShown())
         else
             ui.regionPopup:SetShown(not ui.regionPopup:IsShown())

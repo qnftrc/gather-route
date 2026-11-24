@@ -91,6 +91,131 @@ function R.evaluate(entries, creatures, ctx)
     return e
 end
 
+local PLAN_SHARE = 0.03
+
+function R.plan(entries, creatures, ctx, anyPrice)
+    local cands = {}
+    for _, entry in ipairs(entries) do
+        local c = creatures[entry.id]
+        if c and (not ctx.bandOnly or R.inBand(c, ctx.level, ctx.lo, ctx.hi)) then
+            local v, items = 0, {}
+            for item, d in pairs(c.d) do
+                if ctx.items[item] then
+                    local avg = d[1] / 100 * (d[2] + d[3]) / 2
+                    local w = anyPrice and (ctx.price(item) or 0) or 1
+                    items[item] = avg * w
+                    v = v + avg * w
+                end
+            end
+            if v > 0 then
+                local t = R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope)
+                cands[#cands + 1] = {
+                    id = entry.id, n = entry.n, v = v, t = t, items = items,
+                    skin = ctx.skill == nil or R.canSkin(ctx.skill, c.l[2]),
+                }
+            end
+        end
+    end
+    local usable = {}
+    for _, k in ipairs(cands) do
+        if k.skin then usable[#usable + 1] = k end
+    end
+    table.sort(usable, function(a, b)
+        local ra, rb = a.v / a.t, b.v / b.t
+        if ra ~= rb then return ra > rb end
+        return a.id < b.id
+    end)
+    local keep = ctx.keep or 0.7
+    local bv, bt, bestN = 0, 0, 0
+    local chosen = {}
+    local mobs = 0
+    if #usable > 0 then
+        local top = usable[1].v / usable[1].t
+        for _, k in ipairs(usable) do
+            if k.v / k.t >= top * keep then
+                bestN = bestN + 1
+                chosen[#chosen + 1] = k
+                mobs = mobs + k.n
+                bv, bt = bv + k.n * k.v, bt + k.n * k.t
+            end
+        end
+    else
+        chosen = cands
+    end
+    local contrib, total = {}, 0
+    for _, k in ipairs(chosen) do
+        for item, v in pairs(k.items) do
+            contrib[item] = (contrib[item] or 0) + k.n * v
+            total = total + k.n * v
+        end
+    end
+    local list = {}
+    for item, v in pairs(contrib) do
+        if v > 0 and v >= total * PLAN_SHARE then list[#list + 1] = {id = item, v = v} end
+    end
+    table.sort(list, function(a, b)
+        if a.v ~= b.v then return a.v > b.v end
+        return a.id < b.id
+    end)
+    local ids, set = {}, {}
+    for _, it in ipairs(list) do
+        ids[#ids + 1] = it.id
+        set[it.id] = true
+    end
+    return {ids = ids, set = set, perHour = bt > 0 and bv / bt * 3600 or 0, value = bv, seconds = bt, mobs = mobs, usable = bestN > 0}
+end
+
+function SR:AnyPrice()
+    for id in pairs(self.Data.items) do
+        if self:ItemPrice(id) then return true end
+    end
+    return false
+end
+
+function SR:AllItemSet()
+    local set = {}
+    for id in pairs(self.Data.items) do set[id] = true end
+    return set
+end
+
+function SR:AutoPlan(region, ctx, anyPrice)
+    ctx = ctx or self:Context()
+    local all = {}
+    for k, v in pairs(ctx) do all[k] = v end
+    all.items = self:AllItemSet()
+    if anyPrice == nil then anyPrice = self:AnyPrice() end
+    local plan = R.plan(self:RegionEntries(region), self.Data.creatures, all, anyPrice)
+    plan.region = region
+    plan.eval = R.evaluate(self:RegionEntries(region), self.Data.creatures, all)
+    return plan
+end
+
+function SR:RankAuto()
+    local ctx = self:Context()
+    local anyPrice = self:AnyPrice()
+    local open, locked = {}, {}
+    for _, region in ipairs(self:GetRegions()) do
+        local plan = self:AutoPlan(region, ctx, anyPrice)
+        local status = plan.eval.status
+        local row = {region = region, plan = plan, eval = plan.eval}
+        if status == "ok" or status == "partial" then
+            open[#open + 1] = row
+        elseif status == "locked" then
+            locked[#locked + 1] = row
+        end
+    end
+    table.sort(open, function(a, b)
+        if a.plan.perHour ~= b.plan.perHour then return a.plan.perHour > b.plan.perHour end
+        return a.region < b.region
+    end)
+    table.sort(locked, function(a, b)
+        if a.eval.minNeeded ~= b.eval.minNeeded then return a.eval.minNeeded < b.eval.minNeeded end
+        return a.region < b.region
+    end)
+    for _, row in ipairs(locked) do open[#open + 1] = row end
+    return open, anyPrice
+end
+
 function SR:EvaluateRegion(region, ctx)
     return R.evaluate(self:RegionEntries(region), self.Data.creatures, ctx)
 end

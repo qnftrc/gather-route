@@ -178,7 +178,12 @@ function SR:RefreshZones()
 end
 
 function SR:ShowZones(region, go)
-    if #self.db.items == 0 then
+    if self.db.browse == "profit" then
+        self.auto = self:AutoPlan(region)
+        if #self.auto.ids == 0 then
+            return self:Say("Nothing worth farming in " .. SR.RegionLabel(region) .. " at this level and skinning.")
+        end
+    elseif #self.db.items == 0 then
         return self:Say("Select items first: /sr items <name>[, <name>]")
     end
     self.zoneToken = (self.zoneToken or 0) + 1
