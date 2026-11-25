@@ -55,6 +55,9 @@ end
 local function nextRow(g)
     local s = SR.shown
     if not s or s.region ~= g.region then return end
+    for _, row in ipairs(s.best or {}) do
+        if not g.visited[row.zone.id] then return row end
+    end
     for _, row in ipairs(s.rows) do
         if not g.visited[row.zone.id] and row.eval.status ~= "locked" then return row end
     end
@@ -65,9 +68,11 @@ function SR:StartGuide()
     if not s or #s.rows == 0 then
         return self:Say("No zone to go to: /sr zones first, or change the items, level, skill or band.")
     end
-    local first
-    for _, row in ipairs(s.rows) do
-        if row.eval.status ~= "locked" then first = row break end
+    local first = s.best and s.best[1]
+    if not first then
+        for _, row in ipairs(s.rows) do
+            if row.eval.status ~= "locked" then first = row break end
+        end
     end
     if not first then
         local skill = self:PlayerSkill()

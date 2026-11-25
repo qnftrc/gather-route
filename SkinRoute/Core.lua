@@ -16,7 +16,11 @@ local defaults = {
     chat = false,
     showMap = true,
     fill = false,
-    zoneRadius = 233,
+    zoneRadius = 350,
+    radiusVersion = 1,
+    elites = false,
+    eliteFactor = 3,
+    bestMin = 35,
     zoneMin = 5,
     zoneMax = 12,
     arrival = 233,
@@ -129,6 +133,8 @@ function SR:Context()
         killFixed = self.db.killFixed or 10,
         killSlope = self.db.killSlope or 1.10,
         keep = (self.db.autoKeep or 70) / 100,
+        elites = self.db.elites == true,
+        eliteFactor = self.db.eliteFactor or 3,
         loot = self:LootEnabled(),
         lootData = self.Loot.creatures,
         lootPrice = function(id) return self:LootPrice(id) end,
@@ -192,7 +198,8 @@ local function usage()
     SR:Say("/sr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > SkinRoute)")
     SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233) | /sr arrival [yd] - distance at which you count as arrived (default 233)")
     SR:Say("/sr time [<seconds per mob> [fixed seconds] [slope]] - time model of the Profit view (default 25 10 1.10)")
-    SR:Say("/sr loot [on|off] - Profit view: count what the mobs themselves drop (gold, gray, white and green items), on by default")
+    SR:Say("/sr elites [on|off|factor <1-10>] - include the elite mobs (left out by default; their fighting time is multiplied by the factor, default 3)")
+    SR:Say("/sr loot [on|off] - count what the mobs themselves drop (gold, gray, white and green items) in every view, on by default")
     SR:Say("/sr keep [<percent>] - Profit view: mob types kept when they reach this share of the best rate (default 70)")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
     SR:Say("/sr fill [test|<n>|path <texture>|on|off] - white transparent fill of the zones: run the test once, then pick the round disc")
@@ -405,6 +412,22 @@ local function handleSlash(msg)
         end
         SR:Say(("Time per mob: %s s at your level (%s s fixed, the rest x%s per level of difference)."):format(
             tostring(SR.db.killBase or 25), tostring(SR.db.killFixed or 10), tostring(SR.db.killSlope or 1.10)))
+    elseif cmd == "elites" then
+        local arg = rest:lower()
+        local factor = arg:match("^factor%s+(%S+)$")
+        if arg == "on" then
+            SR.db.elites = true
+        elseif arg == "off" then
+            SR.db.elites = false
+        elseif factor then
+            local n = tonumber(factor)
+            if not n or n < 1 or n > 10 then return SR:Say("Usage: /sr elites factor <1-10>") end
+            SR.db.eliteFactor = n
+        elseif arg ~= "" then
+            return SR:Say("Usage: /sr elites [on|off|factor <1-10>]")
+        end
+        SR:ElitesChanged()
+        SR:Say(("Elite mobs: %s (their fighting time is x%s)."):format(SR.db.elites == true and "included" or "left out", tostring(SR.db.eliteFactor or 3)))
     elseif cmd == "loot" then
         local arg = rest:lower()
         if arg == "on" then
@@ -416,7 +439,7 @@ local function handleSlash(msg)
         end
         SR.auto = nil
         SR:RefreshZones()
-        SR:Say(("Mob loot in the Profit view: %s%s."):format(SR.db.loot ~= false and "on" or "off",
+        SR:Say(("Mob loot: %s%s."):format(SR.db.loot ~= false and "on" or "off",
             SR:LootAvailable() and "" or " (no Data\\LootData.lua loaded)"))
     elseif cmd == "keep" then
         local n = tonumber(rest)
@@ -501,6 +524,10 @@ frame:SetScript("OnEvent", function(self, event, name)
     if name ~= addonName then return end
     self:UnregisterEvent("ADDON_LOADED")
     SkinRouteDB = SkinRouteDB or {}
+    if (SkinRouteDB.radiusVersion or 0) < 1 then
+        SkinRouteDB.zoneRadius = 350
+        SkinRouteDB.radiusVersion = 1
+    end
     for k, v in pairs(defaults) do
         if SkinRouteDB[k] == nil then SkinRouteDB[k] = copy(v) end
     end

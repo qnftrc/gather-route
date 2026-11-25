@@ -278,6 +278,7 @@ def check_skip_zone(tmp):
 def check_ranks(tmp):
     d, _ = build(tmp, ranks="0,1")
     assert 101 in keys(d.creatures) and d.creatures[101].l[1] == 30
+    assert d.creatures[101].e == 1 and d.creatures[100].e is None, "elites are flagged, normal creatures are not"
 
 
 def check_wowhead(tmp, data):

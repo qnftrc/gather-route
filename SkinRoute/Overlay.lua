@@ -11,6 +11,9 @@ local COLORS = {
     gray = {0.62, 0.62, 0.62},
 }
 
+local MAGENTA = {1, 0.24, 0.95}
+local MAGENTA_TEXT = {1, 0.55, 0.96}
+local NAME_MAX = 18
 local FILL_ALPHA = 0.18
 local FILL_TEST_SECONDS = 30
 SR.FILL_MASKS = {
@@ -127,7 +130,24 @@ local function drawCircle(used, canvas, cx, cy, rx, ry, c, dashed)
     return used
 end
 
-local function zoneLabels(row, s, size)
+local function shortName(name)
+    if #name <= NAME_MAX then return name end
+    return name:sub(1, NAME_MAX - 1) .. "..."
+end
+
+local function bestLabels(row, s, size, level, color)
+    local e = row.eval
+    local lines = {}
+    lines[1] = {s.anyPrice and (SR.Money(e.perHour, size) .. "/h") or ("~%.0f items/h"):format(e.dropsHour), MAGENTA_TEXT}
+    for _, cr in ipairs(SR:ZoneCreatures(row.zone.entries, s.ctx, 3)) do
+        lines[#lines + 1] = {shortName(cr.name) .. (cr.elite and " (E)" or ""), {1, 1, 1}}
+    end
+    lines[#lines + 1] = {level, color}
+    lines[#lines + 1] = {("%d mobs"):format(e.skinnable), {1, 1, 1}}
+    return lines
+end
+
+local function zoneLabels(row, s, size, isBest)
     local e = row.eval
     local lines = {}
     local level = ""
@@ -135,6 +155,7 @@ local function zoneLabels(row, s, size)
         level = e.lmin == e.lmax and ("Lv " .. e.lmin) or ("Lv " .. e.lmin .. "-" .. e.lmax)
     end
     local color = COLORS[SR.Rules.difficulty(e.avgLevel or ((e.lmin + e.lmax) / 2), s.ctx.level)]
+    if isBest then return bestLabels(row, s, size, level, color) end
     if e.status == "locked" then
         lines[1] = {level, color}
         lines[2] = {"needs skinning " .. e.minNeeded, COLORS.orange}
@@ -176,6 +197,8 @@ function refreshMap()
 
     local w, h = canvas:GetWidth(), canvas:GetHeight()
     local used, labels, fills = 0, 0, 0
+    local bestRow = {}
+    for _, r in ipairs(s and s.best or {}) do bestRow[r] = true end
     local mask = SR.db.fill == true and SR.db.fillMask or nil
     if s then
         local size = s.set.size
@@ -184,13 +207,13 @@ function refreshMap()
             local cx, cy = row.zone.x / 100 * w, row.zone.y / 100 * h
             local e = row.eval
             local mid = e.avgLevel or ((e.lmin + e.lmax) / 2)
-            used = drawCircle(used, canvas, cx, cy, rx, ry, COLORS[SR.Rules.difficulty(mid, s.ctx.level)], e.status == "locked")
+            used = drawCircle(used, canvas, cx, cy, rx, ry, bestRow[row] and MAGENTA or COLORS[SR.Rules.difficulty(mid, s.ctx.level)], e.status == "locked")
             if mask then
                 fills = fills + 1
                 drawFill(fills, canvas, cx, cy, rx, ry, mask)
             end
             local fs = fontSizeFor(rx)
-            local lines = zoneLabels(row, s, fs)
+            local lines = zoneLabels(row, s, fs, bestRow[row])
             for k, entry in ipairs(lines) do
                 labels = labels + 1
                 local f = getLabel(labels, fs)

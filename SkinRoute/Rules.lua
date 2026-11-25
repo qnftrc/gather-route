@@ -27,9 +27,9 @@ function R.difficulty(mid, level)
     return "gray"
 end
 
-function R.killTime(diff, base, fixed, slope)
+function R.killTime(diff, base, fixed, slope, factor)
     local d = math.max(-10, math.min(10, diff))
-    return fixed + (base - fixed) * slope ^ d
+    return fixed + (base - fixed) * slope ^ d * (factor or 1)
 end
 
 function R.lootValue(cid, ctx)
@@ -48,7 +48,7 @@ function R.evaluate(entries, creatures, ctx)
     local levelSum = 0
     for _, entry in ipairs(entries) do
         local c = creatures[entry.id]
-        if c then
+        if c and (not c.e or ctx.elites) then
             local per, perValue, relevant = 0, 0, false
             for item, d in pairs(c.d) do
                 if ctx.items[item] then
@@ -81,7 +81,7 @@ function R.evaluate(entries, creatures, ctx)
                             e.value = e.value + lv
                         end
                         if ctx.killBase then
-                            e.seconds = e.seconds + entry.n * R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope)
+                            e.seconds = e.seconds + entry.n * R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope, c.e and ctx.eliteFactor or nil)
                         end
                     end
                 end
@@ -116,7 +116,7 @@ function R.plan(entries, creatures, ctx, anyPrice)
     local cands = {}
     for _, entry in ipairs(entries) do
         local c = creatures[entry.id]
-        if c and (not ctx.bandOnly or R.inBand(c, ctx.level, ctx.lo, ctx.hi)) then
+        if c and (not c.e or ctx.elites) and (not ctx.bandOnly or R.inBand(c, ctx.level, ctx.lo, ctx.hi)) then
             local v, items = 0, {}
             for item, d in pairs(c.d) do
                 if ctx.items[item] then
@@ -127,7 +127,7 @@ function R.plan(entries, creatures, ctx, anyPrice)
                 end
             end
             if v > 0 then
-                local t = R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope)
+                local t = R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope, c.e and ctx.eliteFactor or nil)
                 local l = (ctx.loot and anyPrice) and R.lootValue(entry.id, ctx) or 0
                 cands[#cands + 1] = {
                     id = entry.id, n = entry.n, v = v, l = l, t = t, items = items,
@@ -289,6 +289,65 @@ function SR:RankRegionsByProfit(ctx)
     return sortRows(rows, ctx, true)
 end
 
+function SR:ZoneCreatures(entries, ctx, limit)
+    local anyPrice = self:AnyPrice()
+    local list = {}
+    for _, en in ipairs(entries) do
+        local c = self.Data.creatures[en.id]
+        if c and (not c.e or ctx.elites) and (not ctx.bandOnly or R.inBand(c, ctx.level, ctx.lo, ctx.hi))
+            and (ctx.skill == nil or R.canSkin(ctx.skill, c.l[2])) then
+            local v, relevant = 0, false
+            for item, d in pairs(c.d) do
+                if ctx.items[item] then
+                    relevant = true
+                    local w = anyPrice and (ctx.price(item) or 0) or 1
+                    v = v + d[1] / 100 * (d[2] + d[3]) / 2 * w
+                end
+            end
+            if relevant then
+                local l = (ctx.loot and anyPrice) and R.lootValue(en.id, ctx) or 0
+                local t = R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope, c.e and ctx.eliteFactor or nil)
+                list[#list + 1] = {name = c.n, elite = c.e and true or false, rate = (v + l) / t, n = en.n}
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.rate ~= b.rate then return a.rate > b.rate end
+        return a.name < b.name
+    end)
+    while #list > limit do list[#list] = nil end
+    return list
+end
+
+function SR:PickBest(s)
+    local min = self.db.bestMin or 35
+    local key = s.anyPrice and "perHour" or "dropsHour"
+    local cands = {}
+    for _, row in ipairs(s.rows) do
+        local e = row.eval
+        if (e.status == "ok" or e.status == "partial") and e.skinnable >= min and e[key] > 0 then cands[#cands + 1] = row end
+    end
+    table.sort(cands, function(a, b)
+        if a.eval[key] ~= b.eval[key] then return a.eval[key] > b.eval[key] end
+        return a.zone.id < b.zone.id
+    end)
+    local best = {}
+    if cands[1] then
+        best[1] = cands[1]
+        local gap = 2 * s.set.radius
+        local a = cands[1].zone
+        for i = 2, #cands do
+            local b = cands[i].zone
+            local dx, dy = a.wx - b.wx, a.wy - b.wy
+            if dx * dx + dy * dy >= gap * gap then
+                best[2] = cands[i]
+                break
+            end
+        end
+    end
+    return best
+end
+
 function SR:RankZones(set, ctx)
     local rows = {}
     for _, zone in ipairs(set.zones) do
@@ -305,7 +364,7 @@ function SR:ItemTotals()
     for _, zone in pairs(self.Data.zones) do
         for cid, pts in pairs(zone) do
             local c = self.Data.creatures[cid]
-            if c then
+            if c and (not c.e or self.db.elites) then
                 local n = math.floor(#pts / 2)
                 for item in pairs(c.d) do totals[item] = (totals[item] or 0) + n end
             end
@@ -319,7 +378,7 @@ function SR:RegionItems(region, ctx)
     local entries = self:RegionEntries(region)
     local rows = {}
     for _, it in ipairs(self:AllItems()) do
-        local one = {level = ctx.level, skill = ctx.skill, lo = ctx.lo, hi = ctx.hi, bandOnly = ctx.bandOnly,
+        local one = {level = ctx.level, skill = ctx.skill, lo = ctx.lo, hi = ctx.hi, bandOnly = ctx.bandOnly, elites = ctx.elites,
             items = {[it.id] = true}, price = ctx.price}
         local e = R.evaluate(entries, self.Data.creatures, one)
         if e.total > 0 then rows[#rows + 1] = {id = it.id, name = it.name, eval = e} end

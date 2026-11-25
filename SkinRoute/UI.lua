@@ -86,7 +86,7 @@ function SR.MatchLetters(query, name)
 end
 
 function SR.UIHeight(mode, optionsShown, extra)
-    return (optionsShown and 640 or 472) + (mode == "value" and 10 or 0) + (extra or 0)
+    return (optionsShown and 692 or 472) + (mode == "value" and 10 or 0) + (extra or 0)
 end
 
 local function isSelected(id)
@@ -692,6 +692,7 @@ local function build()
     ui.listTitle = label(ui, "Leathers", "TOPLEFT", 16, -84)
     ui.lootCheck = check(ui, "Mob loot (gray, white, green)", 190, -78, function(self)
         SR.db.loot = self:GetChecked() and true or false
+        ui.lootOption:SetChecked(SR.db.loot)
         SR.auto = nil
         SR:RefreshZones()
         applyLayout()
@@ -798,6 +799,18 @@ local function build()
     ui.killFixedEdit = option(editBox(ui.lower, 40, 206, -228, commitKill))
     option(label(ui.lower, "x", "TOPLEFT", 252, -232))
     ui.killSlopeEdit = option(editBox(ui.lower, 48, 266, -228, commitKill))
+    ui.elites = option(check(ui.lower, "Include elite mobs (slower to kill)", 12, -254, function(self)
+        SR.db.elites = self:GetChecked() and true or false
+        SR:ElitesChanged()
+        refreshView()
+    end))
+    ui.lootOption = option(check(ui.lower, "Mob loot (gray, white, green)", 12, -278, function(self)
+        SR.db.loot = self:GetChecked() and true or false
+        SR.auto = nil
+        SR:RefreshZones()
+        applyLayout()
+        refreshView()
+    end))
 
     ui.generate = button(ui, "Generate", 100, "BOTTOMLEFT", 16, 40, function() SR.UIGenerate() end)
     ui.skip = button(ui, "Skip", 100, "BOTTOM", 0, 40, function() SR:SkipZone() end)
@@ -809,6 +822,8 @@ local function build()
         ui.showMap:SetChecked(SR.db.showMap ~= false)
         ui.fill:SetChecked(SR.db.fill == true)
         ui.lootCheck:SetChecked(SR.db.loot ~= false)
+        ui.lootOption:SetChecked(SR.db.loot ~= false)
+        ui.elites:SetChecked(SR.db.elites == true)
         ui.chat:SetChecked(SR.db.chat == true)
         ui.band:SetChecked(SR.db.bandOnly ~= false)
         ui.slider:SetValue(SR.db.arrival)

@@ -215,6 +215,13 @@ Références **S**. « Hors jeu » = faux environnement WoW/TomTom (`tools/test_
 | S24 | Butin des créatures de Forever : script Wowhead lu par le joueur (141 créatures, 12 035 lignes), importé par `--wowhead-loot` | `tools/wowhead_export_loot.js`, `tools/gen_loot_targets.py`, `tools/test_loot_export.js`, `tools/merge_skinning.py` | Oui | Lecture réelle faite ; calcul **non vu en jeu** |
 | S25 | Butin des cadavres dans la fenêtre de stats (sections Skinning et Kills, or des pièces, case) | `Stats.lua` | Oui | **Non vu** |
 
+### S-E. Meilleurs endroits, élites, rayon (v0.13.0)
+| Réf. | Fonctionnalité | Où | Hors jeu | En jeu |
+|---|---|---|---|---|
+| S26 | Deux cercles magenta (meilleurs endroits) avec or par heure et trois créatures nommées, guide qui y va en premier | `Rules.lua`, `Zones.lua`, `Overlay.lua`, `Runner.lua` | Oui | **Non vu** |
+| S27 | Option élites (case, `/sr elites`), temps de combat ×3, données `e = 1` (750 créatures) | `Rules.lua`, `UI.lua`, `Core.lua`, `tools/merge_skinning.py` | Oui | **Non vu** |
+| S28 | Rayon 350 yd forcé une fois, butin dans toutes les vues, cases dans les Options | `Core.lua`, `Resolver.lua`, `UI.lua` | Oui | **Non vu** |
+
 ### Idées et écarts
 - Plafond de réapparition et temps de recherche : écartés par le joueur (2026-11-24).
 - Commission d'HV : écartée par le joueur.

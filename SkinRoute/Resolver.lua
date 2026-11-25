@@ -30,7 +30,7 @@ function SR:LootAvailable()
 end
 
 function SR:LootEnabled()
-    return self.db.browse == "profit" and self.db.loot ~= false and self:LootAvailable()
+    return self.db.loot ~= false and self:LootAvailable()
 end
 
 function SR:GetRegions()

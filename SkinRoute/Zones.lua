@@ -118,7 +118,8 @@ function SR:ComputeZones(region, done)
         return self:Say(SR.RegionLabel(region) .. " is not resolved to a map. Try /sr debug.")
     end
     local radius, minCount, maxZones = self.db.zoneRadius, self.db.zoneMin, self.db.zoneMax
-    local key = ("%s:%d:%d:%d"):format(region, radius, minCount, maxZones)
+    local elites = self.db.elites == true
+    local key = ("%s:%d:%d:%d:%s"):format(region, radius, minCount, maxZones, tostring(elites))
     self.zoneSets = self.zoneSets or {}
     if self.zoneSets[key] then return done(self.zoneSets[key]) end
 
@@ -135,6 +136,8 @@ function SR:ComputeZones(region, done)
     local points = {}
     for _, cid in ipairs(cids) do
         local flat = self.Data.zones[region][cid]
+        local creature = self.Data.creatures[cid]
+        if creature and creature.e and not elites then flat = {} end
         for i = 1, #flat - 1, 2 do
             local wx, wy = hbd:GetWorldCoordinatesFromZone(flat[i] / 100, flat[i + 1] / 100, mapID)
             if wx then points[#points + 1] = {wx = wx, wy = wy, x = flat[i], y = flat[i + 1], cid = cid} end
@@ -171,6 +174,7 @@ function SR:RefreshZones()
     if s then
         s.ctx = self:Context()
         s.rows, s.hidden, s.anyPrice = self:RankZones(s.set, s.ctx)
+        s.best = self:PickBest(s)
         self:UpdateOverlay()
     end
     self:UpdateUI()
@@ -195,6 +199,16 @@ function SR:ShowZones(region, go)
         SR:ReportZones()
         if go then SR:StartGuide() end
     end)
+end
+
+function SR:ElitesChanged()
+    self.itemTotals = nil
+    self.auto = nil
+    if self.shown then
+        self:ShowZones(self.shown.region)
+    else
+        self:RefreshZones()
+    end
 end
 
 function SR:ClearZones()

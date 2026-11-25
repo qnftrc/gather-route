@@ -90,7 +90,7 @@ def load_cmangos(path, ranks):
         if int(d["Rank"]) not in ranks:
             ranked_out.add(entry)
             continue
-        creatures[entry] = {"name": d["Name"], "l1": int(d["MinLevel"]), "l2": int(d["MaxLevel"]), "loot": int(d["SkinningLootId"])}
+        creatures[entry] = {"name": d["Name"], "l1": int(d["MinLevel"]), "l2": int(d["MaxLevel"]), "loot": int(d["SkinningLootId"]), "elite": int(d["Rank"]) == 1}
     lcols = table_columns(sql, "skinning_loot_template")
     loot = collections.defaultdict(list)
     names = {}
@@ -317,7 +317,7 @@ def write_lua(path, items, creatures, zones):
     for cid in sorted(creatures):
         c = creatures[cid]
         drops = ", ".join("[%d] = {%s, %d, %d}" % (item, num(p), mn, mx) for item, (p, mn, mx) in sorted(c["drops"].items()))
-        lines.append("    [%d] = {n = %s, l = {%d, %d}, s = %s, d = {%s}}," % (cid, lua_str(c["name"]), c["l1"], c["l2"], lua_str(c["src"]), drops))
+        lines.append("    [%d] = {n = %s, l = {%d, %d}, s = %s,%s d = {%s}}," % (cid, lua_str(c["name"]), c["l1"], c["l2"], lua_str(c["src"]), " e = 1," if c.get("elite") else "", drops))
     lines += ["  },", "  zones = {"]
     for zone in sorted(zones):
         lines.append("    [%s] = {" % lua_str(zone))
@@ -339,7 +339,7 @@ def main(argv=None):
     ap.add_argument("--wowhead-loot", help="Wowhead creature drops export (wowhead_loot_forever.json): replaces the loot of the creatures it lists, with measured rates")
     ap.add_argument("--loot-out", help="Lua file for the corpse loot of the kept creatures (gray, white and green items, gold), read from the CMaNGOS dump")
     ap.add_argument("--skip-zone", action="append", default=[], help="zone name to leave out, repeatable (added to the default list of capitals, battleground and continent maps)")
-    ap.add_argument("--ranks", default="0", help="creature ranks kept, comma separated (0 normal, 1 elite, 2 rare elite, 3 boss, 4 rare)")
+    ap.add_argument("--ranks", default="0", help="creature ranks kept, comma separated (0 normal, 1 elite, 2 rare elite, 3 boss, 4 rare); elites (1) are written with e = 1 so that SkinRoute can leave them out unless asked")
     args = ap.parse_args(argv)
     ranks = {int(r) for r in args.ranks.split(",")}
 
@@ -358,7 +358,7 @@ def main(argv=None):
         if not d:
             no_loot += 1
             continue
-        final[cid] = {"name": c["name"], "l1": c["l1"], "l2": c["l2"], "src": "c", "drops": d}
+        final[cid] = {"name": c["name"], "l1": c["l1"], "l2": c["l2"], "src": "c", "drops": d, "elite": c["elite"]}
 
     wh_added = wh_zones = 0
     if args.wowhead:

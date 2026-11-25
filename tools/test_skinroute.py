@@ -249,6 +249,8 @@ def env(data=FIXTURE, pre=""):
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.globals().ROOT = ROOT
     lua.execute(MOCK)
+    if "SkinRouteDB" not in pre:
+        pre = "SkinRouteDB = {zoneRadius = 233, radiusVersion = 1}\n" + pre
     lua.execute(pre)
     if data:
         lua.execute(data)
@@ -776,7 +778,7 @@ def check_loot():
     lua.execute("SR.db.prices[5001] = nil")
     per = lua.eval("SR.Rules.lootValue(1, {lootData = SR.Loot.creatures, lootPrice = function(id) return SR:LootPrice(id) end})")
     assert abs(per - 130) < 1e-6, per
-    assert lua.eval("SR:LootAvailable()") is True and lua.eval("SR:LootEnabled()") is False, "loot only in the Profit view"
+    assert lua.eval("SR:LootAvailable()") is True and lua.eval("SR:LootEnabled()") is True, "loot counts in every view"
     lua.execute("SR:SetBrowseMode('profit')")
     assert lua.eval("SR:LootEnabled()") is True
     on = lua.eval("SR:AutoPlan('Test Valley')")
@@ -788,7 +790,7 @@ def check_loot():
     assert abs(off.skinPerHour - on.skinPerHour) < 1e-6
     assert "Usage" in lines(lua, 'return Slash("loot maybe")')
     assert "on" in lines(lua, 'return Slash("loot on")')
-    assert "Mob loot in the Profit view: on" in lines(lua, 'return Slash("loot")')
+    assert "Mob loot: on" in lines(lua, 'return Slash("loot")')
 
 
 def check_loot_ui():
@@ -809,6 +811,115 @@ def check_loot_ui():
     plain = guide_env()
     plain.execute("SR:SetBrowseMode('profit')")
     assert plain.eval("UI().lootCheck.shown") is False and plain.eval("UI().height") == 472
+
+
+BIG_FIXTURE = r'''
+SkinRoute_Data = {
+  items = {[2319] = "Medium Leather"},
+  creatures = {
+    [1] = {n = "Gray Bear", l = {21, 22}, s = "c", d = {[2319] = {50, 1, 1}}},
+    [2] = {n = "Old Wolf", l = {22, 22}, s = "c", d = {[2319] = {30, 1, 1}}},
+    [3] = {n = "Big Devil", l = {23, 23}, s = "c", e = 1, d = {[2319] = {100, 1, 2}}},
+  },
+  zones = {
+    ["Test Valley"] = {
+      [1] = {19, 19, 20, 19, 21, 19, 19, 20, 20, 20, 21, 20, 19, 21, 20, 21, 21, 21, 20, 22, 19, 22, 21, 22, 22, 22, 22, 21, 22, 20, 22, 19, 18, 19, 18, 20, 18, 21, 18, 22, 19, 23, 20, 23, 21, 23, 22, 23, 17, 20, 17, 21, 17, 22, 23, 20, 23, 21, 23, 22, 24, 21, 24, 22, 16, 21, 16, 22, 25, 21, 25, 22, 26, 21, 26, 22},
+      [2] = {20, 20, 20, 21, 21, 20, 21, 21, 22, 22},
+      [3] = {20, 20, 21, 20, 20, 21},
+    },
+  },
+}
+'''
+
+
+def big_env():
+    lua = env(data=BIG_FIXTURE)
+    lua.execute("TomTom.NameToMapId['Test Valley'] = 77; SR.mapsBuilt = false")
+    for c in ("items medium leather", "level 24", "skill 300", "price medium leather: 3420"):
+        lines(lua, 'return Slash("%s")' % c)
+    return lua
+
+
+def check_radius_default():
+    lua = env(pre="SkinRouteDB = {zoneRadius = 233}")
+    assert lua.eval("SR.db.zoneRadius") == 350 and lua.eval("SR.db.radiusVersion") == 1, "an older setting is moved to 350 once"
+    lines(lua, 'return Slash("radius 233")')
+    assert lua.eval("SR.db.zoneRadius") == 233
+    lua = env(pre="SkinRouteDB = {}")
+    assert lua.eval("SR.db.zoneRadius") == 350
+    lua = env(pre="SkinRouteDB = {zoneRadius = 233, radiusVersion = 1}")
+    assert lua.eval("SR.db.zoneRadius") == 233, "a later choice is kept"
+
+
+def check_elites():
+    lua = big_env()
+    assert abs(lua.eval("SR.Rules.killTime(0, 25, 10, 1.1, 3)") - 55) < 1e-9
+    assert abs(lua.eval("SR.Rules.killTime(0, 25, 10, 1.1)") - 25) < 1e-9
+    assert lua.eval("SR.db.elites") is False and lua.eval("SR.db.eliteFactor") == 3
+    off = lua.eval("SR:EvaluateRegion('Test Valley', SR:Context())")
+    expected = lua.eval("(#SkinRoute_Data.zones['Test Valley'][1] + #SkinRoute_Data.zones['Test Valley'][2]) / 2")
+    assert off.total == expected, (off.total, expected)
+    lines(lua, 'local s = Slash("zones test valley") RunTimers() return s .. Said()')
+    pts_off = lua.eval("SR.shown.set.points")
+    assert pts_off == expected
+    names_off = lua.eval("SR:ZoneCreatures(SR.shown.rows[1].zone.entries, SR:Context(), 5)")
+    assert all(not names_off[i].elite for i in range(1, 4) if names_off[i]), "no elite while the box is off"
+    assert "Elite mobs: included" in lines(lua, 'return Slash("elites on")')
+    lua.execute("RunTimers()")
+    pts_on = lua.eval("SR.shown.set.points")
+    assert pts_on == pts_off + 3, (pts_off, pts_on)
+    top = lua.eval("SR:ZoneCreatures(SR.shown.rows[1].zone.entries, SR:Context(), 5)")
+    elite_names = [top[i].name for i in range(1, 4) if top[i] and top[i].elite]
+    assert elite_names == ["Big Devil"], elite_names
+    on = lua.eval("SR:EvaluateRegion('Test Valley', SR:Context())")
+    assert on.total == off.total + 3
+    base = lua.eval("SR.Rules.killTime(1, 25, 10, 1.1)")
+    elite = lua.eval("SR.Rules.killTime(1, 25, 10, 1.1, 3)")
+    assert elite > base
+    assert "Usage" in lines(lua, 'return Slash("elites factor 99")')
+    assert "x5" in lines(lua, 'return Slash("elites factor 5")') and lua.eval("SR.db.eliteFactor") == 5
+    assert "left out" in lines(lua, 'return Slash("elites off")')
+    lines(lua, 'return Slash("")')
+    lua.execute("Click(UI().optionsButton)")
+    assert lua.eval("UI().elites.shown") is True and lua.eval("UI().elites.checked") is not None
+    lua.execute("UI().elites:SetChecked(true); Click(UI().elites); RunTimers()")
+    assert lua.eval("SR.db.elites") is True and lua.eval("SR.shown.set.points") == pts_on
+    lua.execute("UI().elites:SetChecked(false); Click(UI().elites); RunTimers()")
+    assert lua.eval("SR.db.elites") is False and lua.eval("SR.shown.set.points") == pts_off
+
+
+def check_best_circles():
+    lua = big_env()
+    lua.execute("""
+    local function row(id, perHour, skinnable, wx, wy, status)
+        return {zone = {id = id, wx = wx, wy = wy}, eval = {status = status or "ok", perHour = perHour, dropsHour = perHour, skinnable = skinnable}}
+    end
+    local rows = {row(1, 100, 40, 0, 0), row(2, 90, 50, 100, 0), row(3, 80, 60, 800, 0), row(4, 200, 20, 900, 0), row(5, 300, 99, 2000, 0, "locked")}
+    BEST = SR:PickBest({rows = rows, set = {radius = 350}, anyPrice = true})
+    ROWS = rows
+    """)
+    assert lua.eval("BEST[1].zone.id") == 1 and lua.eval("BEST[2].zone.id") == 3, "the second best does not overlap the first"
+    assert lua.eval("#BEST") == 2
+    lua.execute("BEST = SR:PickBest({rows = {ROWS[4], ROWS[5]}, set = {radius = 350}, anyPrice = true})")
+    assert lua.eval("#BEST") == 0, "under 35 mobs or locked: nothing"
+    lua.execute("BEST = SR:PickBest({rows = {ROWS[1], ROWS[2]}, set = {radius = 350}, anyPrice = true})")
+    assert lua.eval("#BEST") == 1 and lua.eval("BEST[1].zone.id") == 1, "only one place when the other one overlaps"
+
+    lines(lua, 'local s = Slash("zones test valley") RunTimers() return s')
+    assert lua.eval("SR.shown.best[1] ~= nil") is True and lua.eval("SR.shown.best[1].eval.skinnable") >= 35
+    lua.execute("mapOpen = true; mapShown = 77; SR:UpdateOverlay()")
+    color = lua.eval("LineAt(1).color")
+    assert abs(color[1] - 1) < 1e-6 and abs(color[2] - 0.24) < 1e-6 and abs(color[3] - 0.95) < 1e-6, color
+    texts = lines(lua, "return ShownTexts()")
+    assert "/h" in texts and "Gray Bear" in texts and "Old Wolf" in texts and "mobs" in texts and "Big Devil" not in texts, texts
+    lines(lua, 'return Slash("elites on")')
+    lua.execute("RunTimers(); SR:UpdateOverlay()")
+    assert "Big Devil (E)" in lines(lua, "return ShownTexts()")
+    lines(lua, 'return Slash("elites off")')
+    lua.execute("RunTimers()")
+    lines(lua, 'local s = Slash("go test valley") RunTimers() return s')
+    first = lua.eval("SR.guide.row.zone.id")
+    assert first == lua.eval("SR.shown.best[1].zone.id"), "the guide starts with the best place"
 
 
 def check_auto_plan():
@@ -990,10 +1101,10 @@ def check_ui_options():
     assert lua.eval("UI().optionsButton.text") == "Options +"
     assert lua.eval("UI().showMap.shown") is False
     lua.execute("Click(UI().optionsButton)")
-    assert lua.eval("SR.db.optionsShown") is True and lua.eval("UI().height") == 640 and lua.eval("UI().optionsButton.text") == "Options -"
+    assert lua.eval("SR.db.optionsShown") is True and lua.eval("UI().height") == 692 and lua.eval("UI().optionsButton.text") == "Options -"
     assert all(lua.eval("UI().optionWidgets[%d].shown" % i) is True for i in range(1, lua.eval("#UI().optionWidgets") + 1))
     lua.execute("SR:SetBrowseMode('value')")
-    assert lua.eval("UI().height") == 650
+    assert lua.eval("UI().height") == 702
     lua.execute("SR:SetBrowseMode('region')")
     assert lua.eval("UI().showMap.checked") is True and lua.eval("UI().chat.checked") is False and lua.eval("UI().band.checked") is True
 
@@ -1808,6 +1919,9 @@ def main():
     check_fill()
     check_label_font_scales()
     check_profit()
+    check_radius_default()
+    check_elites()
+    check_best_circles()
     check_auto_plan()
     check_loot()
     check_loot_ui()
