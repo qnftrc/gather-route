@@ -370,7 +370,7 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS18 | Prix du butin : manuel, sinon gris au prix marchand, blanc et vert au plus haut de l'HV et du marchand ; or des pièces compté | 2026-11-25 | Appliquée (or à confirmer) |
 | DS19 | Butin compté seulement dans la vue Profit, activé par défaut, case pour le décocher, `/sr loot` | 2026-11-25 | Appliquée (demande du joueur) |
 | DS20 | Cuir et butin séparés à l'affichage de la vue Profit (trois lignes par région) | 2026-11-25 | Appliquée (demande du joueur) |
-| DS21 | Butin des créatures de Forever par script Wowhead (140 pages) et butin dans la fenêtre de stats : à faire | 2026-11-25 | Prévue |
+| DS21 | Butin des créatures de Forever par script Wowhead (141 pages : 72 absentes de CMaNGOS, 29 modifiées, 40 de contrôle) : script écrit et testé sur un faux navigateur ; lecture réelle et import à faire. Butin dans la fenêtre de stats : à faire | 2026-11-25 | Script livré, import prévu |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |

@@ -45,5 +45,13 @@ python3 -I tools/test_skinroute.py
 ```
 Avec `--loot-out SkinRoute/Data/LootData.lua`, il écrit aussi le butin des bêtes (qualités 0 à 2, or moyen, listes partagées résolues), également non versionné. `merge_skinning.py` exclut les créatures rares, élites, boss et marquées (`--ranks 0`), écarte les objets de quête et les zones inutiles (`--skip-zone`, villes, champ de bataille, continents) et écrit `SkinRoute_Data` (objets, créatures, points par zone). Le fichier généré n'est **pas versionné** (licences classic-db et pfQuest). `test_skinroute.py` charge SkinRoute dans un faux environnement WoW/TomTom ; avec `SKINROUTE_DATA=SkinRoute/Data/SkinData.lua` il ajoute des essais sur les vraies données. Il finit par `SKINROUTE TESTS OK`.
 
+## SkinRoute : butin des créatures de Forever (Wowhead)
+`tools/wowhead_export_loot.js` se colle dans la console du navigateur sur une page `wowhead.com/forever/...`. Il lit l'onglet Drops (mesures `[drops observés, dépeçages]`) de 141 créatures : 72 ajouts de Forever absents de CMaNGOS, 29 créatures que Forever a rendues dépecables, 40 créatures de contrôle (butin CMaNGOS à comparer). Une passe d'environ 13 minutes, mêmes garde-fous que l'export du dépeçage (confirmation avec durée, arrêt manuel `window.__lootStop = true`, refus du site, réseau, titres ou onglets inattendus, état dans `localStorage`, reprise en relançant), fichier final `wowhead_loot_forever.json` seulement si la validation passe (`window.__lootDump()` pour un diagnostic). La liste est produite par :
+```bash
+python3 -I tools/gen_loot_targets.py --skin SkinRoute/Data/SkinData.lua --loot SkinRoute/Data/LootData.lua --cmangos <classic-db>.sql
+node tools/test_loot_export.js
+```
+`test_loot_export.js` exécute le script dans Node avec un faux navigateur (pages simulées : fichier final, refus 405, annulation, pages sans onglet, titres inattendus, arrêt puis reprise). Il ne dit rien du vrai format des pages Wowhead : la première page lue affiche ses onglets dans la console.
+
 ## Prérequis
 `pip install lupa` (Lua embarqué, version 5.5 ; WoW exécute du Lua 5.1), Python 3 et Node.js.

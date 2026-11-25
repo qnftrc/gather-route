@@ -212,7 +212,7 @@ Références **S**. « Hors jeu » = faux environnement WoW/TomTom (`tools/test_
 | S21 | Extraction du butin CMaNGOS (références, groupes, or) : `--loot-out` | `tools/merge_skinning.py`, `tools/test_merge_skinning.py` | Oui | — |
 | S22 | Prix du butin : gris marchand, blanc et vert au plus haut de l'HV et du marchand | `Prices.lua` | Oui | **Non vu** |
 | S23 | Butin dans la valeur et le gain par heure, case « Mob loot », `/sr loot`, cuir et butin séparés | `Rules.lua`, `UI.lua`, `Core.lua` | Oui | **Non vu** |
-| S24 | Butin des créatures de Forever (script Wowhead) | `tools/` | — | **À faire** |
+| S24 | Butin des créatures de Forever : script Wowhead livré, lecture réelle et import à faire | `tools/wowhead_export_loot.js`, `tools/gen_loot_targets.py`, `tools/test_loot_export.js` | Faux navigateur | **À lancer** |
 | S25 | Butin des cadavres dans la fenêtre de stats | `Stats.lua` | — | **À faire** |
 
 ### Idées et écarts
