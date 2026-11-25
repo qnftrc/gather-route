@@ -172,6 +172,7 @@ end
 function SR:RefreshZones()
     local s = self.shown
     if s then
+        if self.db.browse == "profit" then self.auto = self:AutoPlan(s.region) end
         s.ctx = self:Context()
         s.rows, s.hidden, s.anyPrice = self:RankZones(s.set, s.ctx)
         s.best = self:PickBest(s)

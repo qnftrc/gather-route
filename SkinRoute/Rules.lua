@@ -48,7 +48,7 @@ function R.evaluate(entries, creatures, ctx)
     local levelSum = 0
     for _, entry in ipairs(entries) do
         local c = creatures[entry.id]
-        if c and (not c.e or ctx.elites) then
+        if c and (not c.e or ctx.elites) and (not ctx.only or ctx.only[entry.id]) then
             local per, perValue, relevant = 0, 0, false
             for item, d in pairs(c.d) do
                 if ctx.items[item] then
@@ -177,13 +177,15 @@ function R.plan(entries, creatures, ctx, anyPrice)
         if a.v ~= b.v then return a.v > b.v end
         return a.id < b.id
     end)
+    local only = {}
+    for _, k in ipairs(chosen) do only[k.id] = true end
     local ids, set = {}, {}
     for _, it in ipairs(list) do
         ids[#ids + 1] = it.id
         set[it.id] = true
     end
     return {
-        ids = ids, set = set, perHour = bt > 0 and (bv + bl) / bt * 3600 or 0,
+        ids = ids, set = set, creatures = only, perHour = bt > 0 and (bv + bl) / bt * 3600 or 0,
         skinPerHour = bt > 0 and bv / bt * 3600 or 0, lootPerHour = bt > 0 and bl / bt * 3600 or 0,
         value = bv + bl, seconds = bt, mobs = mobs, usable = bestN > 0,
     }
@@ -207,6 +209,7 @@ function SR:AutoPlan(region, ctx, anyPrice)
     local all = {}
     for k, v in pairs(ctx) do all[k] = v end
     all.items = self:AllItemSet()
+    all.only = nil
     if anyPrice == nil then anyPrice = self:AnyPrice() end
     local plan = R.plan(self:RegionEntries(region), self.Data.creatures, all, anyPrice)
     plan.region = region
@@ -294,7 +297,7 @@ function SR:ZoneCreatures(entries, ctx, limit)
     local list = {}
     for _, en in ipairs(entries) do
         local c = self.Data.creatures[en.id]
-        if c and (not c.e or ctx.elites) and (not ctx.bandOnly or R.inBand(c, ctx.level, ctx.lo, ctx.hi))
+        if c and (not c.e or ctx.elites) and (not ctx.only or ctx.only[en.id]) and (not ctx.bandOnly or R.inBand(c, ctx.level, ctx.lo, ctx.hi))
             and (ctx.skill == nil or R.canSkin(ctx.skill, c.l[2])) then
             local v, relevant = 0, false
             for item, d in pairs(c.d) do

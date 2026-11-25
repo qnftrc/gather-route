@@ -4,6 +4,12 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.13.1 : les cercles utilisent le même filtre que la région (DS28)
+- **Constat du joueur** (captures en jeu) : Tanaris à 36 or 34 argent 17 cuivre par heure dans la fenêtre (Leather 22 or 16 argent 76 cuivre, Loot 14 or 17 argent 41 cuivre) contre 31 or 61 argent 83 cuivre et 29 or 18 argent 36 cuivre sur les deux cercles magenta. Cause : la région ne garde que les types de créatures à au moins 70 % du meilleur gain par seconde (`/sr keep`), le cercle comptait toutes les bêtes qu'il contient.
+- **DS28** : en vue Profit, les cercles ne comptent que les créatures retenues pour la région (`SR.auto.creatures`, `ctx.only`) ; leur gain par heure, leur nombre de bêtes (dont le minimum de 35), les noms des trois créatures et le choix des deux meilleurs endroits suivent ce même filtre. Le plan de la région est recalculé à chaque rafraîchissement (niveau, Dépeçage, prix, case des élites, `/sr keep`). Dans les autres vues, aucun filtre de ce type (pas de choix automatique).
+- Simulation sur les données réelles (prix inventés, Tanaris niveau 48, Dépeçage 300) : région 148 g/h ; cercles magenta 158 g/h (90 bêtes) et 149 g/h (39 bêtes), contre 146 et 138 g/h avant. Les valeurs du joueur n'ont pas pu être reproduites (prix réels inconnus).
+- Vérification hors jeu uniquement. Poussée et zip toujours suspendus à l'ordre du joueur.
+
 ### 2026-11-25 — SkinRoute 0.13.0 : deux meilleurs endroits en magenta, option élites, rayon 350, butin dans toutes les vues (DS24 à DS27)
 - **Demandes du joueur** : (1) mettre le calcul de rentabilité sur **deux cercles au maximum** pour indiquer le meilleur endroit, en **magenta**, **sans chevauchement**, minimum de **35 bêtes**, dans **toutes les vues**, avec le nom des **trois créatures les plus rentables** (sans minimum d'apparitions : une créature unique comme le Devilsaur doit ressortir) ; (2) **rayon de 350 yd par défaut, forcé** ; (3) **butin dans toutes les vues** ; (4) une **option pour ajouter les élites**, décochée par défaut, avec une règle de temps de kill appliquée automatiquement aux élites seulement (combat ×3).
 - **DS24 — élites** : `tools/merge_skinning.py --ranks 0,1` écrit les élites avec `e = 1` ; base de 750 créatures (dont 99 élites, +991 points, Devilsaur, Ironhide Devilsaur et Tyrant Devilsaur inclus). Case « Include elite mobs (slower to kill) » dans les Options (`db.elites`, désactivée par défaut), `/sr elites [on|off|factor <1-10>]`. Décochée, les élites sont ignorées partout (régions, cercles, valeurs, noms) ; cochée, les cercles sont recalculés. Temps de kill d'une élite = 10 s fixes + 15 s × 1,10^écart × **3** (`db.eliteFactor`) ; les créatures normales gardent leur règle. Le facteur 3 est une estimation. Les élites ne viennent pas de Wowhead Forever (l'export les écartait) : position pfQuest, butin CMaNGOS.
@@ -398,6 +404,7 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS25 | Deux meilleurs endroits en magenta (35 bêtes au moins, cercles disjoints, or par heure, trois créatures nommées par gain par seconde sans minimum d'apparitions) ; le guide y va en premier | 2026-11-25 | Appliquée (demande du joueur) |
 | DS26 | Rayon par défaut 350 yd, forcé une fois sur les réglages existants | 2026-11-25 | Appliquée (demande du joueur) |
 | DS27 | Butin compté dans toutes les vues | 2026-11-25 | Appliquée (demande du joueur) |
+| DS28 | En vue Profit, les cercles (gain par heure, nombre de bêtes, noms, choix des deux meilleurs endroits) ne comptent que les créatures retenues pour la région (même filtre que `/sr keep`) | 2026-11-25 | Appliquée (demande du joueur) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
