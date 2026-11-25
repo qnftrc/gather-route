@@ -290,9 +290,9 @@ def check_wowhead(tmp, data):
     assert 201 not in keys(d.creatures)
     bear = d.creatures[100]
     assert bear.s == "cw" and bear.d[2318][1] == 40
-    assert flat(d.zones["Hillsbrad Foothills"][100]) == [46.2, 9.3], "pfQuest points must not be duplicated"
+    assert flat(d.zones["Hillsbrad Foothills"][100]) == [9, 9], "Wowhead points replace the pfQuest points"
     assert flat(d.zones["Riverglades"][100]) == [33, 44]
-    assert "2 creature(s) added, 1 zone(s) filled in" in report, report
+    assert "2 creature(s) added, 1 creature(s) whose points were replaced by Wowhead's" in report, report
 
 
 def main():

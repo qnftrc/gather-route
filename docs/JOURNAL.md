@@ -4,6 +4,12 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.14.2 : points d'apparition de Wowhead Forever à la place de ceux de pfQuest (DS32, remplace DS5 pour les positions)
+- **Constat du joueur** : une capture de la carte Wowhead de Tanaris montre des Surf Gliders sur la côte sud que la base n'avait pas. Cause : `tools/merge_skinning.py` gardait les points de pfQuest (42 pour le Surf Glider, jusqu'à y = 82) et n'ajoutait ceux de Wowhead que pour les zones absentes de pfQuest ; l'export Wowhead en contenait 83 (jusqu'à y = 96,8). Sur les 607 créatures de l'export, Wowhead donnait 32 663 points contre 23 520 dans la base ; les deux sources ne décrivent pas les mêmes positions (une fusion à 0,5 % de tolérance aurait ajouté 71 % de points).
+- **Choix du joueur : option 1, remplacer par Wowhead.** **DS32** : pour toute créature de l'export Wowhead, ses points (toutes zones) remplacent ceux de pfQuest ; pfQuest ne sert plus qu'aux créatures absentes de l'export (surtout les élites). Résultat : 33 815 points (23 520 avant), 480 créatures dont les points viennent de Wowhead, 104 créatures ajoutées par Wowhead ; Surf Glider : 83 points. **Révise DS5** (nombre de bêtes = un point CMaNGOS par spawn) : le nombre de bêtes suit maintenant les points de Wowhead, dont on ignore s'ils comptent un spawn chacun ou incluent des points de patrouille.
+- **Effets mesurés** (données réelles, prix d'HV du 25/11, niveau 49, rayon 350) : Tanaris passe de 877 à 727 points (certaines régions ont moins de points, d'autres plus) ; deux zones de Surf Gliders : (55, 91) à la côte sud avec 51 gliders, (67, 59) avec 30 ; chacune à 33 or 87 argent 12 cuivre par heure (zone composée uniquement de Surf Gliders). Zones des 44 régions : 0,20 s hors jeu.
+- Vérification hors jeu uniquement ; données non versionnées ; poussée et zip suspendus à l'ordre du joueur.
+
 ### 2026-11-25 — SkinRoute 0.14.1 : la case « Mob loot » passe sous la liste (DS31)
 - **Constat du joueur** (capture en jeu, vue Profit) : la case « Mob loot (gray, white, green) » chevauchait le titre de la liste. **DS31** : le titre reste seul sur sa ligne, la case se place sous la liste (12 px de la gauche, 2 px sous la liste), et le bas de la fenêtre descend de 24 px (en plus des 36 px des lignes à trois lignes) ; elle n'apparaît que si le butin est disponible dans la vue Profit. Vérification hors jeu uniquement ; poussée et zip suspendus à l'ordre du joueur.
 
@@ -422,6 +428,7 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS28 | En vue Profit, les cercles (gain par heure, nombre de bêtes, noms, choix des deux meilleurs endroits) ne comptent que les créatures retenues pour la région (même filtre que `/sr keep`) | 2026-11-25 | Appliquée (demande du joueur) | ; **remplacée par DS29**
 | DS29 | Les cercles comptent toutes les bêtes qui donnent les cuirs retenus (la règle des 70 % ne s'applique plus qu'à la région) | 2026-11-25 | Appliquée (demande du joueur) |
 | DS30 | Fin de la règle des 70 % : en vue Profit, la région affiche le gain par heure de sa meilleure zone (35 bêtes au moins), zones des 44 régions calculées en arrière-plan | 2026-11-25 | Appliquée (demande du joueur) ; remplace DS14, DS28 et DS29 |
+| DS32 | Pour les créatures de l'export Wowhead, les points de Wowhead remplacent ceux de pfQuest (pfQuest seulement pour les créatures absentes de l'export) | 2026-11-25 | Appliquée (option 1 du joueur) ; révise DS5 |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |

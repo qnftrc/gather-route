@@ -360,7 +360,7 @@ def main(argv=None):
             continue
         final[cid] = {"name": c["name"], "l1": c["l1"], "l2": c["l2"], "src": "c", "drops": d, "elite": c["elite"]}
 
-    wh_added = wh_zones = 0
+    wh_added = wh_replaced = 0
     if args.wowhead:
         item_ids, wdrops, wcreatures, wpoints = load_wowhead(args.wowhead, zone_names)
         for name, item in item_ids.items():
@@ -370,12 +370,10 @@ def main(argv=None):
                 continue
             pts = wpoints.get(cid, {})
             if cid in final:
-                have = points.get(cid, {})
-                extra = {z: p for z, p in pts.items() if z not in have}
-                if extra:
-                    points.setdefault(cid, {}).update(extra)
+                if pts:
+                    points[cid] = {z: list(p) for z, p in pts.items()}
                     final[cid]["src"] = "cw"
-                    wh_zones += len(extra)
+                    wh_replaced += 1
                 continue
             d = {}
             for name, per in wdrops.items():
@@ -430,7 +428,7 @@ def main(argv=None):
         len(final), src_count["c"], src_count["cw"], src_count["w"]))
     print("ranks filtered out: %d | no loot rows: %d | no points: %d | bad pfQuest coords: %d" % (
         len(ranked_out), no_loot, len(no_points), bad))
-    print("wowhead: %d creature(s) added, %d zone(s) filled in" % (wh_added, wh_zones))
+    print("wowhead: %d creature(s) added, %d creature(s) whose points were replaced by Wowhead's" % (wh_added, wh_replaced))
     print("quest loot removed: %d row(s), %d quest item(s) | skipped zones: %d point(s) in %d zone(s)" % (
         quest_rows, len(quest_items), skipped_points, len(skipped_names)))
     print("items: %d | zones: %d | points: %d" % (len(items), len(zones), total_points))
