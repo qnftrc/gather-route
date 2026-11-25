@@ -239,6 +239,14 @@ def check_loot(tmp):
     assert got[1][0] == 100.0, got
 
 
+def check_merge_close(tmp):
+    kept, removed = merge_skinning.merge_close([(11, 11), (10, 10), (10.1, 10), (10.2, 10.05)], 0.25)
+    assert removed == 2 and kept == [(10, 10), (11, 11)], (kept, removed)
+    assert merge_skinning.merge_close([(1, 1), (1.1, 1)], 0) == ([(1, 1), (1.1, 1)], 0)
+    d, report = build(tmp, wowhead=LEGACY)
+    assert "merged close points: 0 removed (tolerance 0.25 %)" in report, report
+
+
 def keys(t):
     return sorted(list(t.keys()))
 
@@ -297,7 +305,7 @@ def check_wowhead(tmp, data):
 
 def main():
     for name, fn in [("base", lambda t: check_base(t)), ("ranks", lambda t: check_ranks(t)), ("skip zone", lambda t: check_skip_zone(t)),
-                     ("loot", lambda t: check_loot(t)), ("wowhead legacy", lambda t: check_wowhead(t, LEGACY)), ("wowhead v3", lambda t: check_wowhead(t, V3))]:
+                     ("merge close", lambda t: check_merge_close(t)), ("loot", lambda t: check_loot(t)), ("wowhead legacy", lambda t: check_wowhead(t, LEGACY)), ("wowhead v3", lambda t: check_wowhead(t, V3))]:
         with tempfile.TemporaryDirectory() as tmp:
             fn(tmp)
     print("MERGE SKINNING TESTS OK")

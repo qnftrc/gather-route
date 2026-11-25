@@ -4,6 +4,12 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.14.3 : fusion des points voisins à 0,25 % (DS33)
+- **Demande du joueur** : après l'analyse des doublons potentiels (aucun doublon exact ; 8,2 % de points à moins de 0,25 % d'un autre point de la même créature dans la même zone, 21,5 % à 0,5 %, 43,6 % à 1 % ; 1 443 emplacements partagés par plusieurs créatures, soit 1 688 points en trop), le joueur choisit de **fusionner à 0,25 %**.
+- **DS33** : `tools/merge_skinning.py --merge-tol 0.25` (défaut 0,25 ; 0 désactive) : les points d'une même créature dans une même zone à moins de 0,25 % de la carte d'un point déjà gardé sont retirés (parcours en ordre croissant de coordonnées, le premier est gardé). Sur la base : 2 768 points retirés, 31 047 restants (33 815 avant). Les emplacements partagés entre créatures différentes ne sont **pas** traités (option 3 non choisie). Tanaris : 727 puis 674 points ; Surf Glider : 83 puis 80 points.
+- **Effet sur le Surf Glider de Tanaris** (prix d'HV du 25/11, niveau 49, rayon 350) : zone (55, 91) côte sud avec 49 gliders et zone (68, 59) côte est avec 28 gliders, chacune à 33 or 87 argent 12 cuivre par heure ; deuxième cercle magenta en (65, 26), 80 bêtes, 30 or 85 argent 45 cuivre par heure.
+- Vérification hors jeu uniquement ; données non versionnées ; poussée et zip suspendus à l'ordre du joueur.
+
 ### 2026-11-25 — SkinRoute 0.14.2 : points d'apparition de Wowhead Forever à la place de ceux de pfQuest (DS32, remplace DS5 pour les positions)
 - **Constat du joueur** : une capture de la carte Wowhead de Tanaris montre des Surf Gliders sur la côte sud que la base n'avait pas. Cause : `tools/merge_skinning.py` gardait les points de pfQuest (42 pour le Surf Glider, jusqu'à y = 82) et n'ajoutait ceux de Wowhead que pour les zones absentes de pfQuest ; l'export Wowhead en contenait 83 (jusqu'à y = 96,8). Sur les 607 créatures de l'export, Wowhead donnait 32 663 points contre 23 520 dans la base ; les deux sources ne décrivent pas les mêmes positions (une fusion à 0,5 % de tolérance aurait ajouté 71 % de points).
 - **Choix du joueur : option 1, remplacer par Wowhead.** **DS32** : pour toute créature de l'export Wowhead, ses points (toutes zones) remplacent ceux de pfQuest ; pfQuest ne sert plus qu'aux créatures absentes de l'export (surtout les élites). Résultat : 33 815 points (23 520 avant), 480 créatures dont les points viennent de Wowhead, 104 créatures ajoutées par Wowhead ; Surf Glider : 83 points. **Révise DS5** (nombre de bêtes = un point CMaNGOS par spawn) : le nombre de bêtes suit maintenant les points de Wowhead, dont on ignore s'ils comptent un spawn chacun ou incluent des points de patrouille.
@@ -429,6 +435,7 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS29 | Les cercles comptent toutes les bêtes qui donnent les cuirs retenus (la règle des 70 % ne s'applique plus qu'à la région) | 2026-11-25 | Appliquée (demande du joueur) |
 | DS30 | Fin de la règle des 70 % : en vue Profit, la région affiche le gain par heure de sa meilleure zone (35 bêtes au moins), zones des 44 régions calculées en arrière-plan | 2026-11-25 | Appliquée (demande du joueur) ; remplace DS14, DS28 et DS29 |
 | DS32 | Pour les créatures de l'export Wowhead, les points de Wowhead remplacent ceux de pfQuest (pfQuest seulement pour les créatures absentes de l'export) | 2026-11-25 | Appliquée (option 1 du joueur) ; révise DS5 |
+| DS33 | Points d'une même créature et d'une même zone à moins de 0,25 % fusionnés dans `merge_skinning.py` (`--merge-tol`) | 2026-11-25 | Appliquée (choix du joueur) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |

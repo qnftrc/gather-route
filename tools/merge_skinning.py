@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import collections
+import math
 import gzip
 import json
 import os
@@ -231,6 +232,16 @@ def write_loot_lua(path, items, creatures):
         f.write("\n".join(lines))
 
 
+def merge_close(points, tol):
+    if tol <= 0:
+        return list(points), 0
+    kept = []
+    for x, y in sorted(points):
+        if not any(math.hypot(x - a, y - b) <= tol for a, b in kept):
+            kept.append((x, y))
+    return kept, len(points) - len(kept)
+
+
 def load_zone_names(pfquest_dir):
     path = os.path.join(pfquest_dir, "enUS", "zones.lua")
     names = {}
@@ -339,6 +350,7 @@ def main(argv=None):
     ap.add_argument("--wowhead-loot", help="Wowhead creature drops export (wowhead_loot_forever.json): replaces the loot of the creatures it lists, with measured rates")
     ap.add_argument("--loot-out", help="Lua file for the corpse loot of the kept creatures (gray, white and green items, gold), read from the CMaNGOS dump")
     ap.add_argument("--skip-zone", action="append", default=[], help="zone name to leave out, repeatable (added to the default list of capitals, battleground and continent maps)")
+    ap.add_argument("--merge-tol", type=float, default=0.25, help="points of the same creature in the same zone closer than this (in %% of the map) are merged into one (default 0.25, 0 = off)")
     ap.add_argument("--ranks", default="0", help="creature ranks kept, comma separated (0 normal, 1 elite, 2 rare elite, 3 boss, 4 rare); elites (1) are written with e = 1 so that SkinRoute can leave them out unless asked")
     args = ap.parse_args(argv)
     ranks = {int(r) for r in args.ranks.split(",")}
@@ -398,6 +410,12 @@ def main(argv=None):
         if not kept:
             del points[cid]
 
+    merged_total = 0
+    for cid in points:
+        for zone in points[cid]:
+            points[cid][zone], removed = merge_close(points[cid][zone], args.merge_tol)
+            merged_total += removed
+
     no_points = []
     for cid in list(final):
         if cid not in points:
@@ -431,6 +449,7 @@ def main(argv=None):
     print("wowhead: %d creature(s) added, %d creature(s) whose points were replaced by Wowhead's" % (wh_added, wh_replaced))
     print("quest loot removed: %d row(s), %d quest item(s) | skipped zones: %d point(s) in %d zone(s)" % (
         quest_rows, len(quest_items), skipped_points, len(skipped_names)))
+    print("merged close points: %d removed (tolerance %s %%)" % (merged_total, args.merge_tol))
     print("items: %d | zones: %d | points: %d" % (len(items), len(zones), total_points))
     for zone, per in sorted(zones.items(), key=lambda kv: -sum(len(p) for p in kv[1].values()))[:10]:
         print("  %-28s %4d creatures %6d points" % (zone, len(per), sum(len(p) for p in per.values())))
