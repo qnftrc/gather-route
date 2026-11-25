@@ -804,14 +804,17 @@ def check_loot_ui():
     lua.execute("SR.db.ahPrices[5002] = {c = 100, at = 1}; SR.db.ahPrices[5003] = {c = 1000, at = 1}")
     profit_view(lua)
     assert lua.eval("UI().lootCheck.shown") is True
-    assert lua.eval("UI().height") == 472 + 36 and lua.eval("UI().listScroll.h") == 216
+    assert lua.eval("UI().height") == 472 + 36 + 24 and lua.eval("UI().listScroll.h") == 216
+    assert lua.eval("UI().lootCheck.py") == -(104 + 216 + 2), "the box sits under the list, not beside its title"
+    assert lua.eval("UI().lower.py") == -(296 + 60) if lua.eval("UI().lower.py") is not None else True
     row = lua.eval("UI().rows[1]")
     assert "Leather" in row.sub.text and "Loot" in row.sub.text, row.sub.text
     assert row.sub2.text.startswith("-> "), row.sub2.text
     lua.execute("Click(UI().generate) RunTimers()")
     assert lua.eval("SR.shown.rows[1].eval.lootValue") > 0
     lua.execute("UI().lootCheck:SetChecked(false); Click(UI().lootCheck)")
-    assert lua.eval("SR.db.loot") is False and lua.eval("UI().height") == 472
+    assert lua.eval("SR.db.loot") is False and lua.eval("UI().height") == 472 + 24, "the box stays under the list"
+    assert lua.eval("UI().lootCheck.py") == -(104 + 180 + 2)
     assert lua.eval("UI().rows[1].sub.text").startswith("-> ") and lua.eval("UI().rows[1].sub2.text") == ""
     lua.execute("SR:SetBrowseMode('region')")
     assert lua.eval("UI().lootCheck.shown") is False

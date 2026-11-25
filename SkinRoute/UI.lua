@@ -557,10 +557,15 @@ end
 
 function applyLayout()
     local value = ui.mode == "value"
-    local extra = (ui.mode == "profit" and SR:LootEnabled() and SR:AnyPrice()) and 36 or 0
+    local profit = ui.mode == "profit"
+    local rowsExtra = (profit and SR:LootEnabled() and SR:AnyPrice()) and 36 or 0
+    local checkExtra = (profit and SR:LootAvailable()) and 24 or 0
+    local extra = rowsExtra + checkExtra
     ui.lower:ClearAllPoints()
     ui.lower:SetPoint("TOPLEFT", ui, "TOPLEFT", 0, -(296 + (value and 10 or 0) + extra))
-    ui.listScroll:SetSize(320 + WIDE, 180 + extra)
+    ui.listScroll:SetSize(320 + WIDE, 180 + rowsExtra)
+    ui.lootCheck:ClearAllPoints()
+    ui.lootCheck:SetPoint("TOPLEFT", ui, "TOPLEFT", 12, -(104 + 180 + rowsExtra + 2))
     local shown = SR.db.optionsShown == true
     for _, w in ipairs(ui.optionWidgets) do w:SetShown(shown) end
     ui.optionsButton:SetText(shown and "Options -" or "Options +")
