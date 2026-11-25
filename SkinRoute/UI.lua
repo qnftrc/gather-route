@@ -233,15 +233,16 @@ local AUTO_ROW, AUTO_ROW_LOOT = 36, 54
 local LOOT_COLOR, SKIN_COLOR = "|cff7fcf7f", "|cffd9a066"
 local NO_PRICE_ALERT = "|cffff4040No AH price known: scan the auction house|r"
 
-local function itemsLine(plan)
+local function itemsLine(ids)
     local names = {}
-    for k = 1, math.min(3, #plan.ids) do names[#names + 1] = SR:ItemLabel(plan.ids[k]) end
+    for k = 1, math.min(3, #ids) do names[#names + 1] = SR:ItemLabel(ids[k]) end
     local text = table.concat(names, ", ")
-    if #plan.ids > 3 then text = text .. (" (+%d)"):format(#plan.ids - 3) end
+    if #ids > 3 then text = text .. (" (+%d)"):format(#ids - 3) end
     return text ~= "" and ("-> " .. text) or ""
 end
 
 local function fillAuto()
+    SR:EnsureAllZones()
     local c = SR:Context()
     local rows, anyPrice = SR:RankAuto()
     local loot = SR:LootEnabled() and anyPrice
@@ -254,16 +255,18 @@ local function fillAuto()
         cb.itemId, cb.region = nil, row.region
         cb:SetScript("OnClick", function() chooseRegion(row.region) end)
         local e = row.eval
-        local suffix
-        if e.status == "ok" or e.status == "partial" then
-            suffix = anyPrice and (SR.Money(row.plan.perHour) .. "/h") or ("~%.0f items/h"):format(row.plan.perHour)
+        local suffix, best = nil, row.best and row.best.eval
+        if best then
+            suffix = anyPrice and (SR.Money(best.perHour) .. "/h") or ("~%.0f items/h"):format(best.dropsHour)
+        elseif e.status == "ok" or e.status == "partial" then
+            suffix = SR.Paint("orange", "no zone of 35+ mobs")
         end
         cb.text:SetText(rowText(SR.RegionLabel(row.region), e.inBand, e, c.level, suffix))
-        if loot and suffix then
-            cb.sub:SetText(("%sLeather|r %s  /  %sLoot|r %s"):format(SKIN_COLOR, SR.Money(row.plan.skinPerHour, 10), LOOT_COLOR, SR.Money(row.plan.lootPerHour, 10)))
-            cb.sub2:SetText(itemsLine(row.plan))
+        if loot and best then
+            cb.sub:SetText(("%sLeather|r %s  /  %sLoot|r %s"):format(SKIN_COLOR, SR.Money(best.skinPerHour, 10), LOOT_COLOR, SR.Money(best.lootPerHour, 10)))
+            cb.sub2:SetText(itemsLine(row.items))
         else
-            cb.sub:SetText(itemsLine(row.plan))
+            cb.sub:SetText(row.items and itemsLine(row.items) or "")
         end
         cb:Show()
         if row.region == ui.region then keep = row.region end
@@ -271,9 +274,11 @@ local function fillAuto()
     hideRowsFrom(ui.rows, #rows + 1)
     ui.listChild:SetSize(270 + WIDE, math.max(1, #rows * step))
     if rows[1] then chooseRegion(keep or rows[1].region) end
-    ui.listTitle:SetText(anyPrice and ("Regions, gold per hour (%d)"):format(#rows)
-        or ("Regions, items per hour (%d)"):format(#rows))
-    ui.regionButton:SetText(anyPrice and "Best leathers for each region (automatic)" or NO_PRICE_ALERT)
+    local progress = SR.zoneProgress
+    local computing = progress and progress.running and (" - computing zones %d/%d"):format(progress.done, progress.total) or ""
+    ui.listTitle:SetText((anyPrice and ("Regions, gold per hour of the best zone (%d)"):format(#rows)
+        or ("Regions, items per hour of the best zone (%d)"):format(#rows)) .. computing)
+    ui.regionButton:SetText(anyPrice and "Best zone of each region (automatic)" or NO_PRICE_ALERT)
 end
 
 local function fillValueItems()
@@ -693,7 +698,6 @@ local function build()
     ui.lootCheck = check(ui, "Mob loot (gray, white, green)", 190, -78, function(self)
         SR.db.loot = self:GetChecked() and true or false
         ui.lootOption:SetChecked(SR.db.loot)
-        SR.auto = nil
         SR:RefreshZones()
         applyLayout()
         refreshView()
@@ -806,7 +810,6 @@ local function build()
     end))
     ui.lootOption = option(check(ui.lower, "Mob loot (gray, white, green)", 12, -278, function(self)
         SR.db.loot = self:GetChecked() and true or false
-        SR.auto = nil
         SR:RefreshZones()
         applyLayout()
         refreshView()

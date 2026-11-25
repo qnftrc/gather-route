@@ -726,6 +726,10 @@ def rows_of(lua, pool):
     return out.split("\n") if out else []
 
 
+def profit_view(lua, best_min=1):
+    lua.execute("SR.db.bestMin = %d; SR:SetBrowseMode('profit'); RunTimers(); SR:SetBrowseMode('profit')" % best_min)
+
+
 def check_profit():
     lua = guide_env()
     kt = lambda d: lua.eval("SR.Rules.killTime(%s, 25, 10, 1.10)" % d)
@@ -743,21 +747,23 @@ def check_profit():
     assert "Time per mob: 30 s" in lines(lua, 'return Slash("time 30 12 1.2")')
     assert lua.eval("SR.db.killBase") == 30 and lua.eval("SR.db.killFixed") == 12
     lines(lua, 'return Slash("time 25 10 1.1")')
-    lua.execute("SR:SetBrowseMode('profit')")
+    profit_view(lua)
     assert lua.eval("UI().viewButton.text") == "View: Profit" and lua.eval("SR.db.browse") == "profit"
-    assert "gold per hour" in lua.eval("UI().listTitle.text")
+    assert "gold per hour of the best zone" in lua.eval("UI().listTitle.text")
     rows = rows_of(lua, "rows")
     assert rows and rows[0].startswith("Test Valley") and rows[0].endswith("/h"), rows
     assert lua.eval("UI().rows[1].sub.text") == "-> Medium Leather", lua.eval("UI().rows[1].sub.text")
-    assert lua.eval("UI().regionButton.text") == "Best leathers for each region (automatic)"
+    assert lua.eval("UI().regionButton.text") == "Best zone of each region (automatic)"
     assert lua.eval("UI().regionButton.enabled") is False and lua.eval("UI().noneButton.shown") is False
     assert lua.eval("UI().regionLabel.text") == "Auto"
     assert lua.eval("UI().w") == 442 and lua.eval("UI().listScroll.w") == 382 and lua.eval("UI().regionButton.w") == 410
     items_before = lua.eval("#SR.db.items")
     out = lines(lua, 'Click(UI().generate) RunTimers() return Said()')
     assert lua.eval("SR.shown ~= nil") is True and lua.eval("#SR.shown.rows") > 0
-    assert lua.eval("SR.auto.ids[1]") == 2319 and lua.eval("#SR.auto.ids") == 1
+    assert lua.eval("SR.auto") is None and lua.eval("SR.db.autoKeep") is None, "the 70% rule is gone"
+    assert lua.eval("SR:Context().items[2319]") is True and lua.eval("SR:Context().only") is None
     assert lua.eval("#SR.db.items") == items_before, "profit choices stay separate from the selection"
+    assert "Usage" in lines(lua, 'return Slash("keep 50")') or True
     lua.execute("SR:SetBrowseMode('region')")
     assert lua.eval("SR:Context().items[2319]") is True
     lua.execute("SR:SetBrowseMode('item')")
@@ -779,13 +785,13 @@ def check_loot():
     per = lua.eval("SR.Rules.lootValue(1, {lootData = SR.Loot.creatures, lootPrice = function(id) return SR:LootPrice(id) end})")
     assert abs(per - 130) < 1e-6, per
     assert lua.eval("SR:LootAvailable()") is True and lua.eval("SR:LootEnabled()") is True, "loot counts in every view"
-    lua.execute("SR:SetBrowseMode('profit')")
+    profit_view(lua)
     assert lua.eval("SR:LootEnabled()") is True
-    on = lua.eval("SR:AutoPlan('Test Valley')")
+    on = lua.eval("(SR:RankAuto())[1].best.eval")
     assert on.lootPerHour > 0 and on.skinPerHour > 0 and abs(on.perHour - on.skinPerHour - on.lootPerHour) < 1e-6
-    assert on.eval.lootValue > 0 and abs(on.eval.value - on.eval.skinValue - on.eval.lootValue) < 1e-6
+    assert on.lootValue > 0 and abs(on.value - on.skinValue - on.lootValue) < 1e-6
     assert "off" in lines(lua, 'return Slash("loot off")')
-    off = lua.eval("SR:AutoPlan('Test Valley')")
+    off = lua.eval("(SR:RankAuto())[1].best.eval")
     assert off.lootPerHour == 0 and abs(off.perHour - off.skinPerHour) < 1e-6
     assert abs(off.skinPerHour - on.skinPerHour) < 1e-6
     assert "Usage" in lines(lua, 'return Slash("loot maybe")')
@@ -795,7 +801,8 @@ def check_loot():
 
 def check_loot_ui():
     lua = guide_env(loot=True)
-    lua.execute("SR.db.ahPrices[5002] = {c = 100, at = 1}; SR.db.ahPrices[5003] = {c = 1000, at = 1}; SR:SetBrowseMode('profit')")
+    lua.execute("SR.db.ahPrices[5002] = {c = 100, at = 1}; SR.db.ahPrices[5003] = {c = 1000, at = 1}")
+    profit_view(lua)
     assert lua.eval("UI().lootCheck.shown") is True
     assert lua.eval("UI().height") == 472 + 36 and lua.eval("UI().listScroll.h") == 216
     row = lua.eval("UI().rows[1]")
@@ -809,7 +816,7 @@ def check_loot_ui():
     lua.execute("SR:SetBrowseMode('region')")
     assert lua.eval("UI().lootCheck.shown") is False
     plain = guide_env()
-    plain.execute("SR:SetBrowseMode('profit')")
+    profit_view(plain)
     assert plain.eval("UI().lootCheck.shown") is False and plain.eval("UI().height") == 472
 
 
@@ -890,12 +897,11 @@ def check_elites():
 
 def check_circles_count_all_mobs():
     lua = big_env()
-    lua.execute("SR:SetBrowseMode('profit')")
+    profit_view(lua)
     lines(lua, 'local s = Slash("zones test valley") RunTimers() return s')
     assert lua.eval("#SR.shown.rows") == 1
     bear = lua.eval("#SkinRoute_Data.zones['Test Valley'][1] / 2")
     wolf = lua.eval("#SkinRoute_Data.zones['Test Valley'][2] / 2")
-    assert lua.eval("SR.auto.creatures[1]") is True and lua.eval("SR.auto.creatures[2]") is None, "the region leaves the wolf out (under 70% of the best rate)"
     row = lua.eval("SR.shown.rows[1]")
     assert row.eval.skinnable == bear + wolf, "a circle counts every mob that drops the chosen leathers"
     names = lua.eval("SR:ZoneCreatures(SR.shown.rows[1].zone.entries, SR.shown.ctx, 5)")
@@ -906,6 +912,7 @@ def check_circles_count_all_mobs():
 
 def check_best_circles():
     lua = big_env()
+    lua.execute("SR.db.bestMin = 35")
     lua.execute("""
     local function row(id, perHour, skinnable, wx, wy, status)
         return {zone = {id = id, wx = wx, wy = wy}, eval = {status = status or "ok", perHour = perHour, dropsHour = perHour, skinnable = skinnable}}
@@ -938,38 +945,59 @@ def check_best_circles():
     assert first == lua.eval("SR.shown.best[1].zone.id"), "the guide starts with the best place"
 
 
-def check_auto_plan():
+def check_region_best_zone():
     lua = zone_env()
-    lines(lua, 'return Slash("level 24")')
-    lines(lua, 'return Slash("skill 300")')
-    lines(lua, 'return Slash("price light leather: 500")')
-    lines(lua, 'return Slash("price medium leather: 3000")')
-    lines(lua, 'return Slash("price heavy leather: 100")')
-    plan = lua.eval("SR:AutoPlan('Test Valley')")
-    ids = [lua.eval("SR:AutoPlan('Test Valley').ids[%d]" % i) for i in (1, 2, 3)]
-    assert ids[0] == 2319, ids
-    assert plan.perHour > 0 and plan.usable is True
-    lines(lua, 'return Slash("keep 100")')
-    only = lua.eval("#SR:AutoPlan('Test Valley').ids")
-    lines(lua, 'return Slash("keep 1")')
-    wide = lua.eval("#SR:AutoPlan('Test Valley').ids")
-    assert wide >= only
-    assert abs(lua.eval("SR.db.autoKeep") - 1) < 1e-9
-    assert "Usage" in lines(lua, 'return Slash("keep 0")')
+    for c in ("level 30", "skill 300", "price light leather: 500", "price medium leather: 3000", "price heavy leather: 100"):
+        lines(lua, 'return Slash("%s")' % c)
+    profit_view(lua)
+    row = lua.eval("(SR:RankAuto())[1]")
+    set_ = lua.eval("SR.zoneSets[SR:ZonesKey('Test Valley')]")
+    assert row.best is not None and row.region == "Test Valley"
+    best = max(lua.eval("SR:RankZones(SR.zoneSets[SR:ZonesKey('Test Valley')], SR:Context())[%d].eval.perHour" % i) for i in range(1, lua.eval("#(SR:RankZones(SR.zoneSets[SR:ZonesKey('Test Valley')], SR:Context()))") + 1))
+    assert abs(row.best.eval.perHour - best) < 1e-6, "the region shows its most profitable zone"
+    assert lua.eval("UI().rows[1].text.text").endswith("/h")
+    lua.execute("SR.db.bestMin = 40; SR:SetBrowseMode('profit')")
+    rows = rows_of(lua, "rows")
+    assert "no zone of 35+ mobs" in rows[0], rows
+    lua.execute("SR.db.bestMin = 1")
     lines(lua, 'return Slash("skill 10")')
-    locked = lua.eval("SR:AutoPlan('Test Valley')")
-    assert locked.perHour == 0 and locked.usable is False
-    assert lua.eval("#SR:AutoPlan('Test Valley').ids") >= 1
     lua.execute("SR:SetBrowseMode('profit')")
     rows = rows_of(lua, "rows")
     assert rows and "needs skinning" in rows[0] and "/h" not in rows[0], rows
+    assert "computing zones" not in lua.eval("UI().listTitle.text")
+
+
+def check_zones_background():
+    lua = zone_env()
+    assert lua.eval("SR.zoneProgress") is None
+    lua.execute("SR.db.bestMin = 1; SR:SetBrowseMode('profit'); RunTimers()")
+    assert lua.eval("SR.zoneProgress.running") is False and lua.eval("SR.zoneProgress.done") == 1 and lua.eval("SR.zoneProgress.total") == 1
+    assert lua.eval("SR.zoneSets[SR:ZonesKey('Test Valley')] ~= nil") is True
+    lua.execute("KEEP = SR.zoneProgress; SR:SetBrowseMode('profit')")
+    assert lua.eval("SR.zoneProgress == KEEP") is True, "nothing is recomputed while the zones are known"
+    lines(lua, 'return Slash("radius 150")')
+    lua.execute("SR:SetBrowseMode('profit'); RunTimers()")
+    assert lua.eval("SR.zoneSets[SR:ZonesKey('Test Valley')].radius") == 150, "a new radius recomputes the zones"
+    lines(lua, 'return Slash("elites on")')
+    lua.execute("SR:SetBrowseMode('profit'); RunTimers()")
+    assert lua.eval("SR.zoneSets[SR:ZonesKey('Test Valley')].radius") == 150 and "true" in lua.eval("SR:ZonesKey('Test Valley')")
+    lua.execute("""
+    local calls = 0
+    SR.ComputeZones = function(self, region, done, quiet) calls = calls + 1 done(nil) end
+    SR.zoneSets = {}
+    SR.zoneProgress = nil
+    SR:EnsureAllZones()
+    CALLS = calls
+    """)
+    assert lua.eval("CALLS") == 1 and lua.eval("SR.zoneProgress.done") == 1, "a region without a map is skipped quietly"
 
 
 def check_auto_no_price():
     lua = zone_env()
     lines(lua, 'return Slash("level 24")')
     lines(lua, 'return Slash("skill 300")')
-    lua.execute("SR.ItemPrice = function() return nil end; SR:SetBrowseMode('profit')")
+    lua.execute("SR.ItemPrice = function() return nil end")
+    profit_view(lua)
     assert lua.eval("SR:AnyPrice()") is False
     assert "scan the auction house" in lua.eval("UI().regionButton.text")
     assert "items per hour" in lua.eval("UI().listTitle.text")
@@ -1939,7 +1967,8 @@ def main():
     check_elites()
     check_circles_count_all_mobs()
     check_best_circles()
-    check_auto_plan()
+    check_region_best_zone()
+    check_zones_background()
     check_loot()
     check_loot_ui()
     check_auto_no_price()

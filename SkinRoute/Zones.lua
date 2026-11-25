@@ -108,25 +108,29 @@ function Z.compute(points, radius, minCount, maxZones, tick)
     return zones, left
 end
 
-function SR:ComputeZones(region, done)
+function SR:ComputeZones(region, done, quiet)
+    local function fail(message)
+        if not quiet then self:Say(message) end
+        if quiet then done(nil) end
+    end
     local hbd = LibStub and LibStub("HereBeDragons-2.0", true)
     if not hbd then
-        return self:Say("HereBeDragons-2.0 not found (it ships with TomTom): zones cannot be computed.")
+        return fail("HereBeDragons-2.0 not found (it ships with TomTom): zones cannot be computed.")
     end
     local mapID = self:GetRegionMapID(region)
     if not mapID then
-        return self:Say(SR.RegionLabel(region) .. " is not resolved to a map. Try /sr debug.")
+        return fail(SR.RegionLabel(region) .. " is not resolved to a map. Try /sr debug.")
     end
     local radius, minCount, maxZones = self.db.zoneRadius, self.db.zoneMin, self.db.zoneMax
     local elites = self.db.elites == true
-    local key = ("%s:%d:%d:%d:%s"):format(region, radius, minCount, maxZones, tostring(elites))
+    local key = self:ZonesKey(region)
     self.zoneSets = self.zoneSets or {}
     if self.zoneSets[key] then return done(self.zoneSets[key]) end
 
     local x0, y0 = hbd:GetWorldCoordinatesFromZone(0, 0, mapID)
     local x1, y1 = hbd:GetWorldCoordinatesFromZone(1, 1, mapID)
     if not (x0 and x1) then
-        return self:Say(("The world position of %s is unknown (map %s)."):format(SR.RegionLabel(region), tostring(mapID)))
+        return fail(("The world position of %s is unknown (map %s)."):format(SR.RegionLabel(region), tostring(mapID)))
     end
     local size = {w = math.abs(x1 - x0), h = math.abs(y1 - y0)}
 
@@ -143,22 +147,27 @@ function SR:ComputeZones(region, done)
             if wx then points[#points + 1] = {wx = wx, wy = wy, x = flat[i], y = flat[i + 1], cid = cid} end
         end
     end
-    if #points == 0 then return self:Say("No point in " .. SR.RegionLabel(region) .. ".") end
+    if #points == 0 then return fail("No point in " .. SR.RegionLabel(region) .. ".") end
 
     local co = coroutine.create(function()
         return Z.compute(points, radius, minCount, maxZones, coroutine.yield)
     end)
-    self.computing = true
-    self:UpdateUI()
+    if not quiet then
+        self.computing = true
+        self:UpdateUI()
+    end
     local function step()
         local ok, zones, left = coroutine.resume(co)
         if not ok then
-            SR.computing = false
-            SR:UpdateUI()
+            if not quiet then
+                SR.computing = false
+                SR:UpdateUI()
+            end
+            if quiet then return done(nil) end
             return SR:Say("Error: " .. tostring(zones))
         end
         if coroutine.status(co) == "dead" then
-            SR.computing = false
+            if not quiet then SR.computing = false end
             local set = {region = region, mapID = mapID, radius = radius, size = size, zones = zones, leftover = left, points = #points}
             SR.zoneSets[key] = set
             done(set)
@@ -172,7 +181,6 @@ end
 function SR:RefreshZones()
     local s = self.shown
     if s then
-        if self.db.browse == "profit" then self.auto = self:AutoPlan(s.region) end
         s.ctx = self:Context()
         s.rows, s.hidden, s.anyPrice = self:RankZones(s.set, s.ctx)
         s.best = self:PickBest(s)
@@ -183,12 +191,7 @@ function SR:RefreshZones()
 end
 
 function SR:ShowZones(region, go)
-    if self.db.browse == "profit" then
-        self.auto = self:AutoPlan(region)
-        if #self.auto.ids == 0 then
-            return self:Say("Nothing worth farming in " .. SR.RegionLabel(region) .. " at this level and skinning.")
-        end
-    elseif #self.db.items == 0 then
+    if self.db.browse ~= "profit" and #self.db.items == 0 then
         return self:Say("Select items first: /sr items <name>[, <name>]")
     end
     self.zoneToken = (self.zoneToken or 0) + 1
@@ -202,9 +205,38 @@ function SR:ShowZones(region, go)
     end)
 end
 
+function SR:EnsureAllZones()
+    if self.zoneProgress and self.zoneProgress.running then return end
+    local queue = {}
+    self.zoneFailed = self.zoneFailed or {}
+    for _, region in ipairs(self:GetRegions()) do
+        local key = self:ZonesKey(region)
+        if not (self.zoneSets and self.zoneSets[key]) and not self.zoneFailed[key] then queue[#queue + 1] = region end
+    end
+    if #queue == 0 then return end
+    local progress = {done = 0, total = #queue, running = true}
+    self.zoneProgress = progress
+    self.zoneSets = self.zoneSets or {}
+    local function nextRegion()
+        local region = table.remove(queue, 1)
+        if not region then
+            progress.running = false
+            self:RefreshUI()
+            self:EnsureAllZones()
+            return
+        end
+        self:ComputeZones(region, function(set)
+            if not set then self.zoneFailed[self:ZonesKey(region)] = true end
+            progress.done = progress.done + 1
+            if progress.done % 8 == 0 then self:RefreshUI() end
+            nextRegion()
+        end, true)
+    end
+    nextRegion()
+end
+
 function SR:ElitesChanged()
     self.itemTotals = nil
-    self.auto = nil
     if self.shown then
         self:ShowZones(self.shown.region)
     else

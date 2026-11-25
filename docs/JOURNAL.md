@@ -4,6 +4,13 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.14.0 : la région montre le gain par heure de sa meilleure zone, fin de la règle des 70 % (DS30, remplace DS12 en partie, DS14, DS28, DS29)
+- **Demande du joueur** : oublier la règle des 70 % du meilleur ; la ligne de la région, dans la vue Profit, montre le gain par heure de **la zone la plus profitable de la région**, sans avoir à générer la région avant ; garder le reste.
+- **DS30** : `/sr keep`, `db.autoKeep`, le plan automatique (`R.plan`, `AutoPlan`, `SR.auto`) et le choix des types de créatures sont supprimés. En vue Profit, tous les cuirs comptent (`Context().items` = tous les objets) et chaque cercle compte toutes les bêtes dépeçables de la bande (élites selon la case). Les zones des **44 régions** sont calculées en arrière-plan à la première ouverture de la vue Profit (`SR:EnsureAllZones`, par tranches, titre « computing zones i/N »), gardées en mémoire par réglage (rayon, minimum, maximum, élites ; clé `SR:ZonesKey`) et recalculées si l'un d'eux change ; une région sans carte ou sans point est ignorée sans message. Pour chaque région, la zone retenue est la meilleure zone d'au moins 35 bêtes (`SR:PickBest`) : la ligne affiche son or par heure (ou objets par heure sans prix), sa répartition `Leather / Loot` et ses trois principaux cuirs (`SR:ZoneItems`). Une région sans zone de 35 bêtes affiche « no zone of 35+ mobs » et passe après les autres ; les régions verrouillées restent en bas avec « needs skinning N ». Le chiffre est celui du premier cercle magenta de la région.
+- **Mesures hors jeu** (Lua 5.5, données réelles) : zones des 44 régions en 0,17 s, un classement en 6 ms ; dans WoW le calcul sera plus lent mais découpé en tranches.
+- **Exemple** (prix inventés, niveau 48, Dépeçage 300, tailles de carte approximatives) : Felwood 209 or 43/h (zone 47, 79 ; 88 bêtes), Azshara 177 or 59/h, Dustwallow Marsh 168 or 81/h.
+- **Non vu en jeu** : la durée réelle du calcul initial, l'effet visuel du titre pendant le calcul. Poussée et zip toujours suspendus à l'ordre du joueur.
+
 ### 2026-11-25 — SkinRoute 0.13.2 : retour du comptage complet dans les cercles (DS29, remplace DS28)
 - **Demande du joueur** : oublier la règle des 70 % du meilleur pour les cercles.
 - **DS29** : les cercles comptent de nouveau toutes les bêtes qui donnent les cuirs retenus (gain par heure, nombre de bêtes, minimum de 35, noms des créatures, choix des deux meilleurs endroits). La règle des 70 % (`/sr keep`) ne sert plus qu'à choisir les cuirs et le chiffre de la région dans la vue Profit. Le plan de la région reste recalculé à chaque rafraîchissement (correction conservée : il ne reste plus périmé après un changement de niveau, de Dépeçage ou de prix). L'écart entre le chiffre de la région et celui des cercles réapparaît : proposition en attente du joueur d'afficher dans la liste le gain par heure du meilleur cercle de chaque région (calcul en arrière-plan des zones des 44 régions, mesuré à 0,2 s hors jeu).
@@ -411,6 +418,7 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS27 | Butin compté dans toutes les vues | 2026-11-25 | Appliquée (demande du joueur) |
 | DS28 | En vue Profit, les cercles (gain par heure, nombre de bêtes, noms, choix des deux meilleurs endroits) ne comptent que les créatures retenues pour la région (même filtre que `/sr keep`) | 2026-11-25 | Appliquée (demande du joueur) | ; **remplacée par DS29**
 | DS29 | Les cercles comptent toutes les bêtes qui donnent les cuirs retenus (la règle des 70 % ne s'applique plus qu'à la région) | 2026-11-25 | Appliquée (demande du joueur) |
+| DS30 | Fin de la règle des 70 % : en vue Profit, la région affiche le gain par heure de sa meilleure zone (35 bêtes au moins), zones des 44 régions calculées en arrière-plan | 2026-11-25 | Appliquée (demande du joueur) ; remplace DS14, DS28 et DS29 |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |

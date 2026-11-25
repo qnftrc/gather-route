@@ -6,7 +6,6 @@ local defaults = {
     killBase = 25,
     killFixed = 10,
     killSlope = 1.10,
-    autoKeep = 70,
     loot = true,
     optionsShown = false,
     items = {},
@@ -128,11 +127,10 @@ function SR:Context()
         lo = self.db.bandLow,
         hi = self.db.bandHigh,
         bandOnly = self.db.bandOnly ~= false,
-        items = (self.db.browse == "profit" and self.auto and self.auto.set) or self:SelectedSet(),
+        items = self.db.browse == "profit" and self:AllItemSet() or self:SelectedSet(),
         killBase = self.db.killBase or 25,
         killFixed = self.db.killFixed or 10,
         killSlope = self.db.killSlope or 1.10,
-        keep = (self.db.autoKeep or 70) / 100,
         elites = self.db.elites == true,
         eliteFactor = self.db.eliteFactor or 3,
         loot = self:LootEnabled(),
@@ -200,7 +198,6 @@ local function usage()
     SR:Say("/sr time [<seconds per mob> [fixed seconds] [slope]] - time model of the Profit view (default 25 10 1.10)")
     SR:Say("/sr elites [on|off|factor <1-10>] - include the elite mobs (left out by default; their fighting time is multiplied by the factor, default 3)")
     SR:Say("/sr loot [on|off] - count what the mobs themselves drop (gold, gray, white and green items) in every view, on by default")
-    SR:Say("/sr keep [<percent>] - Profit view: mob types kept when they reach this share of the best rate (default 70)")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
     SR:Say("/sr fill [test|<n>|path <texture>|on|off] - white transparent fill of the zones: run the test once, then pick the round disc")
     SR:Say("/sr probe [env|ui|skill] - read-only diagnostic: libraries, map sizes, interface templates, how your skinning skill can be read")
@@ -437,19 +434,9 @@ local function handleSlash(msg)
         elseif arg ~= "" then
             return SR:Say("Usage: /sr loot [on|off]")
         end
-        SR.auto = nil
         SR:RefreshZones()
         SR:Say(("Mob loot: %s%s."):format(SR.db.loot ~= false and "on" or "off",
             SR:LootAvailable() and "" or " (no Data\\LootData.lua loaded)"))
-    elseif cmd == "keep" then
-        local n = tonumber(rest)
-        if rest ~= "" then
-            if not n or n < 1 or n > 100 then return SR:Say("Usage: /sr keep <1-100> (percent of the best rate a mob type must reach in the Profit view)") end
-            SR.db.autoKeep = n
-            SR.auto = nil
-            SR:RefreshZones()
-        end
-        SR:Say(("Profit view keeps the mob types that reach %s%% of the best gold per second."):format(tostring(SR.db.autoKeep or 70)))
     elseif cmd == "radius" then
         local n = tonumber(rest)
         if rest ~= "" then
