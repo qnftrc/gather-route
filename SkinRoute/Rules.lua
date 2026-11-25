@@ -48,7 +48,7 @@ function R.evaluate(entries, creatures, ctx)
     local levelSum = 0
     for _, entry in ipairs(entries) do
         local c = creatures[entry.id]
-        if c and (not c.e or ctx.elites) and (not ctx.only or ctx.only[entry.id]) then
+        if c and (not c.e or ctx.elites) then
             local per, perValue, relevant = 0, 0, false
             for item, d in pairs(c.d) do
                 if ctx.items[item] then
@@ -209,7 +209,6 @@ function SR:AutoPlan(region, ctx, anyPrice)
     local all = {}
     for k, v in pairs(ctx) do all[k] = v end
     all.items = self:AllItemSet()
-    all.only = nil
     if anyPrice == nil then anyPrice = self:AnyPrice() end
     local plan = R.plan(self:RegionEntries(region), self.Data.creatures, all, anyPrice)
     plan.region = region
@@ -297,7 +296,7 @@ function SR:ZoneCreatures(entries, ctx, limit)
     local list = {}
     for _, en in ipairs(entries) do
         local c = self.Data.creatures[en.id]
-        if c and (not c.e or ctx.elites) and (not ctx.only or ctx.only[en.id]) and (not ctx.bandOnly or R.inBand(c, ctx.level, ctx.lo, ctx.hi))
+        if c and (not c.e or ctx.elites) and (not ctx.bandOnly or R.inBand(c, ctx.level, ctx.lo, ctx.hi))
             and (ctx.skill == nil or R.canSkin(ctx.skill, c.l[2])) then
             local v, relevant = 0, false
             for item, d in pairs(c.d) do

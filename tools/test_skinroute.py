@@ -888,24 +888,18 @@ def check_elites():
     assert lua.eval("SR.db.elites") is False and lua.eval("SR.shown.set.points") == pts_off
 
 
-def check_circles_use_region_filter():
+def check_circles_count_all_mobs():
     lua = big_env()
     lua.execute("SR:SetBrowseMode('profit')")
     lines(lua, 'local s = Slash("zones test valley") RunTimers() return s')
     assert lua.eval("#SR.shown.rows") == 1
     bear = lua.eval("#SkinRoute_Data.zones['Test Valley'][1] / 2")
     wolf = lua.eval("#SkinRoute_Data.zones['Test Valley'][2] / 2")
-    assert lua.eval("SR.auto.creatures[1]") is True and lua.eval("SR.auto.creatures[2]") is None, "the wolf is under 70% of the best rate"
+    assert lua.eval("SR.auto.creatures[1]") is True and lua.eval("SR.auto.creatures[2]") is None, "the region leaves the wolf out (under 70% of the best rate)"
     row = lua.eval("SR.shown.rows[1]")
-    assert row.eval.skinnable == bear, (row.eval.skinnable, bear)
-    plan = lua.eval("SR:AutoPlan('Test Valley')")
-    assert abs(row.eval.perHour - plan.perHour) < 1e-6, "the circle and the region use the same creatures"
+    assert row.eval.skinnable == bear + wolf, "a circle counts every mob that drops the chosen leathers"
     names = lua.eval("SR:ZoneCreatures(SR.shown.rows[1].zone.entries, SR.shown.ctx, 5)")
-    assert [names[i].name for i in range(1, 4) if names[i]] == ["Gray Bear"]
-    lines(lua, 'return Slash("keep 40")')
-    lua.execute("RunTimers()")
-    assert lua.eval("SR.auto.creatures[2]") is True
-    assert lua.eval("SR.shown.rows[1].eval.skinnable") == bear + wolf
+    assert [names[i].name for i in range(1, 4) if names[i]] == ["Gray Bear", "Old Wolf"]
     lua.execute("SR:SetBrowseMode('region')")
     assert lua.eval("SR:Context().only") is None and lua.eval("SR:Context().items[2319]") is True
 
@@ -1943,7 +1937,7 @@ def main():
     check_profit()
     check_radius_default()
     check_elites()
-    check_circles_use_region_filter()
+    check_circles_count_all_mobs()
     check_best_circles()
     check_auto_plan()
     check_loot()

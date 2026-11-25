@@ -4,6 +4,11 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.13.2 : retour du comptage complet dans les cercles (DS29, remplace DS28)
+- **Demande du joueur** : oublier la règle des 70 % du meilleur pour les cercles.
+- **DS29** : les cercles comptent de nouveau toutes les bêtes qui donnent les cuirs retenus (gain par heure, nombre de bêtes, minimum de 35, noms des créatures, choix des deux meilleurs endroits). La règle des 70 % (`/sr keep`) ne sert plus qu'à choisir les cuirs et le chiffre de la région dans la vue Profit. Le plan de la région reste recalculé à chaque rafraîchissement (correction conservée : il ne reste plus périmé après un changement de niveau, de Dépeçage ou de prix). L'écart entre le chiffre de la région et celui des cercles réapparaît : proposition en attente du joueur d'afficher dans la liste le gain par heure du meilleur cercle de chaque région (calcul en arrière-plan des zones des 44 régions, mesuré à 0,2 s hors jeu).
+- Vérification hors jeu uniquement. Poussée et zip toujours suspendus à l'ordre du joueur.
+
 ### 2026-11-25 — SkinRoute 0.13.1 : les cercles utilisent le même filtre que la région (DS28)
 - **Constat du joueur** (captures en jeu) : Tanaris à 36 or 34 argent 17 cuivre par heure dans la fenêtre (Leather 22 or 16 argent 76 cuivre, Loot 14 or 17 argent 41 cuivre) contre 31 or 61 argent 83 cuivre et 29 or 18 argent 36 cuivre sur les deux cercles magenta. Cause : la région ne garde que les types de créatures à au moins 70 % du meilleur gain par seconde (`/sr keep`), le cercle comptait toutes les bêtes qu'il contient.
 - **DS28** : en vue Profit, les cercles ne comptent que les créatures retenues pour la région (`SR.auto.creatures`, `ctx.only`) ; leur gain par heure, leur nombre de bêtes (dont le minimum de 35), les noms des trois créatures et le choix des deux meilleurs endroits suivent ce même filtre. Le plan de la région est recalculé à chaque rafraîchissement (niveau, Dépeçage, prix, case des élites, `/sr keep`). Dans les autres vues, aucun filtre de ce type (pas de choix automatique).
@@ -404,7 +409,8 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS25 | Deux meilleurs endroits en magenta (35 bêtes au moins, cercles disjoints, or par heure, trois créatures nommées par gain par seconde sans minimum d'apparitions) ; le guide y va en premier | 2026-11-25 | Appliquée (demande du joueur) |
 | DS26 | Rayon par défaut 350 yd, forcé une fois sur les réglages existants | 2026-11-25 | Appliquée (demande du joueur) |
 | DS27 | Butin compté dans toutes les vues | 2026-11-25 | Appliquée (demande du joueur) |
-| DS28 | En vue Profit, les cercles (gain par heure, nombre de bêtes, noms, choix des deux meilleurs endroits) ne comptent que les créatures retenues pour la région (même filtre que `/sr keep`) | 2026-11-25 | Appliquée (demande du joueur) |
+| DS28 | En vue Profit, les cercles (gain par heure, nombre de bêtes, noms, choix des deux meilleurs endroits) ne comptent que les créatures retenues pour la région (même filtre que `/sr keep`) | 2026-11-25 | Appliquée (demande du joueur) | ; **remplacée par DS29**
+| DS29 | Les cercles comptent toutes les bêtes qui donnent les cuirs retenus (la règle des 70 % ne s'applique plus qu'à la région) | 2026-11-25 | Appliquée (demande du joueur) |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
