@@ -1452,6 +1452,16 @@ function Cast(event, spell, unit) SR.CastEvent(event, unit or "player", "guid", 
 """
 
 
+def SK(lua):
+    names = lines(lua, "return SR.StatsText().names").split("\n")
+    out = []
+    for n in names[1:]:
+        if n == "":
+            break
+        out.append(n)
+    return "\n".join(out)
+
+
 def stats_env():
     lua = price_env(LOOT_MOCK)
     lines(lua, 'return Slash("items medium leather")')
@@ -1465,7 +1475,7 @@ def check_stats():
     lua = stats_env()
     lines(lua, 'return Slash("stats")')
     win = "SkinRouteStatsFrame"
-    assert lua.eval(win + ".shown") is True and lua.eval(win + ".duration.text") == "Guide time: 0:00:00, 0 skinned"
+    assert lua.eval(win + ".shown") is True and lua.eval(win + ".duration.text") == "Guide time: 0:00:00, 0 skinned, 0 kills"
     assert lua.eval(win + ".rows[1].name.text") == "No guide yet."
     assert lua.eval(win + ".total.text") == "Total: 0" + "|TInterface\\MoneyFrame\\UI-CopperIcon:14:14:2:0|t"
     lines(lua, 'return Slash("stats")')
@@ -1473,7 +1483,7 @@ def check_stats():
 
     lines(lua, 'local s = Slash("go test valley") RunTimers() return s')
     lua.execute("Loot('You receive loot: ' .. Link(2319, 'Medium Leather') .. 'x2.')")
-    assert lua.eval("SR.StatsText().names") == "Nothing skinned yet."
+    assert SK(lua) == "Nothing skinned yet."
 
     lua.execute("Cast('UNIT_SPELLCAST_START', 8613)")
     lua.execute("Loot('You receive loot: ' .. Link(2319, 'Medium Leather') .. 'x2.')")
@@ -1481,17 +1491,17 @@ def check_stats():
     lua.execute("Loot('Bob receives loot: ' .. Link(2319, 'Medium Leather') .. '.')")
     lua.execute("Cast('UNIT_SPELLCAST_SUCCEEDED', 8613)")
     lua.execute("Cast('UNIT_SPELLCAST_START', 9999, 'party1'); Cast('UNIT_SPELLCAST_SUCCEEDED', 8613, 'party1')")
-    names = lines(lua, "return SR.StatsText().names").split("\n")
+    names = SK(lua).split("\n")
     assert names == ["Medium Leather x2", "Light Leather x1"], names
     text = lua.eval("SR.StatsText()")
-    assert text.duration == "Guide time: 0:00:00, 1 skinned", text.duration
+    assert text.duration == "Guide time: 0:00:00, 1 skinned, 0 kills", text.duration
     assert "68|TInterface\\MoneyFrame\\UI-SilverIcon" in text.total and "unpriced" not in text.total, text.total
     lua.execute("VENDOR[2318] = nil")
     assert "(1 unpriced)" in lua.eval("SR.StatsText().total") and "no price" in lua.eval("SR.StatsText().values")
     lua.execute("VENDOR[2318] = 15")
     lua.execute("now = now + 9; RunTimers()")
     lua.execute("Loot('You receive loot: ' .. Link(4234, 'Heavy Leather') .. '.')")
-    assert "Heavy Leather" not in lines(lua, "return SR.StatsText().names"), "loot after the window does not count"
+    assert "Heavy Leather" not in SK(lua), "loot after the window does not count"
 
     lua.execute("now = now + 3600")
     text = lua.eval("SR.StatsText()")
@@ -1499,28 +1509,28 @@ def check_stats():
 
     lua.execute("Cast('UNIT_SPELLCAST_START', 4321)")
     lua.execute("Loot('You receive loot: ' .. Link(4234, 'Heavy Leather') .. '.')")
-    assert "Heavy Leather" not in lines(lua, "return SR.StatsText().names"), "not a skinning spell"
+    assert "Heavy Leather" not in SK(lua), "not a skinning spell"
     lua.execute("C_Spell = {GetSpellName = function(id) if id == 7777 then return 'Dépeçage' end end}")
     lua.execute("Cast('UNIT_SPELLCAST_START', 7777)")
     lua.execute("Loot('You receive loot: ' .. Link(4234, 'Heavy Leather') .. '.')")
-    assert "Heavy Leather x1" in lines(lua, "return SR.StatsText().names"), "a skinning spell is recognised by its name"
+    assert "Heavy Leather x1" in SK(lua), "a skinning spell is recognised by its name"
     lua.execute("Cast('UNIT_SPELLCAST_FAILED', 7777); now = now + 9; RunTimers()")
 
     lines(lua, 'return Slash("stats")')
-    assert lua.eval(win + ".rows[1].name.text") == "Medium Leather x2" and "UI-SilverIcon" in lua.eval(win + ".rows[1].value.text")
+    assert lua.eval(win + ".rows[2].name.text") == "Medium Leather x2" and "UI-SilverIcon" in lua.eval(win + ".rows[2].value.text")
     lua.execute("Click(" + win + ".resetButton)")
-    assert lua.eval("SR.StatsText().names") == "Nothing skinned yet." and lua.eval("SR.StatsText().duration") == "Guide time: 0:00:00, 0 skinned"
+    assert SK(lua) == "Nothing skinned yet." and lua.eval("SR.StatsText().duration") == "Guide time: 0:00:00, 0 skinned, 0 kills"
     lua.execute("BAGS[2318] = 3; Cast('UNIT_SPELLCAST_START', 8613)")
     lua.execute("BAGS[2318] = 5; issecretvalue = function(v) return v == 'SECRET' end; Loot('SECRET')")
     lua.execute("Cast('UNIT_SPELLCAST_SUCCEEDED', 8613); now = now + 9; RunTimers()")
-    assert lines(lua, "return SR.StatsText().names") == "Light Leather x2", "the bags settle a window with unreadable loot"
+    assert SK(lua) == "Light Leather x2", "the bags settle a window with unreadable loot"
     lines(lua, 'return Slash("stats")')
     lua.execute("local f = SkinRouteStatsFrame; f.scripts.OnHide(f)")
 
     lines(lua, 'return Slash("stop")')
     assert "(stopped)" in lua.eval("SR.StatsText().duration")
     lua.execute("Cast('UNIT_SPELLCAST_START', 8613); Loot('You receive loot: ' .. Link(4234, 'Heavy Leather') .. '.')")
-    assert "Heavy Leather" not in lines(lua, "return SR.StatsText().names"), "a stopped session counts nothing"
+    assert "Heavy Leather" not in SK(lua), "a stopped session counts nothing"
     lua.execute("SR.StatsReset()")
     assert "(stopped)" in lua.eval("SR.StatsText().duration")
     lines(lua, 'return Slash("stats reset")')
@@ -1542,6 +1552,75 @@ def check_stats():
     lua.execute("Click(UI().statsButton); RunTimers()")
 
 
+def check_stats_kills():
+    lua = stats_env()
+    lua.execute("""
+    YOU_LOOT_MONEY = "You loot %s."
+    GOLD_AMOUNT, SILVER_AMOUNT, COPPER_AMOUNT = "%d Gold", "%d Silver", "%d Copper"
+    SR.Loot = {items = {[5001] = {"Gray Fang", 0, 30}, [5002] = {"Linen Cloth", 1, 13}, [5003] = {"Green Cape", 2, 200}}, creatures = {}}
+    SR.db.ahPrices[5002] = {c = 100, at = 1}
+    SR.db.ahPrices[5003] = {c = 1000, at = 1}
+    function LinkQ(id, name, color) return "|cff" .. color .. "|Hitem:" .. id .. "::::::::|h[" .. name .. "]|h|r" end
+    function Ev(event, text) local f = EventFrame("CHAT_MSG_LOOT"); f.scripts.OnEvent(f, event, text) end
+    function Open(guid) GetLootSourceInfo = function() return guid end; Ev("LOOT_OPENED") end
+    function KillLoot(text) Ev("CHAT_MSG_LOOT", "You receive loot: " .. text .. ".") end
+    """)
+    lines(lua, 'local s = Slash("go test valley") RunTimers() return s')
+    lua.execute("Ev('CHAT_MSG_MONEY', 'You loot 5 Gold')")
+    assert lua.eval("(SR.StatsTotal())") == 0, "no loot window: nothing counts"
+
+    lua.execute("Open('Creature-0-1-2-3-4-5')")
+    lua.execute("Ev('CHAT_MSG_MONEY', 'You loot 1 Gold, 87 Silver, 3 Copper.')")
+    lua.execute("Ev('CHAT_MSG_MONEY', 'Bob loots 9 Gold.')")
+    lua.execute("KillLoot(LinkQ(5001, 'Gray Fang', '9d9d9d') .. 'x3')")
+    lua.execute("KillLoot(LinkQ(5002, 'Linen Cloth', 'ffffff') .. 'x2')")
+    lua.execute("KillLoot(LinkQ(5003, 'Green Cape', '1eff00'))")
+    lua.execute("KillLoot(LinkQ(6000, 'Blue Sword', '0070dd'))")
+    lua.execute("Ev('LOOT_CLOSED')")
+    lua.execute("Open('Creature-0-1-2-3-4-5'); Ev('LOOT_CLOSED')")
+    assert lua.eval("SR.StatsText().duration") == "Guide time: 0:00:00, 0 skinned, 1 kills", lua.eval("SR.StatsText().duration")
+    names = lines(lua, "return SR.StatsText().names").split("\n")
+    assert "Kills (mob loot)" in names[names.index("") + 1], names
+    kills = names[names.index("") + 2:]
+    assert kills == ["Gold coins", "Green Cape x1", "Linen Cloth x2", "Gray items x3 (vendor)"] or sorted(kills) == sorted(["Gold coins", "Green Cape x1", "Linen Cloth x2", "Gray items x3 (vendor)"]), kills
+    assert all("Blue Sword" not in n for n in names), "blue items are left out"
+    expected = 18703 + 200 + 1000 + 90
+    assert lua.eval("(SR.StatsTotal())") == expected, lua.eval("(SR.StatsTotal())")
+    lua.execute("SR.db.ahPrices[5003] = {c = 50, at = 1}")
+    assert lua.eval("(SR.StatsTotal())") == 18703 + 200 + 200 + 90, "vendor price when above the AH price"
+    lua.execute("SR.db.ahPrices[5003] = {c = 1000, at = 1}")
+
+    lua.execute("now = now + 3; KillLoot(LinkQ(5002, 'Linen Cloth', 'ffffff'))")
+    assert lua.eval("(SR.StatsTotal())") == expected, "after the grace the window is closed"
+    lua.execute("Open('GameObject-0-1-2-3-4-5'); KillLoot(LinkQ(5002, 'Linen Cloth', 'ffffff')); Ev('LOOT_CLOSED')")
+    assert lua.eval("(SR.StatsTotal())") == expected, "gathering loot is not a kill"
+    lua.execute("Open('Creature-0-9-9-9-9-9'); KillLoot(LinkQ(5002, 'Linen Cloth', 'ffffff')); Ev('LOOT_CLOSED')")
+    assert lua.eval("SR.StatsText().duration").endswith("2 kills") and lua.eval("(SR.StatsTotal())") == expected + 100
+
+    lua.execute("Cast('UNIT_SPELLCAST_START', 8613); Open('Creature-0-9-9-9-9-9')")
+    lua.execute("Ev('CHAT_MSG_LOOT', 'You receive loot: ' .. Link(2319, 'Medium Leather') .. 'x2.')")
+    lua.execute("Cast('UNIT_SPELLCAST_SUCCEEDED', 8613); Ev('LOOT_CLOSED')")
+    assert SK(lua) == "Medium Leather x2", "inside a skinning cast the loot is skinning"
+    lua.execute("Open('Creature-0-8-8-8-8-8'); KillLoot(LinkQ(5001, 'Gray Fang', '9d9d9d'))")
+    assert "Gray items x4 (vendor)" in lines(lua, "return SR.StatsText().names"), "the skinning window was closed by the loot window"
+
+    win = "SkinRouteStatsFrame"
+    lines(lua, 'return Slash("stats")')
+    assert lua.eval(win + ".lootCheck.checked") is not None
+    lua.execute(win + ".lootCheck:SetChecked(false); Click(" + win + ".lootCheck)")
+    assert lua.eval("SR.db.statsWindow.countLoot") is False
+    assert "Kills" not in lines(lua, "return SR.StatsText().names") and "kills" not in lua.eval("SR.StatsText().duration")
+    before = lua.eval("(SR.StatsTotal())")
+    lua.execute("Open('Creature-0-7-7-7-7-7'); KillLoot(LinkQ(5003, 'Green Cape', '1eff00'))")
+    assert lua.eval("(SR.StatsTotal())") == before, "nothing is counted while the box is off"
+    lua.execute(win + ".lootCheck:SetChecked(true); Click(" + win + ".lootCheck)")
+    assert lua.eval("SR.db.statsWindow.countLoot") is True
+
+    lines(lua, 'return Slash("stop")')
+    lua.execute("Open('Creature-0-6-6-6-6-6'); KillLoot(LinkQ(5003, 'Green Cape', '1eff00'))")
+    assert "Green Cape x2" not in lines(lua, "return SR.StatsText().names"), "a stopped session counts nothing"
+
+
 def check_stats_events():
     lua = stats_env()
     assert lua.eval("#SR.castEvents") == 7
@@ -1549,7 +1628,7 @@ def check_stats_events():
     assert lua.eval("#SR.castEvents") == 6
     lines(lua, 'return Slash("items medium leather")')
     lua.execute("SR:StatsStart(); Cast('UNIT_SPELLCAST_START', 8613); Loot('You receive loot: ' .. Link(2319, 'Medium Leather') .. '.')")
-    assert lines(lua, "return SR.StatsText().names") == "Medium Leather x1"
+    assert SK(lua) == "Medium Leather x1"
 
 
 def check_toc_and_bindings():
@@ -1749,6 +1828,7 @@ def main():
     check_prices()
     check_stats()
     check_stats_events()
+    check_stats_kills()
     check_toc_and_bindings()
     check_skip_button()
     check_french()

@@ -3,8 +3,12 @@ local addonName, SR = ...
 local GRACE = 8
 local GATHER_MAX = 30
 local LINE_H = 13
-local VISIBLE = 8
-local NAME_W = 84
+local VISIBLE = 18
+local NAME_W = 150
+local ROW_W = 228
+local LOOT_GRACE = 2
+local QUALITY_BY_COLOR = {["9d9d9d"] = 0, ["ffffff"] = 1, ["1eff00"] = 2}
+local SKIN_COLOR, KILL_COLOR = "|cffd9a066", "|cff7fcf7f"
 
 local SKINNING_SPELLS = {[8613] = true, [8617] = true, [8618] = true, [10768] = true, [32678] = true, [50305] = true}
 local START = {UNIT_SPELLCAST_START = true, UNIT_SPELLCAST_CHANNEL_START = true}
@@ -15,8 +19,14 @@ local EVENTS = {
 
 local s
 local gather
+local lootWin
 local ticking
 local win
+
+local function newSession(stoppedAt)
+    return {startedAt = GetTime(), items = {}, skins = 0, stoppedAt = stoppedAt,
+        loot = {items = {}, copper = 0}, kills = 0, guids = {}}
+end
 
 local function isSecret(v)
     return issecretvalue and issecretvalue(v) or false
@@ -57,7 +67,11 @@ function SR.StatsElapsed()
     return (s.stoppedAt or GetTime()) - s.startedAt
 end
 
-function SR.StatsTotal()
+local function countLoot()
+    return settings().countLoot ~= false
+end
+
+local function skinTotal()
     local total, unpriced = 0, 0
     if not s then return 0, 0 end
     for id, e in pairs(s.items) do
@@ -67,24 +81,44 @@ function SR.StatsTotal()
     return total, unpriced
 end
 
+local function lootTotal()
+    local total, unpriced = 0, 0
+    if not s then return 0, 0 end
+    total = s.loot.copper
+    for id, e in pairs(s.loot.items) do
+        local p = SR:LootPrice(id)
+        if p and p > 0 then total = total + p * e.count else unpriced = unpriced + e.count end
+    end
+    return total, unpriced
+end
+
+function SR.StatsTotal()
+    local total, unpriced = skinTotal()
+    if countLoot() then
+        local lt, lu = lootTotal()
+        total, unpriced = total + lt, unpriced + lu
+    end
+    return total, unpriced
+end
+
 function SR:StatsStart()
-    s = {startedAt = GetTime(), items = {}, skins = 0}
-    gather = nil
+    s = newSession()
+    gather, lootWin = nil, nil
     self:ReadPrices()
     self:UpdateStats()
 end
 
 function SR:StatsStop()
     if s and not s.stoppedAt then s.stoppedAt = GetTime() end
-    gather = nil
+    gather, lootWin = nil, nil
     self:UpdateStats()
 end
 
 function SR.StatsReset()
     if not s then return end
     local live = not s.stoppedAt
-    s = {startedAt = GetTime(), items = {}, skins = 0, stoppedAt = (not live) and GetTime() or nil}
-    gather = nil
+    s = newSession((not live) and GetTime() or nil)
+    gather, lootWin = nil, nil
     SR:UpdateStats()
 end
 
@@ -157,6 +191,78 @@ function SR.StatsGatherEnd()
     C_Timer.After(GRACE, function() closeWindow(g) end)
 end
 
+local function lootWindowOpen()
+    return lootWin and lootWin.creature and (lootWin.open or GetTime() < lootWin.closeAt)
+end
+
+local function creatureSource()
+    if not GetLootSourceInfo then return true, nil end
+    local ok, guid = pcall(GetLootSourceInfo, 1)
+    if not ok or type(guid) ~= "string" or isSecret(guid) then return true, nil end
+    return guid:find("^Creature%-") ~= nil, guid
+end
+
+function SR.LootEvent(event)
+    if not s or s.stoppedAt then return end
+    if event == "LOOT_OPENED" then
+        local creature, guid = creatureSource()
+        lootWin = {open = true, creature = creature, closeAt = 0}
+        if creature and guid and not s.guids[guid] then
+            s.guids[guid] = true
+            s.kills = s.kills + 1
+        end
+        SR:UpdateStats()
+    elseif event == "LOOT_CLOSED" then
+        if lootWin then lootWin.open, lootWin.closeAt = false, GetTime() + LOOT_GRACE end
+        local g = gather
+        if g and g.seen and not g.open then closeWindow(g) end
+    end
+end
+
+local function linkQuality(link, id)
+    local color = type(link) == "string" and link:match("|cff(%x%x%x%x%x%x)")
+    if color and QUALITY_BY_COLOR[color:lower()] ~= nil then return QUALITY_BY_COLOR[color:lower()] end
+    if color then return 9 end
+    local info = SR.Loot and SR.Loot.items[id]
+    return info and info[2] or nil
+end
+
+local function addKillItem(id, link, n)
+    local q = linkQuality(link, id)
+    if q == nil or q > 2 or not s or s.stoppedAt or not countLoot() then return end
+    local e = s.loot.items[id]
+    if not e then
+        local name = type(link) == "string" and link:match("|h%[(.-)%]|h") or ("item " .. id)
+        e = {count = 0, name = name, q = q}
+        s.loot.items[id] = e
+    end
+    e.count = e.count + n
+end
+
+local function amountPattern(global, fallback)
+    local g = _G[global]
+    if type(g) ~= "string" then return fallback end
+    return (g:gsub("[%(%)%.%+%-%*%?%[%]%^%$]", "%%%0"):gsub("%%d", "(%%d+)"))
+end
+
+function SR.StatsMoney(message)
+    if not s or s.stoppedAt or not countLoot() or not lootWindowOpen() then return end
+    if type(message) ~= "string" or isSecret(message) then return end
+    local you = _G.YOU_LOOT_MONEY
+    local mine
+    if type(you) == "string" then
+        mine = message:match("^" .. you:gsub("[%(%)%.%+%-%*%?%[%]%^%$]", "%%%0"):gsub("%%s", "(.+)") .. "$") ~= nil
+    else
+        mine = message:find("^You loot") ~= nil
+    end
+    if not mine then return end
+    local gold = tonumber(message:match(amountPattern("GOLD_AMOUNT", "(%d+) Gold"))) or 0
+    local silver = tonumber(message:match(amountPattern("SILVER_AMOUNT", "(%d+) Silver"))) or 0
+    local copper = tonumber(message:match(amountPattern("COPPER_AMOUNT", "(%d+) Copper"))) or 0
+    s.loot.copper = s.loot.copper + gold * 10000 + silver * 100 + copper
+    SR:UpdateStats()
+end
+
 function SR.CastEvent(event, unit, castGUID, spellId)
     if unit ~= "player" or not isSkinningSpell(spellId) then return end
     if START[event] then
@@ -183,9 +289,10 @@ local function selfPatterns()
 end
 
 function SR.StatsLoot(message)
-    if not windowOpen() then return end
+    local skin = windowOpen()
+    if not skin and not (lootWindowOpen() and countLoot()) then return end
     if type(message) ~= "string" or isSecret(message) then
-        gather.unreadable = true
+        if skin then gather.unreadable = true end
         return
     end
     local mine
@@ -201,19 +308,35 @@ function SR.StatsLoot(message)
     local link = message:match("(|c%x+|Hitem:.-|h%[.-%]|h|r)") or message:match("(|Hitem:.-|h%[.-%]|h)")
     local id = link and tonumber(link:match("|Hitem:(%d+)"))
     if not id then
-        gather.unreadable = true
+        if skin then gather.unreadable = true end
         return
     end
     local n = tonumber(message:match("|h|rx(%d+)") or message:match("|hx(%d+)")) or 1
+    if not skin then
+        addKillItem(id, link, n)
+        SR:UpdateStats()
+        return
+    end
     add(id, link, n)
     gather.seen = true
     gather.counted[id] = (gather.counted[id] or 0) + n
     SR:UpdateStats()
 end
 
+local function priced(value, src)
+    return value .. (src == "vendor" and "*" or "")
+end
+
 local function lines()
     local names, values = {}, {}
     if not s then return {"No guide yet."}, 0, {"No guide yet."}, {""} end
+    local function row(name, value)
+        names[#names + 1] = name
+        values[#values + 1] = value or ""
+    end
+
+    local skinSum = skinTotal()
+    row(SKIN_COLOR .. "Skinning|r", SKIN_COLOR .. SR.Money(skinSum) .. "|r")
     local list = {}
     for id, e in pairs(s.items) do
         local p, src = SR:ItemPrice(id)
@@ -228,12 +351,44 @@ local function lines()
     for _, it in ipairs(list) do
         local value = it.src and SR.Money(it.v) or "no price"
         body[#body + 1] = ("%s x%d  %s%s"):format(it.e.name, it.e.count, value, it.src == "vendor" and " (vendor)" or "")
-        names[#names + 1] = ("%s x%d"):format(it.e.name, it.e.count)
-        values[#values + 1] = value .. (it.src == "vendor" and "*" or "")
+        row(("%s x%d"):format(it.e.name, it.e.count), priced(value, it.src))
     end
     if #list == 0 then
         body[1] = "Nothing skinned yet."
-        names[1], values[1] = body[1], ""
+        row(body[1])
+    end
+
+    if countLoot() then
+        row("")
+        row(KILL_COLOR .. "Kills (mob loot)|r", KILL_COLOR .. SR.Money(lootTotal()) .. "|r")
+        local shown = 0
+        if s.loot.copper > 0 then
+            row("Gold coins", SR.Money(s.loot.copper))
+            shown = shown + 1
+        end
+        local rows, gray = {}, {count = 0, value = 0, unpriced = 0}
+        for id, e in pairs(s.loot.items) do
+            local p = SR:LootPrice(id)
+            if e.q == 0 then
+                gray.count = gray.count + e.count
+                if p then gray.value = gray.value + p * e.count else gray.unpriced = gray.unpriced + e.count end
+            else
+                rows[#rows + 1] = {e = e, p = p, v = (p or 0) * e.count}
+            end
+        end
+        table.sort(rows, function(a, b)
+            if a.v ~= b.v then return a.v > b.v end
+            return a.e.name < b.e.name
+        end)
+        for _, r in ipairs(rows) do
+            row(("%s x%d"):format(r.e.name, r.e.count), r.p and SR.Money(r.v) or "no price")
+            shown = shown + 1
+        end
+        if gray.count > 0 then
+            row(("Gray items x%d (vendor)"):format(gray.count), gray.value > 0 and (SR.Money(gray.value) .. "*") or "no price")
+            shown = shown + 1
+        end
+        if shown == 0 then row("Nothing looted yet.") end
     end
     return body, #list, names, values
 end
@@ -243,20 +398,22 @@ function SR.StatsText()
     local total, unpriced = SR.StatsTotal()
     local el = SR.StatsElapsed()
     local perHour = el >= 60 and SR.Money(total / el * 3600) .. "/h" or "..."
+    local duration = ("Guide time: %s%s, %d skinned"):format(clock(el), s and s.stoppedAt and " (stopped)" or "", s and s.skins or 0)
+    if countLoot() then duration = duration .. (", %d kills"):format(s and s.kills or 0) end
     return {
-        duration = ("Guide time: %s%s, %d skinned"):format(clock(el), s and s.stoppedAt and " (stopped)" or "", s and s.skins or 0),
+        duration = duration,
         body = table.concat(body, "\n"),
         names = table.concat(names, "\n"),
         values = table.concat(values, "\n"),
         total = "Total: " .. SR.Money(total) .. (unpriced > 0 and (" (" .. unpriced .. " unpriced)") or ""),
         perHour = "Per hour: " .. perHour,
-        count = math.max(1, #body),
+        count = math.max(1, #names),
     }
 end
 
 local function build()
     win = CreateFrame("Frame", "SkinRouteStatsFrame", UIParent, "BasicFrameTemplateWithInset")
-    win:SetSize(210, 210)
+    win:SetSize(262, 50 + LINE_H * VISIBLE + 70)
     win:SetFrameStrata("MEDIUM")
     win:SetClampedToScreen(true)
     win:SetMovable(true)
@@ -280,21 +437,31 @@ local function build()
     win.duration:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -31)
     local b = CreateFrame("Button", nil, win, "UIPanelButtonTemplate")
     b:SetSize(44, 17)
-    b:SetPoint("TOPRIGHT", win, "TOPRIGHT", -10, -28)
+    b:SetPoint("BOTTOMRIGHT", win, "BOTTOMRIGHT", -10, 10)
     b:SetText("Reset")
     b:SetScript("OnClick", function() SR.StatsReset() end)
     win.resetButton = b
     win.scroll = CreateFrame("ScrollFrame", nil, win, "UIPanelScrollFrameTemplate")
     win.scroll:SetPoint("TOPLEFT", win, "TOPLEFT", 10, -50)
-    win.scroll:SetSize(166, LINE_H * VISIBLE)
+    win.scroll:SetSize(ROW_W, LINE_H * VISIBLE)
     win.child = CreateFrame("Frame", nil, win.scroll)
-    win.child:SetSize(166, LINE_H * VISIBLE)
+    win.child:SetSize(ROW_W, LINE_H * VISIBLE)
     win.scroll:SetScrollChild(win.child)
     win.rows = {}
     win.total = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    win.total:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -50 - LINE_H * VISIBLE - 8)
+    win.lootCheck = CreateFrame("CheckButton", nil, win, "UICheckButtonTemplate")
+    win.lootCheck:SetSize(20, 20)
+    win.lootCheck:SetPoint("TOPLEFT", win, "TOPLEFT", 6, -50 - LINE_H * VISIBLE - 4)
+    win.lootCheck.text = win.lootCheck:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    win.lootCheck.text:SetPoint("LEFT", win.lootCheck, "RIGHT", 2, 1)
+    win.lootCheck.text:SetText("Count mob loot (gray, white, green)")
+    win.lootCheck:SetScript("OnClick", function(self)
+        settings().countLoot = self:GetChecked() and true or false
+        SR:UpdateStats()
+    end)
+    win.total:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -50 - LINE_H * VISIBLE - 28)
     win.perHour = win:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    win.perHour:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -50 - LINE_H * VISIBLE - 26)
+    win.perHour:SetPoint("TOPLEFT", win, "TOPLEFT", 12, -50 - LINE_H * VISIBLE - 44)
 end
 
 local function tick()
@@ -314,6 +481,7 @@ end
 function SR:UpdateStats()
     if not win or not settings().shown then return end
     local t = SR.StatsText()
+    win.lootCheck:SetChecked(countLoot())
     win.duration:SetText(t.duration)
     win.total:SetText(t.total)
     win.perHour:SetText(t.perHour)
@@ -365,7 +533,14 @@ end
 function SR:InitStats()
     local f = CreateFrame("Frame")
     f:RegisterEvent("CHAT_MSG_LOOT")
-    f:SetScript("OnEvent", function(_, _, message) SR.StatsLoot(message) end)
+    pcall(f.RegisterEvent, f, "CHAT_MSG_MONEY")
+    pcall(f.RegisterEvent, f, "LOOT_OPENED")
+    pcall(f.RegisterEvent, f, "LOOT_CLOSED")
+    f:SetScript("OnEvent", function(_, event, message)
+        if event == "CHAT_MSG_LOOT" then SR.StatsLoot(message)
+        elseif event == "CHAT_MSG_MONEY" then SR.StatsMoney(message)
+        else SR.LootEvent(event) end
+    end)
     local casts = CreateFrame("Frame")
     SR.castEvents = {}
     for _, ev in ipairs(EVENTS) do
