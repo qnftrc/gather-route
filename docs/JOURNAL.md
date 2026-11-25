@@ -4,6 +4,11 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.15.1 : minimum de bêtes des cercles magenta abaissé à 30, réglable (DS35)
+- **Constat du joueur** (capture en jeu, Tanaris) : le cercle des Surf Gliders du sud, le plus rentable (32 or 73 argent 90 cuivre par heure), n'était pas en magenta ; il comptait **33 bêtes**, sous le minimum de 35 fixé par le joueur. Les autres cercles jaunes de la capture (30 à 32 bêtes) étaient dans le même cas. Les nombres diffèrent de ma simulation (49 bêtes) : la taille réelle de la carte change le nombre de points couverts par un cercle de 350 yd.
+- **DS35** : minimum par défaut **30** (`db.bestMin`, migration unique `bestMinVersion` pour les réglages existants), réglable par `/sr best <1-500>` ; le texte « no zone of N+ mobs » suit ce réglage. Remplace le 35 de DS25 (choix du joueur à l'époque, révisé sur sa demande de voir ce cercle en magenta). À 30, les cercles de 31 à 33 bêtes de la capture deviennent éligibles.
+- Vérification hors jeu uniquement ; poussée et zip suspendus à l'ordre du joueur.
+
 ### 2026-11-25 — SkinRoute 0.15.0 : toutes les zones en or par heure, trois cercles magenta (DS34)
 - **Demande du joueur** : sur la carte du monde, afficher **toutes les zones en or par heure** et passer le nombre de cercles magenta à **trois**.
 - **DS34** : la première ligne de l'étiquette de chaque cercle ouvert ou partiel est maintenant son or par heure (ou « ~N items/h » sans prix), au lieu de la valeur d'un passage ; les cercles verrouillés gardent « needs skinning N ». Le nombre de cercles magenta passe de 2 à 3 (`SR.BEST_COUNT`) ; chacun est le meilleur cercle restant d'au moins 35 bêtes qui n'en chevauche aucun autre déjà retenu (distance d'au moins deux rayons entre centres) ; le guide va aux trois dans l'ordre. **Remplace** la règle « seulement calculé pour eux » de DS25 (l'or par heure n'est plus réservé aux cercles magenta).
@@ -443,6 +448,7 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS32 | Pour les créatures de l'export Wowhead, les points de Wowhead remplacent ceux de pfQuest (pfQuest seulement pour les créatures absentes de l'export) | 2026-11-25 | Appliquée (option 1 du joueur) ; révise DS5 |
 | DS33 | Points d'une même créature et d'une même zone à moins de 0,25 % fusionnés dans `merge_skinning.py` (`--merge-tol`) | 2026-11-25 | Appliquée (choix du joueur) |
 | DS34 | Toutes les zones de la carte en or par heure ; trois cercles magenta (35 bêtes au moins, sans chevauchement) | 2026-11-25 | Appliquée (demande du joueur) ; remplace une partie de DS25 |
+| DS35 | Minimum de bêtes d'un cercle magenta : 30 par défaut (au lieu de 35), réglable par `/sr best` | 2026-11-25 | Appliquée (demande du joueur) ; remplace une partie de DS25 |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |

@@ -850,6 +850,16 @@ def big_env():
     return lua
 
 
+def check_best_min():
+    lua = env(pre="SkinRouteDB = {bestMin = 35}")
+    assert lua.eval("SR.db.bestMin") == 30 and lua.eval("SR.db.bestMinVersion") == 1, "an older setting is moved to 30 once"
+    assert "at least 30 mobs" in lines(lua, 'return Slash("best")')
+    assert "at least 25 mobs" in lines(lua, 'return Slash("best 25")') and lua.eval("SR.db.bestMin") == 25
+    assert "Usage" in lines(lua, 'return Slash("best 0")') and lua.eval("SR.db.bestMin") == 25
+    lua = env(pre="SkinRouteDB = {bestMin = 20, bestMinVersion = 1}")
+    assert lua.eval("SR.db.bestMin") == 20, "a later choice is kept"
+
+
 def check_radius_default():
     lua = env(pre="SkinRouteDB = {zoneRadius = 233}")
     assert lua.eval("SR.db.zoneRadius") == 350 and lua.eval("SR.db.radiusVersion") == 1, "an older setting is moved to 350 once"
@@ -963,7 +973,7 @@ def check_region_best_zone():
     assert lua.eval("UI().rows[1].text.text").endswith("/h")
     lua.execute("SR.db.bestMin = 40; SR:SetBrowseMode('profit')")
     rows = rows_of(lua, "rows")
-    assert "no zone of 35+ mobs" in rows[0], rows
+    assert "no zone of 40+ mobs" in rows[0], rows
     lua.execute("SR.db.bestMin = 1")
     lines(lua, 'return Slash("skill 10")')
     lua.execute("SR:SetBrowseMode('profit')")
@@ -1968,6 +1978,7 @@ def main():
     check_fill()
     check_label_font_scales()
     check_profit()
+    check_best_min()
     check_radius_default()
     check_elites()
     check_circles_count_all_mobs()

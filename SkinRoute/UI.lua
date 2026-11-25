@@ -259,7 +259,7 @@ local function fillAuto()
         if best then
             suffix = anyPrice and (SR.Money(best.perHour) .. "/h") or ("~%.0f items/h"):format(best.dropsHour)
         elseif e.status == "ok" or e.status == "partial" then
-            suffix = SR.Paint("orange", "no zone of 35+ mobs")
+            suffix = SR.Paint("orange", ("no zone of %d+ mobs"):format(SR.db.bestMin or 30))
         end
         cb.text:SetText(rowText(SR.RegionLabel(row.region), e.inBand, e, c.level, suffix))
         if loot and best then
