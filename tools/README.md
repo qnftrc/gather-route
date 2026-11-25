@@ -53,5 +53,8 @@ node tools/test_loot_export.js
 ```
 Le fichier obtenu s'importe avec `python3 -I tools/merge_skinning.py ... --loot-out SkinRoute/Data/LootData.lua --wowhead-loot wowhead_loot_forever.json` : pour ces créatures, les taux mesurés (au moins 30 observations par ligne) remplacent ceux de CMaNGOS. `test_loot_export.js` exécute le script dans Node avec un faux navigateur (pages simulées : fichier final, refus 405, annulation, pages sans onglet, titres inattendus, arrêt puis reprise). Il ne dit rien du vrai format des pages Wowhead : la première page lue affiche ses onglets dans la console.
 
+## Prix d'Auctionator : read_auctionator.py
+`python3 -I tools/read_auctionator.py <Auctionator.lua> --out local [--names noms.json]` lit la base de prix d'un fichier `Auctionator.lua` de SavedVariables (chaîne CBOR par royaume, jour 0 = 2020-01-01, prix en cuivre) et écrit `auctionator_prices.json` (objets numériques : `m`, séries `l`, `h`, `a` par jour, prix marchand) et `auctionator_gear.json` (clés `gr:...`, dernier prix). `--names` donne les noms `{id: nom}`. `python3 -I tools/test_read_auctionator.py` le teste sur un faux fichier. Les sorties vont dans `local/`, non versionné.
+
 ## Prérequis
 `pip install lupa` (Lua embarqué, version 5.5 ; WoW exécute du Lua 5.1), Python 3 et Node.js.
