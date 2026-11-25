@@ -4,6 +4,13 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.15.2 : fenêtre de stats, classement par objet et objets verts (DS36)
+- **Retour du joueur** (trois captures d'une session de 40 minutes : fenêtre de stats à 0:38:13 puis 0:38:25, 98 dépeçages et 98 bêtes, 13 or 34 argent 62 cuivre au total, 20 or 83 argent 70 cuivre par heure, et le sac) : **trois objets verts, d'environ 2 or 70 argent en tout, absents des stats**. Les captures montrent aussi deux erreurs de classement : du **cuir et des peaux** (Cuir épais x24, Cuir lourd x22, Peau épaisse x4) dans la section Kills, et des objets de cadavre (Palourde à large bouche, Jaune-queue tacheté cru, queue écailleuse, fragment de carapace) dans la section Skinning. Première vérification en jeu de la fenêtre de stats : elle s'affiche, compte et calcule l'or par heure.
+- **Causes probables** : (1) la qualité d'un objet était lue seulement dans le code couleur `|cffRRGGBB` du lien ; un client dont les liens portent `|cnIQ2:` n'est pas reconnu, et un objet absent de `LootData.lua` (les verts aléatoires) était alors ignoré ; (2) le classement Skinning ou Kills dépendait seulement du moment (fenêtre de dépeçage ouverte ou non).
+- **DS36** : (a) qualité lue dans le code couleur, le jeton `|cnIQn:`, `C_Item.GetItemQualityByID`, `GetItemInfo` puis `LootData` ; (b) classement **par objet** : un objet de la liste de dépeçage (`SkinData.items`) absent des tables de butin compte pour Skinning même hors fenêtre ; un objet hors de cette liste compte pour Kills même pendant un dépeçage ; un objet des deux tables dépend de la fenêtre ; un message n'est compté que si une fenêtre de dépeçage ou de butin de créature est ouverte (courrier, échange et achat restent ignorés) ; (c) valeur d'un objet de butin lue **par son lien** dans Auctionator (`GetAuctionPriceByItemLink`, pour les pièces à suffixe aléatoire), puis le plus haut de ce prix et du prix marchand ; (d) `/sr stats debug` liste les 15 derniers messages de butin, leur identifiant, leur qualité, leur classement et la raison.
+- **À vérifier en jeu** : que les verts apparaissent ; `/sr stats debug` dira pour chaque objet comment il a été compté. Ces causes sont des hypothèses : le jeu n'a pas été relancé.
+- Poussée et zip suspendus à l'ordre du joueur.
+
 ### 2026-11-25 — SkinRoute 0.15.1 : minimum de bêtes des cercles magenta abaissé à 30, réglable (DS35)
 - **Constat du joueur** (capture en jeu, Tanaris) : le cercle des Surf Gliders du sud, le plus rentable (32 or 73 argent 90 cuivre par heure), n'était pas en magenta ; il comptait **33 bêtes**, sous le minimum de 35 fixé par le joueur. Les autres cercles jaunes de la capture (30 à 32 bêtes) étaient dans le même cas. Les nombres diffèrent de ma simulation (49 bêtes) : la taille réelle de la carte change le nombre de points couverts par un cercle de 350 yd.
 - **DS35** : minimum par défaut **30** (`db.bestMin`, migration unique `bestMinVersion` pour les réglages existants), réglable par `/sr best <1-500>` ; le texte « no zone of N+ mobs » suit ce réglage. Remplace le 35 de DS25 (choix du joueur à l'époque, révisé sur sa demande de voir ce cercle en magenta). À 30, les cercles de 31 à 33 bêtes de la capture deviennent éligibles.
@@ -449,6 +456,7 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS33 | Points d'une même créature et d'une même zone à moins de 0,25 % fusionnés dans `merge_skinning.py` (`--merge-tol`) | 2026-11-25 | Appliquée (choix du joueur) |
 | DS34 | Toutes les zones de la carte en or par heure ; trois cercles magenta (35 bêtes au moins, sans chevauchement) | 2026-11-25 | Appliquée (demande du joueur) ; remplace une partie de DS25 |
 | DS35 | Minimum de bêtes d'un cercle magenta : 30 par défaut (au lieu de 35), réglable par `/sr best` | 2026-11-25 | Appliquée (demande du joueur) ; remplace une partie de DS25 |
+| DS36 | Stats : qualité lue par code couleur, jeton `|cnIQn:`, API et table ; classement par objet (liste de dépeçage, butin) ; prix lu par lien dans Auctionator ; `/sr stats debug` | 2026-11-25 | Appliquée hors jeu (retour du joueur), à valider en jeu |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |

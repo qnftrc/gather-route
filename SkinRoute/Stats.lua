@@ -7,7 +7,6 @@ local VISIBLE = 18
 local NAME_W = 150
 local ROW_W = 228
 local LOOT_GRACE = 2
-local QUALITY_BY_COLOR = {["9d9d9d"] = 0, ["ffffff"] = 1, ["1eff00"] = 2}
 local SKIN_COLOR, KILL_COLOR = "|cffd9a066", "|cff7fcf7f"
 
 local SKINNING_SPELLS = {[8613] = true, [8617] = true, [8618] = true, [10768] = true, [32678] = true, [50305] = true}
@@ -86,7 +85,7 @@ local function lootTotal()
     if not s then return 0, 0 end
     total = s.loot.copper
     for id, e in pairs(s.loot.items) do
-        local p = SR:LootPrice(id)
+        local p = SR:LootPrice(id, e.ah, e.q)
         if p and p > 0 then total = total + p * e.count else unpriced = unpriced + e.count end
     end
     return total, unpriced
@@ -219,17 +218,48 @@ function SR.LootEvent(event)
     end
 end
 
+local QUALITY_COLORS = {
+    ["9d9d9d"] = 0, ["ffffff"] = 1, ["1eff00"] = 2, ["0070dd"] = 3, ["a335ee"] = 4, ["ff8000"] = 5, ["e6cc80"] = 6, ["00ccff"] = 7,
+}
+
 local function linkQuality(link, id)
     local color = type(link) == "string" and link:match("|cff(%x%x%x%x%x%x)")
-    if color and QUALITY_BY_COLOR[color:lower()] ~= nil then return QUALITY_BY_COLOR[color:lower()] end
+    if color and QUALITY_COLORS[color:lower()] ~= nil then return QUALITY_COLORS[color:lower()] end
     if color then return 9 end
+    local token = type(link) == "string" and link:match("|cnIQ(%d+):")
+    if token then return tonumber(token) end
+    local byId = C_Item and C_Item.GetItemQualityByID
+    if byId then
+        local ok, q = pcall(byId, id)
+        if ok and type(q) == "number" and not isSecret(q) then return q end
+    end
+    if GetItemInfo then
+        local ok, _, _, q = pcall(GetItemInfo, id)
+        if ok and type(q) == "number" and not isSecret(q) then return q end
+    end
     local info = SR.Loot and SR.Loot.items[id]
     return info and info[2] or nil
 end
 
-local function addKillItem(id, link, n)
-    local q = linkQuality(link, id)
-    if q == nil or q > 2 or not s or s.stoppedAt or not countLoot() then return end
+local debugLog = {}
+
+local function record(entry)
+    debugLog[#debugLog + 1] = entry
+    if #debugLog > 30 then table.remove(debugLog, 1) end
+end
+
+function SR.StatsDebug()
+    local out = {}
+    for i = math.max(1, #debugLog - 14), #debugLog do
+        local e = debugLog[i]
+        out[#out + 1] = ("%s -> id %s, quality %s, %s (%s)"):format(tostring(e.text), tostring(e.id), tostring(e.q), e.target, e.why)
+    end
+    if #out == 0 then out[1] = "No loot message seen yet in this session." end
+    return out
+end
+
+local function addKillItem(id, link, n, q)
+    if q == nil or q > 2 or not s or s.stoppedAt or not countLoot() then return false end
     local e = s.loot.items[id]
     if not e then
         local name = type(link) == "string" and link:match("|h%[(.-)%]|h") or ("item " .. id)
@@ -237,6 +267,9 @@ local function addKillItem(id, link, n)
         s.loot.items[id] = e
     end
     e.count = e.count + n
+    local ah = SR.AuctionByLink(link)
+    if ah then e.ah = ah end
+    return true
 end
 
 local function amountPattern(global, fallback)
@@ -289,10 +322,11 @@ local function selfPatterns()
 end
 
 function SR.StatsLoot(message)
-    local skin = windowOpen()
-    if not skin and not (lootWindowOpen() and countLoot()) then return end
+    local skinWindow = windowOpen()
+    local lootOpen = lootWindowOpen()
+    if not skinWindow and not lootOpen then return end
     if type(message) ~= "string" or isSecret(message) then
-        if skin then gather.unreadable = true end
+        if skinWindow then gather.unreadable = true end
         return
     end
     local mine
@@ -305,21 +339,37 @@ function SR.StatsLoot(message)
         end
     end
     if not mine then return end
-    local link = message:match("(|c%x+|Hitem:.-|h%[.-%]|h|r)") or message:match("(|Hitem:.-|h%[.-%]|h)")
+    local link = message:match("(|c%x+|Hitem:.-|h%[.-%]|h|r)") or message:match("(|cn[%w_]+:|Hitem:.-|h%[.-%]|h|r)") or message:match("(|Hitem:.-|h%[.-%]|h)")
     local id = link and tonumber(link:match("|Hitem:(%d+)"))
     if not id then
-        if skin then gather.unreadable = true end
+        if skinWindow then gather.unreadable = true end
         return
     end
     local n = tonumber(message:match("|h|rx(%d+)") or message:match("|hx(%d+)")) or 1
-    if not skin then
-        addKillItem(id, link, n)
-        SR:UpdateStats()
-        return
+    local q = linkQuality(link, id)
+    local skinItem = SR.Data.items[id] ~= nil
+    local lootItem = SR.Loot and SR.Loot.items[id] ~= nil
+    local target, why
+    if skinItem and not lootItem then
+        target, why = "skin", "skinning item"
+    elseif not skinItem then
+        target, why = "kill", "not a skinning item"
+    elseif skinWindow then
+        target, why = "skin", "in both tables, during a skinning cast"
+    else
+        target, why = "kill", "in both tables, outside a skinning cast"
     end
-    add(id, link, n)
-    gather.seen = true
-    gather.counted[id] = (gather.counted[id] or 0) + n
+    if target == "skin" then
+        add(id, link, n)
+        if gather then
+            gather.seen = true
+            gather.counted[id] = (gather.counted[id] or 0) + n
+        end
+    elseif not (lootOpen and countLoot() and addKillItem(id, link, n, q)) then
+        why = why .. (lootOpen and (countLoot() and ", quality " .. tostring(q) .. " not counted" or ", loot counting off") or ", no creature loot window")
+        target = "ignored"
+    end
+    record({text = message:gsub("|c%x+", ""):gsub("|cn[%w_]+:", ""):gsub("|r", ""):gsub("|H.-|h", ""):gsub("|h", ""), id = id, q = q, target = target, why = why})
     SR:UpdateStats()
 end
 
@@ -368,7 +418,7 @@ local function lines()
         end
         local rows, gray = {}, {count = 0, value = 0, unpriced = 0}
         for id, e in pairs(s.loot.items) do
-            local p = SR:LootPrice(id)
+            local p = SR:LootPrice(id, e.ah, e.q)
             if e.q == 0 then
                 gray.count = gray.count + e.count
                 if p then gray.value = gray.value + p * e.count else gray.unpriced = gray.unpriced + e.count end

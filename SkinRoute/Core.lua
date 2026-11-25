@@ -190,7 +190,7 @@ local function usage()
     SR:Say("/sr skill [n|auto] - simulate a skinning skill (auto = the real one)")
     SR:Say("/sr band [<low> <high>|off] - count only mobs from level+low to level+high (default -8 +2)")
     SR:Say("/sr price <item>: <copper>|off - your own price for an item (otherwise Auctionator, else the vendor price); /sr prices - reread Auctionator")
-    SR:Say("/sr stats [reset] - show or hide the stats window: guide time, what you skinned, gold estimate")
+    SR:Say("/sr stats [reset|debug] - show or hide the stats window: guide time, what you skinned, gold estimate; debug lists how the last loot messages were counted")
     SR:Say("/sr need <level> - skinning skill needed for a mob level")
     SR:Say("/sr zones [region] - compute the zones of a region (default: your region) and draw them on the world map")
     SR:Say("/sr go [region] - compute the zones, then guide you to the best one with TomTom; /sr skip - next zone; /sr stop - end the guide")
@@ -485,6 +485,8 @@ local function handleSlash(msg)
         if rest:lower() == "reset" then
             SR.StatsReset()
             SR:Say("Stats reset.")
+        elseif rest:lower() == "debug" then
+            for _, line in ipairs(SR.StatsDebug()) do SR:Say(line) end
         else
             SR:ToggleStats()
         end

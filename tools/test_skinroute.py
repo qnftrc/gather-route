@@ -1791,6 +1791,50 @@ def check_stats_kills():
     assert "Green Cape x2" not in lines(lua, "return SR.StatsText().names"), "a stopped session counts nothing"
 
 
+def check_stats_classification():
+    lua = stats_env()
+    lua.execute("""
+    YOU_LOOT_MONEY = "You loot %s."
+    SR.Loot = {items = {[5001] = {"Gray Fang", 0, 30}, [5004] = {"Big-mouth Clam", 1, 46}, [2318] = {"Light Leather", 1, 20}}, creatures = {}}
+    function LinkQ(id, name, color) return "|cff" .. color .. "|Hitem:" .. id .. "::::::::|h[" .. name .. "]|h|r" end
+    function LinkT(id, name, q) return "|cnIQ" .. q .. ":|Hitem:" .. id .. "::::::::|h[" .. name .. "]|h|r" end
+    function Ev(event, text) local f = EventFrame("CHAT_MSG_LOOT"); f.scripts.OnEvent(f, event, text) end
+    function Open(guid) GetLootSourceInfo = function() return guid end; Ev("LOOT_OPENED") end
+    function Got(text) Ev("CHAT_MSG_LOOT", "You receive loot: " .. text .. ".") end
+    Auctionator = {API = {v1 = {GetAuctionPriceByItemLink = function(caller, link) if link:find("9999") then return 90000 end end}}}
+    """)
+    lines(lua, 'local s = Slash("go test valley") RunTimers() return s')
+
+    lua.execute("Open('Creature-0-1-2-3-4-5'); Got(LinkT(9999, 'Brutish Helmet', 2)); Got(LinkT(9998, 'Mystery', 2))")
+    names = lines(lua, "return SR.StatsText().names")
+    assert "Brutish Helmet x1" in names, names
+    assert lua.eval("(SR.StatsTotal())") == 90000 + 0, "the green is valued by its auction price, taken by link"
+
+    lua.execute("Got(LinkQ(9997, 'Plain Green', '1eff00')); Got(LinkT(9996, 'Blue Thing', 3)); Ev('LOOT_CLOSED')")
+    names = lines(lua, "return SR.StatsText().names")
+    assert "Plain Green x1" in names and "Blue Thing" not in names, names
+
+    lua.execute("now = now + 5; Cast('UNIT_SPELLCAST_START', 8613); Open('Creature-0-1-2-3-4-6')")
+    lua.execute("Got(LinkQ(5004, 'Big-mouth Clam', 'ffffff') .. 'x2'); Got(LinkQ(2319, 'Medium Leather', 'ffffff') .. 'x3')")
+    assert SK(lua) == "Medium Leather x3", "a corpse item looted during a skinning cast stays a kill"
+    assert "Big-mouth Clam x2" in lines(lua, "return SR.StatsText().names")
+    lua.execute("Got(LinkQ(2318, 'Light Leather', 'ffffff'))")
+    assert "Light Leather x1" in SK(lua), "an item of both tables is skinning during a cast"
+    lua.execute("Cast('UNIT_SPELLCAST_SUCCEEDED', 8613); Ev('LOOT_CLOSED'); now = now + 30; RunTimers()")
+
+    lua.execute("Open('Creature-0-1-2-3-4-7'); Got(LinkQ(2319, 'Medium Leather', 'ffffff')); Got(LinkQ(2318, 'Light Leather', 'ffffff')); Ev('LOOT_CLOSED')")
+    assert "Medium Leather x4" in SK(lua), "a skinning item looted just after the window is still skinning"
+    assert "Light Leather x2" not in SK(lua) and "Light Leather x1" in lines(lua, "return SR.StatsText().names"), "both tables, no cast: a kill"
+
+    lua.execute("now = now + 30; Got(LinkQ(2319, 'Medium Leather', 'ffffff'))")
+    assert "Medium Leather x4" in SK(lua), "no window: nothing counts (mail, trade, purchase)"
+
+    lua.execute("Open('Creature-0-1-2-3-4-8'); Ev('CHAT_MSG_LOOT', 'You receive loot: [Plain Unknown].')")
+    out = lines(lua, 'return Slash("stats debug")')
+    assert "Brutish Helmet" in out and "kill" in out and "ignored" in out and "skinning item" in out, out
+    assert "quality" in out
+
+
 def check_stats_events():
     lua = stats_env()
     assert lua.eval("#SR.castEvents") == 7
@@ -2005,6 +2049,7 @@ def main():
     check_stats()
     check_stats_events()
     check_stats_kills()
+    check_stats_classification()
     check_toc_and_bindings()
     check_skip_button()
     check_french()

@@ -40,16 +40,24 @@ function SR:ReadPrices()
     return n
 end
 
-function SR:LootPrice(id)
+function SR.AuctionByLink(link)
+    local api = Auctionator and Auctionator.API and Auctionator.API.v1
+    if not (api and api.GetAuctionPriceByItemLink and type(link) == "string") then return nil end
+    local ok, c = pcall(api.GetAuctionPriceByItemLink, CALLER, link)
+    if ok and type(c) == "number" and not isSecret(c) and c > 0 then return c end
+end
+
+function SR:LootPrice(id, linkPrice, quality)
     local manual = self.db.prices[id]
     if manual then return manual end
     local info = self.Loot.items[id]
     local _, vendor = SR.ItemInfo(id)
     if type(vendor) ~= "number" or isSecret(vendor) or vendor <= 0 then vendor = info and info[3] or 0 end
     local ah = 0
-    if info and info[2] > 0 then
+    local q = quality or (info and info[2]) or 1
+    if q > 0 then
         local m = self.db.ahPrices[id]
-        ah = m and m.c or 0
+        ah = linkPrice or (m and m.c) or 0
     end
     local best = math.max(ah, vendor)
     return best > 0 and best or nil
