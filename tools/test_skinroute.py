@@ -514,7 +514,7 @@ def check_zones_pipeline():
     assert lua.eval("MapFrame().shown") is True
     assert lua.eval("Shown('line')") == 48 + 32 and lua.eval("Shown('fontstring')") == 6
     texts = lines(lua, "return ShownTexts()")
-    assert "UI-GoldIcon" in texts and "71" in texts and "Lv 21-22" in texts and "Lv 30-31" in texts and "needs skinning 155" in texts, texts
+    assert "UI-GoldIcon" in texts and "/h" in texts and "Lv 21-22" in texts and "Lv 30-31" in texts and "needs skinning 155" in texts, texts
     assert "10 mobs" in texts and "6 mobs" in texts, texts
     gray, yellow = lua.eval("LineAt(1).color"), lua.eval("LineAt(49).color")
     assert abs(gray[1] - 0.62) < 1e-6 and abs(yellow[2] - 0.82) < 1e-6 and yellow[1] == 1, (gray, yellow)
@@ -920,12 +920,14 @@ def check_best_circles():
     local function row(id, perHour, skinnable, wx, wy, status)
         return {zone = {id = id, wx = wx, wy = wy}, eval = {status = status or "ok", perHour = perHour, dropsHour = perHour, skinnable = skinnable}}
     end
-    local rows = {row(1, 100, 40, 0, 0), row(2, 90, 50, 100, 0), row(3, 80, 60, 800, 0), row(4, 200, 20, 900, 0), row(5, 300, 99, 2000, 0, "locked")}
+    local rows = {row(1, 100, 40, 0, 0), row(2, 90, 50, 100, 0), row(3, 80, 60, 800, 0), row(4, 200, 20, 900, 0), row(5, 300, 99, 2000, 0, "locked"),
+        row(6, 70, 40, 1600, 0), row(7, 65, 45, 1700, 0), row(8, 60, 50, 2400, 0)}
     BEST = SR:PickBest({rows = rows, set = {radius = 350}, anyPrice = true})
     ROWS = rows
     """)
     assert lua.eval("BEST[1].zone.id") == 1 and lua.eval("BEST[2].zone.id") == 3, "the second best does not overlap the first"
-    assert lua.eval("#BEST") == 2
+    assert lua.eval("#BEST") == 3 and lua.eval("BEST[3].zone.id") == 6, "three places, none overlapping another, the weaker overlapping ones skipped"
+    assert lua.eval("SR.BEST_COUNT") == 3
     lua.execute("BEST = SR:PickBest({rows = {ROWS[4], ROWS[5]}, set = {radius = 350}, anyPrice = true})")
     assert lua.eval("#BEST") == 0, "under 35 mobs or locked: nothing"
     lua.execute("BEST = SR:PickBest({rows = {ROWS[1], ROWS[2]}, set = {radius = 350}, anyPrice = true})")

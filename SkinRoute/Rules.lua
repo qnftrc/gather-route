@@ -275,6 +275,8 @@ function SR:ZoneCreatures(entries, ctx, limit)
     return list
 end
 
+SR.BEST_COUNT = 3
+
 function SR:PickBest(s)
     local min = self.db.bestMin or 35
     local key = s.anyPrice and "perHour" or "dropsHour"
@@ -288,17 +290,19 @@ function SR:PickBest(s)
         return a.zone.id < b.zone.id
     end)
     local best = {}
-    if cands[1] then
-        best[1] = cands[1]
-        local gap = 2 * s.set.radius
-        local a = cands[1].zone
-        for i = 2, #cands do
-            local b = cands[i].zone
-            local dx, dy = a.wx - b.wx, a.wy - b.wy
-            if dx * dx + dy * dy >= gap * gap then
-                best[2] = cands[i]
+    local gap = 2 * s.set.radius
+    for _, row in ipairs(cands) do
+        local free = true
+        for _, chosen in ipairs(best) do
+            local dx, dy = chosen.zone.wx - row.zone.wx, chosen.zone.wy - row.zone.wy
+            if dx * dx + dy * dy < gap * gap then
+                free = false
                 break
             end
+        end
+        if free then
+            best[#best + 1] = row
+            if #best >= SR.BEST_COUNT then break end
         end
     end
     return best

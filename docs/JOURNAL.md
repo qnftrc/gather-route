@@ -4,6 +4,12 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.15.0 : toutes les zones en or par heure, trois cercles magenta (DS34)
+- **Demande du joueur** : sur la carte du monde, afficher **toutes les zones en or par heure** et passer le nombre de cercles magenta à **trois**.
+- **DS34** : la première ligne de l'étiquette de chaque cercle ouvert ou partiel est maintenant son or par heure (ou « ~N items/h » sans prix), au lieu de la valeur d'un passage ; les cercles verrouillés gardent « needs skinning N ». Le nombre de cercles magenta passe de 2 à 3 (`SR.BEST_COUNT`) ; chacun est le meilleur cercle restant d'au moins 35 bêtes qui n'en chevauche aucun autre déjà retenu (distance d'au moins deux rayons entre centres) ; le guide va aux trois dans l'ordre. **Remplace** la règle « seulement calculé pour eux » de DS25 (l'or par heure n'est plus réservé aux cercles magenta).
+- **Exemple** (données réelles, niveau 49, prix d'HV du 25/11, Tanaris, rayon 350, carte approximée) : magenta 1 en (55, 91), 49 Surf Gliders, 33 or 87 argent/h ; magenta 2 en (65, 26), 80 bêtes, 30 or 85 argent/h ; magenta 3 en (45, 47), 35 bêtes, 29 or 14 argent/h. Les cercles à moins de 35 bêtes, comme celui des Surf Gliders de la côte est (28 bêtes, 33 or 87 argent/h), restent verts malgré un or par heure plus haut.
+- Vérification hors jeu uniquement ; poussée et zip suspendus à l'ordre du joueur.
+
 ### 2026-11-25 — SkinRoute 0.14.3 : fusion des points voisins à 0,25 % (DS33)
 - **Demande du joueur** : après l'analyse des doublons potentiels (aucun doublon exact ; 8,2 % de points à moins de 0,25 % d'un autre point de la même créature dans la même zone, 21,5 % à 0,5 %, 43,6 % à 1 % ; 1 443 emplacements partagés par plusieurs créatures, soit 1 688 points en trop), le joueur choisit de **fusionner à 0,25 %**.
 - **DS33** : `tools/merge_skinning.py --merge-tol 0.25` (défaut 0,25 ; 0 désactive) : les points d'une même créature dans une même zone à moins de 0,25 % de la carte d'un point déjà gardé sont retirés (parcours en ordre croissant de coordonnées, le premier est gardé). Sur la base : 2 768 points retirés, 31 047 restants (33 815 avant). Les emplacements partagés entre créatures différentes ne sont **pas** traités (option 3 non choisie). Tanaris : 727 puis 674 points ; Surf Glider : 83 puis 80 points.
@@ -436,6 +442,7 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS30 | Fin de la règle des 70 % : en vue Profit, la région affiche le gain par heure de sa meilleure zone (35 bêtes au moins), zones des 44 régions calculées en arrière-plan | 2026-11-25 | Appliquée (demande du joueur) ; remplace DS14, DS28 et DS29 |
 | DS32 | Pour les créatures de l'export Wowhead, les points de Wowhead remplacent ceux de pfQuest (pfQuest seulement pour les créatures absentes de l'export) | 2026-11-25 | Appliquée (option 1 du joueur) ; révise DS5 |
 | DS33 | Points d'une même créature et d'une même zone à moins de 0,25 % fusionnés dans `merge_skinning.py` (`--merge-tol`) | 2026-11-25 | Appliquée (choix du joueur) |
+| DS34 | Toutes les zones de la carte en or par heure ; trois cercles magenta (35 bêtes au moins, sans chevauchement) | 2026-11-25 | Appliquée (demande du joueur) ; remplace une partie de DS25 |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |

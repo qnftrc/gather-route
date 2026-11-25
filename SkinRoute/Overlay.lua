@@ -161,7 +161,7 @@ local function zoneLabels(row, s, size, isBest)
         lines[2] = {"needs skinning " .. e.minNeeded, COLORS.orange}
         lines[3] = {("%d mobs"):format(e.inBand), {1, 1, 1}}
     else
-        lines[1] = {s.anyPrice and SR.Money(e.value, size) or ("~%.0f items"):format(e.drops), {1, 1, 1}}
+        lines[1] = {s.anyPrice and (SR.Money(e.perHour, size) .. "/h") or ("~%.0f items/h"):format(e.dropsHour), {1, 1, 1}}
         lines[2] = {level, color}
         if e.status == "partial" then
             lines[3] = {("%d/%d mobs"):format(e.skinnable, e.inBand), {1, 1, 1}}
