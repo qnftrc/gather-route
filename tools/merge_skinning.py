@@ -160,12 +160,13 @@ def load_cmangos_loot(path, creature_ids):
 
     direct, refs = read_loot("creature_loot_template"), read_loot("reference_loot_template")
     icols = table_columns(sql, "item_template")
-    kept, rejected = {}, collections.Counter()
+    kept, rejected, quest = {}, collections.Counter(), set()
     for row in table_rows(sql, "item_template"):
         d = dict(zip(icols, row))
         quality = int(d["Quality"])
         if int(d["class"]) == int(QUEST_CLASS):
             rejected["quest"] += 1
+            quest.add(int(d["entry"]))
         elif quality not in LOOT_QUALITIES:
             rejected["quality %d" % quality] += 1
         else:
@@ -180,7 +181,39 @@ def load_cmangos_loot(path, creature_ids):
         if drops or gold[cid] > 0:
             creatures[cid] = {"gold": gold[cid], "drops": drops}
     used = {item for c in creatures.values() for item in c["drops"]}
-    return creatures, {i: kept[i] for i in used}, rejected
+    return creatures, {i: kept[i] for i in used}, rejected, {"quest": quest, "kept": kept, "gold": gold}
+
+
+WOWHEAD_LOOT_MIN_OBS = 30
+
+
+def apply_wowhead_loot(path, creatures, items, info, wanted):
+    data = json.load(open(path, encoding="utf8"))
+    npcs = data.get("npcs", {})
+    replaced = added_items = skipped_rows = 0
+    for cid_text, n in npcs.items():
+        cid = int(cid_text)
+        if cid not in wanted:
+            continue
+        drops = {}
+        for r in n.get("drops", []):
+            count, outof, q = r.get("count"), r.get("outof"), r.get("quality")
+            if not isinstance(count, (int, float)) or not isinstance(outof, (int, float)) or outof < WOWHEAD_LOOT_MIN_OBS:
+                skipped_rows += 1
+                continue
+            p = 100.0 * count / outof
+            if q not in LOOT_QUALITIES or p < LOOT_MIN_CHANCE or r["id"] in info["quest"]:
+                continue
+            stack = r.get("stack")
+            mn, mx = (int(stack[0]), int(stack[1])) if isinstance(stack, list) and len(stack) >= 2 and stack[0] else (1, 1)
+            drops[int(r["id"])] = (min(100.0, p), mn, max(mn, mx))
+            if r["id"] not in items:
+                meta = info["kept"].get(int(r["id"]))
+                items[int(r["id"])] = meta if meta else (r.get("name") or str(r["id"]), q, 0)
+                added_items += 1
+        creatures[cid] = {"gold": info["gold"].get(cid, 0), "drops": drops, "src": "w"}
+        replaced += 1
+    return replaced, added_items, skipped_rows
 
 
 def write_loot_lua(path, items, creatures):
@@ -192,7 +225,7 @@ def write_loot_lua(path, items, creatures):
     for cid in sorted(creatures):
         c = creatures[cid]
         drops = ", ".join("[%d] = {%s, %d, %d}" % (item, num(p), mn, mx) for item, (p, mn, mx) in sorted(c["drops"].items()))
-        lines.append("    [%d] = {g = %s, d = {%s}}," % (cid, num(c["gold"]), drops))
+        lines.append("    [%d] = {g = %s, s = %s, d = {%s}}," % (cid, num(c["gold"]), lua_str(c.get("src", "c")), drops))
     lines += ["  },", "}", ""]
     with open(path, "w", encoding="utf8", newline="\n") as f:
         f.write("\n".join(lines))
@@ -303,6 +336,7 @@ def main(argv=None):
     ap.add_argument("--pfquest", required=True, help="pfQuest db directory (units.lua, enUS/zones.lua)")
     ap.add_argument("--wowhead", help="Wowhead skinning export (wowhead_skinning_all_zones.json or the earlier partial format)")
     ap.add_argument("--out", required=True, help="Lua file to write")
+    ap.add_argument("--wowhead-loot", help="Wowhead creature drops export (wowhead_loot_forever.json): replaces the loot of the creatures it lists, with measured rates")
     ap.add_argument("--loot-out", help="Lua file for the corpse loot of the kept creatures (gray, white and green items, gold), read from the CMaNGOS dump")
     ap.add_argument("--skip-zone", action="append", default=[], help="zone name to leave out, repeatable (added to the default list of capitals, battleground and continent maps)")
     ap.add_argument("--ranks", default="0", help="creature ranks kept, comma separated (0 normal, 1 elite, 2 rare elite, 3 boss, 4 rare)")
@@ -379,11 +413,17 @@ def main(argv=None):
     items = {i: n for i, n in items.items() if i in used_items}
     write_lua(args.out, items, final, zones)
     if args.loot_out:
-        loot, loot_items, rejected = load_cmangos_loot(args.cmangos, set(final))
+        loot, loot_items, rejected, info = load_cmangos_loot(args.cmangos, set(final))
+        if args.wowhead_loot:
+            replaced, added, skipped = apply_wowhead_loot(args.wowhead_loot, loot, loot_items, info, set(final))
+            print("loot: %d creature(s) taken from Wowhead (measured rates), %d item(s) not known to CMaNGOS, %d row(s) under %d observations" % (
+                replaced, added, skipped, WOWHEAD_LOOT_MIN_OBS))
+        used = {i for c in loot.values() for i in c["drops"]}
+        loot_items = {i: m for i, m in loot_items.items() if i in used}
         write_loot_lua(args.loot_out, loot_items, loot)
         print("loot: %d creature(s) with corpse loot of %d, %d item(s) kept (gray, white, green) | left out: %s" % (
             len(loot), len(final), len(loot_items), ", ".join("%s %d" % kv for kv in sorted(rejected.items())) or "none"))
-        print("loot: %d creature(s) without a CMaNGOS loot table (Forever additions or empty)" % (len(final) - len(loot)))
+        print("loot: %d creature(s) without any loot table (empty or unknown)" % (len(final) - len(loot)))
 
     total_points = sum(len(p) for z in zones.values() for p in z.values())
     print("creatures kept: %d (cmangos %d, cmangos + wowhead zones %d, wowhead only %d)" % (

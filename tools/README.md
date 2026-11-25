@@ -51,7 +51,7 @@ Avec `--loot-out SkinRoute/Data/LootData.lua`, il écrit aussi le butin des bêt
 python3 -I tools/gen_loot_targets.py --skin SkinRoute/Data/SkinData.lua --loot SkinRoute/Data/LootData.lua --cmangos <classic-db>.sql
 node tools/test_loot_export.js
 ```
-`test_loot_export.js` exécute le script dans Node avec un faux navigateur (pages simulées : fichier final, refus 405, annulation, pages sans onglet, titres inattendus, arrêt puis reprise). Il ne dit rien du vrai format des pages Wowhead : la première page lue affiche ses onglets dans la console.
+Le fichier obtenu s'importe avec `python3 -I tools/merge_skinning.py ... --loot-out SkinRoute/Data/LootData.lua --wowhead-loot wowhead_loot_forever.json` : pour ces créatures, les taux mesurés (au moins 30 observations par ligne) remplacent ceux de CMaNGOS. `test_loot_export.js` exécute le script dans Node avec un faux navigateur (pages simulées : fichier final, refus 405, annulation, pages sans onglet, titres inattendus, arrêt puis reprise). Il ne dit rien du vrai format des pages Wowhead : la première page lue affiche ses onglets dans la console.
 
 ## Prérequis
 `pip install lupa` (Lua embarqué, version 5.5 ; WoW exécute du Lua 5.1), Python 3 et Node.js.

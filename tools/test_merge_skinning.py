@@ -186,7 +186,7 @@ def check_loot(tmp):
     path = os.path.join(tmp, "loot.sql")
     with open(path, "w", encoding="utf8") as f:
         f.write(LOOT_SQL)
-    creatures, items, rejected = merge_skinning.load_cmangos_loot(path, {200, 201, 202})
+    creatures, items, rejected, info = merge_skinning.load_cmangos_loot(path, {200, 201, 202})
     assert sorted(creatures) == [200, 202], sorted(creatures)
     c = creatures[200]
     assert c["gold"] == 200
@@ -205,6 +205,34 @@ def check_loot(tmp):
     assert L.eval("SkinRoute_Loot.items[1000][2]") == 0 and L.eval("SkinRoute_Loot.items[1000][3]") == 25
     assert L.eval("SkinRoute_Loot.creatures[200].g") == 200 and L.eval("SkinRoute_Loot.creatures[200].d[1004][1]") == 40
     assert L.eval("SkinRoute_Loot.creatures[203]") is None
+    wh = os.path.join(tmp, "wh_loot.json")
+    with open(wh, "w", encoding="utf8") as f:
+        json.dump({"npcs": {
+            "200": {"drops": [
+                {"id": 1001, "name": "White Cloth", "quality": 1, "count": 20, "outof": 100, "stack": [1, 3]},
+                {"id": 1002, "name": "Blue Sword", "quality": 3, "count": 50, "outof": 100, "stack": [1, 1]},
+                {"id": 1003, "name": "Quest Thing", "quality": 1, "count": 90, "outof": 100, "stack": [1, 1]},
+                {"id": 2000, "name": "Forever Trinket", "quality": 2, "count": 5, "outof": 200, "stack": [1, 1]},
+                {"id": 2001, "name": "Few Samples", "quality": 1, "count": 3, "outof": 10, "stack": [1, 1]},
+                {"id": 2002, "name": "Rare Drop", "quality": 1, "count": 1, "outof": 1000, "stack": [1, 1]},
+            ]},
+            "555": {"drops": [{"id": 1000, "name": "Gray Junk", "quality": 0, "count": 400, "outof": 500, "stack": None}]},
+            "777": {"drops": []},
+        }}, f)
+    replaced, added, skipped = merge_skinning.apply_wowhead_loot(wh, creatures, items, info, {200, 555})
+    assert replaced == 2 and skipped == 1 and added == 1, (replaced, added, skipped)
+    d200 = creatures[200]["drops"]
+    assert sorted(d200) == [1001, 2000], d200
+    assert d200[1001] == (20.0, 1, 3) and abs(d200[2000][0] - 2.5) < 1e-9
+    assert creatures[200]["gold"] == 200 and creatures[200]["src"] == "w", "gold stays from CMaNGOS"
+    assert creatures[555]["gold"] == 0 and creatures[555]["drops"][1000] == (80.0, 1, 1)
+    assert items[2000] == ("Forever Trinket", 2, 0) and items[1001][2] == 40
+    assert 777 not in creatures
+    out2 = os.path.join(tmp, "loot2.lua")
+    merge_skinning.write_loot_lua(out2, items, creatures)
+    L2 = LuaRuntime(unpack_returned_tuples=True)
+    L2.execute(open(out2, encoding="utf8").read())
+    assert L2.eval("SkinRoute_Loot.creatures[200].s") == "w" and L2.eval("SkinRoute_Loot.creatures[202].s") == "c"
     rows = {1: (1, 1)}
     refs = {7: [(1, 100.0, 0, 1, 1)]}
     got = merge_skinning.corpse_drops([(5, 100.0, 0, -7, 9)], refs)
