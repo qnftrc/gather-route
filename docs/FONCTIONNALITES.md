@@ -221,7 +221,6 @@ Références **S**. « Hors jeu » = faux environnement WoW/TomTom (`tools/test_
 | S26 | Deux cercles magenta (meilleurs endroits) avec or par heure et trois créatures nommées, guide qui y va en premier | `Rules.lua`, `Zones.lua`, `Overlay.lua`, `Runner.lua` | Oui | **Non vu** |
 | S27 | Option élites (case, `/sr elites`), temps de combat ×3, données `e = 1` (750 créatures) | `Rules.lua`, `UI.lua`, `Core.lua`, `tools/merge_skinning.py` | Oui | **Non vu** |
 | S28 | Rayon 350 yd forcé une fois, butin dans toutes les vues, cases dans les Options | `Core.lua`, `Resolver.lua`, `UI.lua` | Oui | **Non vu** |
-
 | S29 | Vue Profit : gain par heure de la meilleure zone de chaque région, calcul des zones des 44 régions en arrière-plan, plus de règle des 70 % | `Rules.lua`, `Zones.lua`, `UI.lua` | Oui | **Non vu** |
 
 ### Idées et écarts
