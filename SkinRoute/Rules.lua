@@ -32,8 +32,19 @@ function R.killTime(diff, base, fixed, slope)
     return fixed + (base - fixed) * slope ^ d
 end
 
+function R.lootValue(cid, ctx)
+    local c = ctx.lootData and ctx.lootData[cid]
+    if not c then return 0 end
+    local v = c.g or 0
+    for item, d in pairs(c.d or {}) do
+        local price = ctx.lootPrice(item)
+        if price then v = v + d[1] / 100 * (d[2] + d[3]) / 2 * price end
+    end
+    return v
+end
+
 function R.evaluate(entries, creatures, ctx)
-    local e = {total = 0, inBand = 0, skinnable = 0, drops = 0, value = 0, seconds = 0, unpriced = {}}
+    local e = {total = 0, inBand = 0, skinnable = 0, drops = 0, value = 0, skinValue = 0, lootValue = 0, seconds = 0, unpriced = {}}
     local levelSum = 0
     for _, entry in ipairs(entries) do
         local c = creatures[entry.id]
@@ -62,7 +73,13 @@ function R.evaluate(entries, creatures, ctx)
                     if ctx.skill == nil or R.canSkin(ctx.skill, c.l[2]) then
                         e.skinnable = e.skinnable + entry.n
                         e.drops = e.drops + entry.n * per
+                        e.skinValue = e.skinValue + entry.n * perValue
                         e.value = e.value + entry.n * perValue
+                        if ctx.loot then
+                            local lv = entry.n * R.lootValue(entry.id, ctx)
+                            e.lootValue = e.lootValue + lv
+                            e.value = e.value + lv
+                        end
                         if ctx.killBase then
                             e.seconds = e.seconds + entry.n * R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope)
                         end
@@ -72,6 +89,8 @@ function R.evaluate(entries, creatures, ctx)
         end
     end
     e.perHour = e.seconds > 0 and e.value / e.seconds * 3600 or 0
+    e.skinPerHour = e.seconds > 0 and e.skinValue / e.seconds * 3600 or 0
+    e.lootPerHour = e.seconds > 0 and e.lootValue / e.seconds * 3600 or 0
     e.dropsHour = e.seconds > 0 and e.drops / e.seconds * 3600 or 0
     e.avgSeconds = e.skinnable > 0 and e.seconds / e.skinnable or nil
     e.percent = e.inBand > 0 and e.skinnable / e.inBand * 100 or 0
@@ -109,8 +128,9 @@ function R.plan(entries, creatures, ctx, anyPrice)
             end
             if v > 0 then
                 local t = R.killTime((c.l[1] + c.l[2]) / 2 - ctx.level, ctx.killBase, ctx.killFixed, ctx.killSlope)
+                local l = (ctx.loot and anyPrice) and R.lootValue(entry.id, ctx) or 0
                 cands[#cands + 1] = {
-                    id = entry.id, n = entry.n, v = v, t = t, items = items,
+                    id = entry.id, n = entry.n, v = v, l = l, t = t, items = items,
                     skin = ctx.skill == nil or R.canSkin(ctx.skill, c.l[2]),
                 }
             end
@@ -121,22 +141,22 @@ function R.plan(entries, creatures, ctx, anyPrice)
         if k.skin then usable[#usable + 1] = k end
     end
     table.sort(usable, function(a, b)
-        local ra, rb = a.v / a.t, b.v / b.t
+        local ra, rb = (a.v + a.l) / a.t, (b.v + b.l) / b.t
         if ra ~= rb then return ra > rb end
         return a.id < b.id
     end)
     local keep = ctx.keep or 0.7
-    local bv, bt, bestN = 0, 0, 0
+    local bv, bl, bt, bestN = 0, 0, 0, 0
     local chosen = {}
     local mobs = 0
     if #usable > 0 then
-        local top = usable[1].v / usable[1].t
+        local top = (usable[1].v + usable[1].l) / usable[1].t
         for _, k in ipairs(usable) do
-            if k.v / k.t >= top * keep then
+            if (k.v + k.l) / k.t >= top * keep then
                 bestN = bestN + 1
                 chosen[#chosen + 1] = k
                 mobs = mobs + k.n
-                bv, bt = bv + k.n * k.v, bt + k.n * k.t
+                bv, bl, bt = bv + k.n * k.v, bl + k.n * k.l, bt + k.n * k.t
             end
         end
     else
@@ -162,7 +182,11 @@ function R.plan(entries, creatures, ctx, anyPrice)
         ids[#ids + 1] = it.id
         set[it.id] = true
     end
-    return {ids = ids, set = set, perHour = bt > 0 and bv / bt * 3600 or 0, value = bv, seconds = bt, mobs = mobs, usable = bestN > 0}
+    return {
+        ids = ids, set = set, perHour = bt > 0 and (bv + bl) / bt * 3600 or 0,
+        skinPerHour = bt > 0 and bv / bt * 3600 or 0, lootPerHour = bt > 0 and bl / bt * 3600 or 0,
+        value = bv + bl, seconds = bt, mobs = mobs, usable = bestN > 0,
+    }
 end
 
 function SR:AnyPrice()

@@ -43,7 +43,7 @@ python3 -I tools/merge_skinning.py --cmangos <classic-db> --pfquest <pfQuest> --
 python3 -I tools/test_merge_skinning.py
 python3 -I tools/test_skinroute.py
 ```
-`merge_skinning.py` exclut les créatures rares, élites, boss et marquées (`--ranks 0`), écarte les objets de quête et les zones inutiles (`--skip-zone`, villes, champ de bataille, continents) et écrit `SkinRoute_Data` (objets, créatures, points par zone). Le fichier généré n'est **pas versionné** (licences classic-db et pfQuest). `test_skinroute.py` charge SkinRoute dans un faux environnement WoW/TomTom ; avec `SKINROUTE_DATA=SkinRoute/Data/SkinData.lua` il ajoute des essais sur les vraies données. Il finit par `SKINROUTE TESTS OK`.
+Avec `--loot-out SkinRoute/Data/LootData.lua`, il écrit aussi le butin des bêtes (qualités 0 à 2, or moyen, listes partagées résolues), également non versionné. `merge_skinning.py` exclut les créatures rares, élites, boss et marquées (`--ranks 0`), écarte les objets de quête et les zones inutiles (`--skip-zone`, villes, champ de bataille, continents) et écrit `SkinRoute_Data` (objets, créatures, points par zone). Le fichier généré n'est **pas versionné** (licences classic-db et pfQuest). `test_skinroute.py` charge SkinRoute dans un faux environnement WoW/TomTom ; avec `SKINROUTE_DATA=SkinRoute/Data/SkinData.lua` il ajoute des essais sur les vraies données. Il finit par `SKINROUTE TESTS OK`.
 
 ## Prérequis
 `pip install lupa` (Lua embarqué, version 5.5 ; WoW exécute du Lua 5.1), Python 3 et Node.js.

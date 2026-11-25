@@ -25,15 +25,34 @@ function SR:ReadPrices()
     if not api then return 0 end
     local memory = self.db.ahPrices
     local n = 0
-    for id in pairs(self.Data.items) do
+    local function read(id, count)
         local ok, c = pcall(api.GetAuctionPriceByItemID, CALLER, id)
         if ok and type(c) == "number" and not isSecret(c) and c > 0 then
             local old = memory[id]
             if not old or old.c ~= c then memory[id] = {c = c, at = time()} end
-            n = n + 1
+            if count then n = n + 1 end
         end
     end
+    for id in pairs(self.Data.items) do read(id, true) end
+    for id, info in pairs(self.Loot.items) do
+        if info[2] > 0 and not self.Data.items[id] then read(id, false) end
+    end
     return n
+end
+
+function SR:LootPrice(id)
+    local manual = self.db.prices[id]
+    if manual then return manual end
+    local info = self.Loot.items[id]
+    local _, vendor = SR.ItemInfo(id)
+    if type(vendor) ~= "number" or isSecret(vendor) or vendor <= 0 then vendor = info and info[3] or 0 end
+    local ah = 0
+    if info and info[2] > 0 then
+        local m = self.db.ahPrices[id]
+        ah = m and m.c or 0
+    end
+    local best = math.max(ah, vendor)
+    return best > 0 and best or nil
 end
 
 function SR:ItemPrice(id)

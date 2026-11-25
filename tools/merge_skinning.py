@@ -122,6 +122,82 @@ def effective_drops(rows, skip_items=()):
     return out
 
 
+LOOT_QUALITIES = (0, 1, 2)
+LOOT_MIN_CHANCE = 0.5
+
+
+def corpse_drops(rows, refs, skip_items=()):
+    out = dict(effective_drops(rows, skip_items))
+    for item, chance, group, mn, mx in rows:
+        if mn >= 0 or chance <= 0:
+            continue
+        rolls = max(1, mx)
+        for it, (p, a, b) in effective_drops(refs.get(-mn, []), skip_items).items():
+            add = min(100.0, rolls * chance / 100.0 * p)
+            old = out.get(it)
+            out[it] = (min(100.0, old[0] + add), min(old[1], a), max(old[2], b)) if old else (add, a, b)
+    return out
+
+
+def load_cmangos_loot(path, creature_ids):
+    sql = read_text(path)
+    ccols = table_columns(sql, "creature_template")
+    loot_id, gold = {}, {}
+    for row in table_rows(sql, "creature_template"):
+        d = dict(zip(ccols, row))
+        entry = int(d["Entry"])
+        if entry in creature_ids:
+            loot_id[entry] = int(d["LootId"])
+            gold[entry] = (int(d["MinLootGold"]) + int(d["MaxLootGold"])) / 2.0
+
+    def read_loot(table):
+        cols = table_columns(sql, table)
+        out = collections.defaultdict(list)
+        for row in table_rows(sql, table):
+            d = dict(zip(cols, row))
+            out[int(d["entry"])].append((int(d["item"]), float(d["ChanceOrQuestChance"]), int(d["groupid"]), int(d["mincountOrRef"]), int(d["maxcount"])))
+        return out
+
+    direct, refs = read_loot("creature_loot_template"), read_loot("reference_loot_template")
+    icols = table_columns(sql, "item_template")
+    kept, rejected = {}, collections.Counter()
+    for row in table_rows(sql, "item_template"):
+        d = dict(zip(icols, row))
+        quality = int(d["Quality"])
+        if int(d["class"]) == int(QUEST_CLASS):
+            rejected["quest"] += 1
+        elif quality not in LOOT_QUALITIES:
+            rejected["quality %d" % quality] += 1
+        else:
+            kept[int(d["entry"])] = (d["name"], quality, int(d["SellPrice"]))
+    creatures = {}
+    for cid, lid in loot_id.items():
+        rows = direct.get(lid, [])
+        drops = {}
+        for item, (p, mn, mx) in corpse_drops(rows, refs).items():
+            if item in kept and p >= LOOT_MIN_CHANCE:
+                drops[item] = (p, mn, mx)
+        if drops or gold[cid] > 0:
+            creatures[cid] = {"gold": gold[cid], "drops": drops}
+    used = {item for c in creatures.values() for item in c["drops"]}
+    return creatures, {i: kept[i] for i in used}, rejected
+
+
+def write_loot_lua(path, items, creatures):
+    lines = ["SkinRoute_Loot = {", "  items = {"]
+    for item in sorted(items):
+        name, quality, sell = items[item]
+        lines.append("    [%d] = {%s, %d, %d}," % (item, lua_str(name), quality, sell))
+    lines += ["  },", "  creatures = {"]
+    for cid in sorted(creatures):
+        c = creatures[cid]
+        drops = ", ".join("[%d] = {%s, %d, %d}" % (item, num(p), mn, mx) for item, (p, mn, mx) in sorted(c["drops"].items()))
+        lines.append("    [%d] = {g = %s, d = {%s}}," % (cid, num(c["gold"]), drops))
+    lines += ["  },", "}", ""]
+    with open(path, "w", encoding="utf8", newline="\n") as f:
+        f.write("\n".join(lines))
+
+
 def load_zone_names(pfquest_dir):
     path = os.path.join(pfquest_dir, "enUS", "zones.lua")
     names = {}
@@ -227,6 +303,7 @@ def main(argv=None):
     ap.add_argument("--pfquest", required=True, help="pfQuest db directory (units.lua, enUS/zones.lua)")
     ap.add_argument("--wowhead", help="Wowhead skinning export (wowhead_skinning_all_zones.json or the earlier partial format)")
     ap.add_argument("--out", required=True, help="Lua file to write")
+    ap.add_argument("--loot-out", help="Lua file for the corpse loot of the kept creatures (gray, white and green items, gold), read from the CMaNGOS dump")
     ap.add_argument("--skip-zone", action="append", default=[], help="zone name to leave out, repeatable (added to the default list of capitals, battleground and continent maps)")
     ap.add_argument("--ranks", default="0", help="creature ranks kept, comma separated (0 normal, 1 elite, 2 rare elite, 3 boss, 4 rare)")
     args = ap.parse_args(argv)
@@ -301,6 +378,12 @@ def main(argv=None):
     used_items = {item for c in final.values() for item in c["drops"]}
     items = {i: n for i, n in items.items() if i in used_items}
     write_lua(args.out, items, final, zones)
+    if args.loot_out:
+        loot, loot_items, rejected = load_cmangos_loot(args.cmangos, set(final))
+        write_loot_lua(args.loot_out, loot_items, loot)
+        print("loot: %d creature(s) with corpse loot of %d, %d item(s) kept (gray, white, green) | left out: %s" % (
+            len(loot), len(final), len(loot_items), ", ".join("%s %d" % kv for kv in sorted(rejected.items())) or "none"))
+        print("loot: %d creature(s) without a CMaNGOS loot table (Forever additions or empty)" % (len(final) - len(loot)))
 
     total_points = sum(len(p) for z in zones.values() for p in z.values())
     print("creatures kept: %d (cmangos %d, cmangos + wowhead zones %d, wowhead only %d)" % (

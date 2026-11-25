@@ -206,6 +206,15 @@ Références **S**. « Hors jeu » = faux environnement WoW/TomTom (`tools/test_
 | S19 | Français : régions et objets | `Locale.lua` | Oui | **Non vu** |
 | S20 | Diagnostic `/sr probe`, `/sr debug` | `Probe.lua`, `Resolver.lua` | Oui | Probe joué |
 
+### S-D. Butin des bêtes (v0.11.0)
+| Réf. | Fonctionnalité | Où | Hors jeu | En jeu |
+|---|---|---|---|---|
+| S21 | Extraction du butin CMaNGOS (références, groupes, or) : `--loot-out` | `tools/merge_skinning.py`, `tools/test_merge_skinning.py` | Oui | — |
+| S22 | Prix du butin : gris marchand, blanc et vert au plus haut de l'HV et du marchand | `Prices.lua` | Oui | **Non vu** |
+| S23 | Butin dans la valeur et le gain par heure, case « Mob loot », `/sr loot`, cuir et butin séparés | `Rules.lua`, `UI.lua`, `Core.lua` | Oui | **Non vu** |
+| S24 | Butin des créatures de Forever (script Wowhead) | `tools/` | — | **À faire** |
+| S25 | Butin des cadavres dans la fenêtre de stats | `Stats.lua` | — | **À faire** |
+
 ### Idées et écarts
 - Plafond de réapparition et temps de recherche : écartés par le joueur (2026-11-24).
 - Commission d'HV : écartée par le joueur.

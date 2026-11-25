@@ -189,3 +189,8 @@ Un add-on séparé, sur le modèle d'HerbRoute mais **par zone** : le joueur veu
 3. Réglage du temps par bête et du seuil de 70 % d'après la pratique ; durées de réapparition.
 4. Noms français des régions.
 5. Licence : publication éventuelle du fichier de données généré.
+
+### 7.5 Butin des bêtes (2026-11-25)
+- Compter aussi ce que les bêtes lâchent : objets gris (prix du marchand), blancs et verts (plus haut du prix d'HV et du prix du marchand), or ; **bleus et violets écartés**. Activé par défaut dans la vue Profit, case pour le décocher, **cuir et butin séparés** à l'affichage.
+- Récupérer le butin des créatures ajoutées par Forever (absentes de CMaNGOS) par un script Wowhead limité à ces créatures et à un échantillon de contrôle.
+- La fenêtre de stats doit compter aussi le butin des cadavres, séparé du dépeçage.

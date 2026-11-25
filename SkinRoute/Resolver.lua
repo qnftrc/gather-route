@@ -8,6 +8,8 @@ function SR:LoadData()
     local data = _G.SkinRoute_Data
     self.dataMissing = data == nil
     self.Data = {items = {}, creatures = {}, zones = {}}
+    local loot = _G.SkinRoute_Loot
+    self.Loot = {items = loot and loot.items or {}, creatures = loot and loot.creatures or {}}
     if data then
         self.Data.items = data.items or {}
         self.Data.creatures = data.creatures or {}
@@ -21,6 +23,14 @@ function SR:LoadData()
     for region in pairs(self.Data.zones) do self.regionNames[#self.regionNames + 1] = region end
     table.sort(self.regionNames)
     self.mapsBuilt = false
+end
+
+function SR:LootAvailable()
+    return next(self.Loot.creatures) ~= nil
+end
+
+function SR:LootEnabled()
+    return self.db.browse == "profit" and self.db.loot ~= false and self:LootAvailable()
 end
 
 function SR:GetRegions()

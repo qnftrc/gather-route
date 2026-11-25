@@ -475,8 +475,19 @@ def check_zone_compute():
     """)
 
 
-def zone_env(pre=""):
-    lua = env(data=ZONE_FIXTURE, pre=pre)
+LOOT_FIXTURE = r'''
+SkinRoute_Loot = {
+  items = {[5001] = {"Gray Fang", 0, 30}, [5002] = {"Linen Cloth", 1, 13}, [5003] = {"Green Cape", 2, 200}},
+  creatures = {
+    [1] = {g = 20, d = {[5001] = {50, 1, 1}, [5002] = {30, 1, 2}, [5003] = {5, 1, 1}}},
+    [2] = {g = 0, d = {[5003] = {10, 1, 1}}},
+  },
+}
+'''
+
+
+def zone_env(pre="", loot=False):
+    lua = env(data=ZONE_FIXTURE + (LOOT_FIXTURE if loot else ""), pre=pre)
     lua.execute("TomTom.NameToMapId['Test Valley'] = 77; SR.mapsBuilt = false")
     return lua
 
@@ -618,8 +629,8 @@ def check_real_zones(path):
     return "\n".join(report)
 
 
-def guide_env(skill=300, level=30):
-    lua = zone_env()
+def guide_env(skill=300, level=30, loot=False):
+    lua = zone_env(loot=loot)
     lines(lua, 'return Slash("items medium leather")')
     lines(lua, 'return Slash("level %d")' % level)
     lines(lua, 'return Slash("skill %d")' % skill)
@@ -749,6 +760,55 @@ def check_profit():
     assert lua.eval("SR:Context().items[2319]") is True
     lua.execute("SR:SetBrowseMode('item')")
     assert lua.eval("UI().regionButton.enabled") is True
+
+
+def check_loot():
+    lua = guide_env(loot=True)
+    lua.execute("SR.db.ahPrices[5002] = {c = 100, at = 1}; SR.db.ahPrices[5003] = {c = 1000, at = 1}")
+    assert lua.eval("SR:LootPrice(5001)") == 30, "gray: vendor price"
+    assert lua.eval("SR:LootPrice(5002)") == 100 and lua.eval("SR:LootPrice(5003)") == 1000, "white and green: AH when above vendor"
+    lua.execute("SR.db.ahPrices[5003] = {c = 50, at = 1}")
+    assert lua.eval("SR:LootPrice(5003)") == 200, "vendor when above the AH price"
+    lua.execute("SR.db.ahPrices[5003] = {c = 1000, at = 1}; SR.db.ahPrices[5001] = {c = 9999, at = 1}")
+    assert lua.eval("SR:LootPrice(5001)") == 30, "gray never uses the AH"
+    lua.execute("SR.db.prices[5001] = 77")
+    assert lua.eval("SR:LootPrice(5001)") == 77, "manual price first"
+    lua.execute("SR.db.prices[5001] = nil")
+    per = lua.eval("SR.Rules.lootValue(1, {lootData = SR.Loot.creatures, lootPrice = function(id) return SR:LootPrice(id) end})")
+    assert abs(per - 130) < 1e-6, per
+    assert lua.eval("SR:LootAvailable()") is True and lua.eval("SR:LootEnabled()") is False, "loot only in the Profit view"
+    lua.execute("SR:SetBrowseMode('profit')")
+    assert lua.eval("SR:LootEnabled()") is True
+    on = lua.eval("SR:AutoPlan('Test Valley')")
+    assert on.lootPerHour > 0 and on.skinPerHour > 0 and abs(on.perHour - on.skinPerHour - on.lootPerHour) < 1e-6
+    assert on.eval.lootValue > 0 and abs(on.eval.value - on.eval.skinValue - on.eval.lootValue) < 1e-6
+    assert "off" in lines(lua, 'return Slash("loot off")')
+    off = lua.eval("SR:AutoPlan('Test Valley')")
+    assert off.lootPerHour == 0 and abs(off.perHour - off.skinPerHour) < 1e-6
+    assert abs(off.skinPerHour - on.skinPerHour) < 1e-6
+    assert "Usage" in lines(lua, 'return Slash("loot maybe")')
+    assert "on" in lines(lua, 'return Slash("loot on")')
+    assert "Mob loot in the Profit view: on" in lines(lua, 'return Slash("loot")')
+
+
+def check_loot_ui():
+    lua = guide_env(loot=True)
+    lua.execute("SR.db.ahPrices[5002] = {c = 100, at = 1}; SR.db.ahPrices[5003] = {c = 1000, at = 1}; SR:SetBrowseMode('profit')")
+    assert lua.eval("UI().lootCheck.shown") is True
+    assert lua.eval("UI().height") == 472 + 36 and lua.eval("UI().listScroll.h") == 216
+    row = lua.eval("UI().rows[1]")
+    assert "Leather" in row.sub.text and "Loot" in row.sub.text, row.sub.text
+    assert row.sub2.text.startswith("-> "), row.sub2.text
+    lua.execute("Click(UI().generate) RunTimers()")
+    assert lua.eval("SR.shown.rows[1].eval.lootValue") > 0
+    lua.execute("UI().lootCheck:SetChecked(false); Click(UI().lootCheck)")
+    assert lua.eval("SR.db.loot") is False and lua.eval("UI().height") == 472
+    assert lua.eval("UI().rows[1].sub.text").startswith("-> ") and lua.eval("UI().rows[1].sub2.text") == ""
+    lua.execute("SR:SetBrowseMode('region')")
+    assert lua.eval("UI().lootCheck.shown") is False
+    plain = guide_env()
+    plain.execute("SR:SetBrowseMode('profit')")
+    assert plain.eval("UI().lootCheck.shown") is False and plain.eval("UI().height") == 472
 
 
 def check_auto_plan():
@@ -1670,6 +1730,8 @@ def main():
     check_label_font_scales()
     check_profit()
     check_auto_plan()
+    check_loot()
+    check_loot_ui()
     check_auto_no_price()
     check_prices_end_of_line()
     check_guide()

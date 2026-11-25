@@ -4,6 +4,16 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.11.0 : butin des bêtes dans la vue Profit (DS17 à DS21)
+- **Demande du joueur** : compter aussi ce que les bêtes lâchent elles-mêmes, pas seulement le dépeçage. Choix du joueur : **objets gris** au prix du marchand ; **objets blancs et verts** au plus haut du prix d'HV et du prix du marchand ; **bleus et violets écartés** (valeurs aberrantes) ; butin **activé par défaut** dans la vue Profit avec une **case pour le décocher** ; **cuir et butin séparés** à l'affichage.
+- **DS17** : le butin vient d'un fichier séparé `SkinRoute/Data/LootData.lua` (généré par `tools/merge_skinning.py --loot-out`, **non versionné**, ajouté au `.gitignore` et à la table des matières), lu depuis `creature_loot_template` de CMaNGOS avec les listes partagées (`reference_loot_template`) et l'or moyen (`MinLootGold`, `MaxLootGold`). Qualités 0 à 2 seulement, objets de quête exclus, chances inférieures à 0,5 % ignorées. Résultat sur la base actuelle : 515 créatures sur 651 ont un butin, 311 objets (142 gris, 144 blancs, 25 verts) ; les 136 autres n'ont pas de table CMaNGOS (ajouts de Forever ou bêtes sans butin). `SkinData.lua` reste identique octet pour octet.
+- **DS18** : prix du butin (`SR:LootPrice`) : prix manuel d'abord ; gris = prix marchand (lu par `GetItemInfo`, sinon celui de la base) ; blanc et vert = **max(prix d'HV d'Auctionator, prix marchand)**. L'or des pièces est compté dans la partie butin (non précisé par le joueur, à confirmer). `ReadPrices` lit aussi les prix d'HV des objets de butin.
+- **DS19** : le butin ne compte que dans la vue Profit (`SR:LootEnabled()`) et si un prix est connu ; la valeur d'une bête devient dépeçage + butin, le temps par bête est inchangé. Le choix automatique des types de bêtes se fait sur la valeur totale. `/sr loot [on|off]`.
+- **DS20** : affichage : en vue Profit avec butin, chaque région a trois lignes (total par heure ; `Leather … / Loot …` en deux couleurs ; cuirs retenus), la fenêtre grandit de 36 px, case « Mob loot (gray, white, green) » près du titre de la liste, titre raccourci « Regions, gold per hour (N) ».
+- **DS21** : les 72 créatures de Forever absentes de CMaNGOS n'ont pas de butin dans `LootData.lua` : le script Wowhead (butin de ces créatures, des 29 modifiées et d'un échantillon de contrôle, environ 140 pages) reste à écrire ; la fenêtre de stats ne compte pas encore le butin des cadavres.
+- **Vérification** : tests hors jeu (outil de fusion avec références, groupes et filtres ; prix ; calcul ; interface ; essai sur vraies données : le butin pèse environ 5 % de l'or par heure avec les prix marchands seuls, et change l'ordre des premières régions). **Rien n'est vu en jeu.**
+- Mesure annexe : les taux de drop de Wowhead Forever (export du dépeçage) concordent avec CMaNGOS sur 1 639 paires (moyennes à moins de 1,2 point).
+
 ### 2026-11-24 — SkinRoute : add-on de zones pour le dépeçage (v0.1 à 0.10.2, DS1 à DS16)
 - **Demande du joueur** : un second add-on, `SkinRoute/`, sur le modèle d'HerbRoute mais **par zone** (cercles d'environ 233 yd, soit la minimap au zoom 0) et non par route ; mono-région ; il **guide seulement vers la zone** (TomTom) ; le but est l'or. Interface calquée sur HerbRoute avec trois vues (Region, Item, Value), puis une quatrième (Profit). HerbRoute n'est pas modifié. Besoin et fonctionnalités : [BESOINS.md](BESOINS.md) section 7, [FONCTIONNALITES.md](FONCTIONNALITES.md) section SkinRoute.
 - **Données (DS1, DS2)** : export Wowhead par la console du navigateur (`tools/wowhead_export_skinning.js`, garde-fous : confirmation, durée et pages maximales, arrêt sur refus ou page inattendue, validation avant le fichier final), puis fusion avec CMaNGOS classic-db et pfQuest par `tools/merge_skinning.py` (rares, élites, boss et créatures marquées exclus ; objets de quête, villes, champ de bataille et cartes de continents écartés). Résultat : 651 créatures, 44 zones, 29 objets, 22 529 points. Le fichier généré `SkinRoute/Data/SkinData.lua` n'est **pas versionné** (licences : classic-db en GPL v3 avec contenus Blizzard, pfQuest MIT).
@@ -356,6 +366,11 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS14 | Choix automatique : types de bêtes au moins à 70 % du meilleur gain par seconde (`/sr keep`) | 2026-11-24 | Appliquée, **initiative de l'assistant à valider** |
 | DS15 | Sans prix connu : alerte « scan the auction house » et classement en objets par heure | 2026-11-24 | Appliquée (demande du joueur) |
 | DS16 | Guide par zone uniquement (TomTom), sans vérification sur la minimap | 2026-11-24 | Appliquée (demande du joueur) |
+| DS17 | Butin des bêtes dans un fichier séparé généré, non versionné, qualités 0 à 2, sans objets de quête | 2026-11-25 | Appliquée |
+| DS18 | Prix du butin : manuel, sinon gris au prix marchand, blanc et vert au plus haut de l'HV et du marchand ; or des pièces compté | 2026-11-25 | Appliquée (or à confirmer) |
+| DS19 | Butin compté seulement dans la vue Profit, activé par défaut, case pour le décocher, `/sr loot` | 2026-11-25 | Appliquée (demande du joueur) |
+| DS20 | Cuir et butin séparés à l'affichage de la vue Profit (trois lignes par région) | 2026-11-25 | Appliquée (demande du joueur) |
+| DS21 | Butin des créatures de Forever par script Wowhead (140 pages) et butin dans la fenêtre de stats : à faire | 2026-11-25 | Prévue |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |

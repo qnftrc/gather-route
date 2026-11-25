@@ -64,9 +64,12 @@ local function getCheckRow(pool, parent, i, size, font)
         row.text:SetPoint("LEFT", row, "RIGHT", 2, 1)
         row.sub = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
         row.sub:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 8, -1)
+        row.sub2 = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        row.sub2:SetPoint("TOPLEFT", row.sub, "BOTTOMLEFT", 0, -1)
         pool[i] = row
     end
     row.sub:SetText("")
+    row.sub2:SetText("")
     return row
 end
 
@@ -82,8 +85,8 @@ function SR.MatchLetters(query, name)
     return true
 end
 
-function SR.UIHeight(mode, optionsShown)
-    return (optionsShown and 640 or 472) + (mode == "value" and 10 or 0)
+function SR.UIHeight(mode, optionsShown, extra)
+    return (optionsShown and 640 or 472) + (mode == "value" and 10 or 0) + (extra or 0)
 end
 
 local function isSelected(id)
@@ -226,7 +229,8 @@ local function fillRanking()
     ui.regionButton:SetText(itemButtonText())
 end
 
-local AUTO_ROW = 36
+local AUTO_ROW, AUTO_ROW_LOOT = 36, 54
+local LOOT_COLOR, SKIN_COLOR = "|cff7fcf7f", "|cffd9a066"
 local NO_PRICE_ALERT = "|cffff4040No AH price known: scan the auction house|r"
 
 local function itemsLine(plan)
@@ -240,11 +244,13 @@ end
 local function fillAuto()
     local c = SR:Context()
     local rows, anyPrice = SR:RankAuto()
+    local loot = SR:LootEnabled() and anyPrice
+    local step = loot and AUTO_ROW_LOOT or AUTO_ROW
     local keep
     for i, row in ipairs(rows) do
         local cb = getCheckRow(ui.rows, ui.listChild, i, ROW, "GameFontHighlight")
         cb:ClearAllPoints()
-        cb:SetPoint("TOPLEFT", ui.listChild, "TOPLEFT", 0, -(i - 1) * AUTO_ROW)
+        cb:SetPoint("TOPLEFT", ui.listChild, "TOPLEFT", 0, -(i - 1) * step)
         cb.itemId, cb.region = nil, row.region
         cb:SetScript("OnClick", function() chooseRegion(row.region) end)
         local e = row.eval
@@ -253,15 +259,20 @@ local function fillAuto()
             suffix = anyPrice and (SR.Money(row.plan.perHour) .. "/h") or ("~%.0f items/h"):format(row.plan.perHour)
         end
         cb.text:SetText(rowText(SR.RegionLabel(row.region), e.inBand, e, c.level, suffix))
-        cb.sub:SetText(itemsLine(row.plan))
+        if loot and suffix then
+            cb.sub:SetText(("%sLeather|r %s  /  %sLoot|r %s"):format(SKIN_COLOR, SR.Money(row.plan.skinPerHour, 10), LOOT_COLOR, SR.Money(row.plan.lootPerHour, 10)))
+            cb.sub2:SetText(itemsLine(row.plan))
+        else
+            cb.sub:SetText(itemsLine(row.plan))
+        end
         cb:Show()
         if row.region == ui.region then keep = row.region end
     end
     hideRowsFrom(ui.rows, #rows + 1)
-    ui.listChild:SetSize(270 + WIDE, math.max(1, #rows * AUTO_ROW))
+    ui.listChild:SetSize(270 + WIDE, math.max(1, #rows * step))
     if rows[1] then chooseRegion(keep or rows[1].region) end
-    ui.listTitle:SetText(anyPrice and ("Regions, most gold per hour first (%d)"):format(#rows)
-        or ("Regions, most items per hour first (%d)"):format(#rows))
+    ui.listTitle:SetText(anyPrice and ("Regions, gold per hour (%d)"):format(#rows)
+        or ("Regions, items per hour (%d)"):format(#rows))
     ui.regionButton:SetText(anyPrice and "Best leathers for each region (automatic)" or NO_PRICE_ALERT)
 end
 
@@ -541,12 +552,14 @@ end
 
 function applyLayout()
     local value = ui.mode == "value"
+    local extra = (ui.mode == "profit" and SR:LootEnabled() and SR:AnyPrice()) and 36 or 0
     ui.lower:ClearAllPoints()
-    ui.lower:SetPoint("TOPLEFT", ui, "TOPLEFT", 0, -(296 + (value and 10 or 0)))
+    ui.lower:SetPoint("TOPLEFT", ui, "TOPLEFT", 0, -(296 + (value and 10 or 0) + extra))
+    ui.listScroll:SetSize(320 + WIDE, 180 + extra)
     local shown = SR.db.optionsShown == true
     for _, w in ipairs(ui.optionWidgets) do w:SetShown(shown) end
     ui.optionsButton:SetText(shown and "Options -" or "Options +")
-    ui:SetHeight(SR.UIHeight(ui.mode, shown))
+    ui:SetHeight(SR.UIHeight(ui.mode, shown, extra))
 end
 
 function applyMode()
@@ -561,6 +574,7 @@ function applyMode()
     ui.regionButton:SetShown(not value)
     ui.listTitle:SetShown(not value)
     ui.listScroll:SetShown(not value)
+    ui.lootCheck:SetShown(mode == "profit" and SR:LootAvailable())
     ui.noneButton:SetShown(mode == "region")
     ui.allButton:SetShown(mode == "region")
     for _, w in ipairs(ui.valueWidgets) do w:SetShown(value) end
@@ -676,6 +690,13 @@ local function build()
     buildViewMenu()
 
     ui.listTitle = label(ui, "Leathers", "TOPLEFT", 16, -84)
+    ui.lootCheck = check(ui, "Mob loot (gray, white, green)", 190, -78, function(self)
+        SR.db.loot = self:GetChecked() and true or false
+        SR.auto = nil
+        SR:RefreshZones()
+        applyLayout()
+        refreshView()
+    end)
     ui.noneButton = button(ui, "None", 50, "TOPRIGHT", -16, -80, function()
         SR.db.items = {}
         refreshAll()
@@ -787,6 +808,7 @@ local function build()
     ui:SetScript("OnShow", function()
         ui.showMap:SetChecked(SR.db.showMap ~= false)
         ui.fill:SetChecked(SR.db.fill == true)
+        ui.lootCheck:SetChecked(SR.db.loot ~= false)
         ui.chat:SetChecked(SR.db.chat == true)
         ui.band:SetChecked(SR.db.bandOnly ~= false)
         ui.slider:SetValue(SR.db.arrival)

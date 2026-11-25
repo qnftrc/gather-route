@@ -7,6 +7,7 @@ local defaults = {
     killFixed = 10,
     killSlope = 1.10,
     autoKeep = 70,
+    loot = true,
     optionsShown = false,
     items = {},
     bandOnly = true,
@@ -128,6 +129,9 @@ function SR:Context()
         killFixed = self.db.killFixed or 10,
         killSlope = self.db.killSlope or 1.10,
         keep = (self.db.autoKeep or 70) / 100,
+        loot = self:LootEnabled(),
+        lootData = self.Loot.creatures,
+        lootPrice = function(id) return self:LootPrice(id) end,
         price = function(id) return (self:ItemPrice(id)) end,
     }
 end
@@ -188,6 +192,7 @@ local function usage()
     SR:Say("/sr button - show or hide a movable Skip button (keys: Game Menu > Options > Key Bindings > AddOns > SkinRoute)")
     SR:Say("/sr clear - remove the zones from the map | /sr radius [yd] - zone radius (default 233) | /sr arrival [yd] - distance at which you count as arrived (default 233)")
     SR:Say("/sr time [<seconds per mob> [fixed seconds] [slope]] - time model of the Profit view (default 25 10 1.10)")
+    SR:Say("/sr loot [on|off] - Profit view: count what the mobs themselves drop (gold, gray, white and green items), on by default")
     SR:Say("/sr keep [<percent>] - Profit view: mob types kept when they reach this share of the best rate (default 70)")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
     SR:Say("/sr fill [test|<n>|path <texture>|on|off] - white transparent fill of the zones: run the test once, then pick the round disc")
@@ -400,6 +405,19 @@ local function handleSlash(msg)
         end
         SR:Say(("Time per mob: %s s at your level (%s s fixed, the rest x%s per level of difference)."):format(
             tostring(SR.db.killBase or 25), tostring(SR.db.killFixed or 10), tostring(SR.db.killSlope or 1.10)))
+    elseif cmd == "loot" then
+        local arg = rest:lower()
+        if arg == "on" then
+            SR.db.loot = true
+        elseif arg == "off" then
+            SR.db.loot = false
+        elseif arg ~= "" then
+            return SR:Say("Usage: /sr loot [on|off]")
+        end
+        SR.auto = nil
+        SR:RefreshZones()
+        SR:Say(("Mob loot in the Profit view: %s%s."):format(SR.db.loot ~= false and "on" or "off",
+            SR:LootAvailable() and "" or " (no Data\\LootData.lua loaded)"))
     elseif cmd == "keep" then
         local n = tonumber(rest)
         if rest ~= "" then

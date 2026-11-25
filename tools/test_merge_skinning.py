@@ -135,6 +135,82 @@ def build(tmp, wowhead=None, ranks="0", extra=None):
     return L.eval("SkinRoute_Data"), buf.getvalue()
 
 
+LOOT_SQL = """
+CREATE TABLE `creature_template` (
+  `Entry` mediumint unsigned NOT NULL DEFAULT '0',
+  `Name` char(100) NOT NULL DEFAULT '',
+  `MinLootGold` mediumint unsigned NOT NULL DEFAULT '0',
+  `MaxLootGold` mediumint unsigned NOT NULL DEFAULT '0',
+  `LootId` mediumint unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`Entry`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
+INSERT INTO `creature_template` VALUES (200,'Looter',100,300,200),(201,'Empty',0,0,0),(202,'Gold Only',50,50,201),(203,'Unlisted',9,9,203);
+CREATE TABLE `creature_loot_template` (
+  `entry` mediumint unsigned NOT NULL DEFAULT '0',
+  `item` mediumint unsigned NOT NULL DEFAULT '0',
+  `ChanceOrQuestChance` float NOT NULL DEFAULT '100',
+  `groupid` tinyint unsigned NOT NULL DEFAULT '0',
+  `mincountOrRef` mediumint NOT NULL DEFAULT '1',
+  `maxcount` tinyint unsigned NOT NULL DEFAULT '1',
+  `condition_id` mediumint unsigned NOT NULL DEFAULT '0',
+  `comments` varchar(300) DEFAULT '',
+  PRIMARY KEY (`entry`,`item`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
+INSERT INTO `creature_loot_template` VALUES (200,1000,40,0,1,2,0,''),(200,1001,10,0,1,1,0,''),(200,1002,20,0,1,1,0,''),(200,1003,100,0,1,1,0,''),(200,500,20,0,-50,2,0,''),(200,1006,0,1,1,1,0,''),(200,1007,0,1,1,1,0,''),(200,1008,0.1,0,1,1,0,'');
+CREATE TABLE `reference_loot_template` (
+  `entry` mediumint unsigned NOT NULL DEFAULT '0',
+  `item` mediumint unsigned NOT NULL DEFAULT '0',
+  `ChanceOrQuestChance` float NOT NULL DEFAULT '100',
+  `groupid` tinyint unsigned NOT NULL DEFAULT '0',
+  `mincountOrRef` mediumint NOT NULL DEFAULT '1',
+  `maxcount` tinyint unsigned NOT NULL DEFAULT '1',
+  `condition_id` mediumint unsigned NOT NULL DEFAULT '0',
+  `comments` varchar(300) DEFAULT '',
+  PRIMARY KEY (`entry`,`item`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
+INSERT INTO `reference_loot_template` VALUES (50,1004,100,0,1,1,0,''),(50,1005,50,0,1,1,0,'');
+CREATE TABLE `item_template` (
+  `entry` mediumint unsigned NOT NULL DEFAULT '0',
+  `class` tinyint unsigned NOT NULL DEFAULT '0',
+  `subclass` tinyint unsigned NOT NULL DEFAULT '0',
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `Quality` tinyint unsigned NOT NULL DEFAULT '0',
+  `SellPrice` int unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`entry`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
+INSERT INTO `item_template` VALUES (1000,15,0,'Gray Junk',0,25),(1001,7,0,'White Cloth',1,40),(1002,2,0,'Blue Sword',3,900),(1003,12,0,'Quest Thing',1,0),(1004,4,0,'Green Boots',2,500),(1005,4,0,'Green Cape',2,300),(1006,7,0,'Green Mote A',2,10),(1007,7,0,'Green Mote B',2,12),(1008,15,0,'Rare Gray',0,5);
+"""
+
+
+def check_loot(tmp):
+    path = os.path.join(tmp, "loot.sql")
+    with open(path, "w", encoding="utf8") as f:
+        f.write(LOOT_SQL)
+    creatures, items, rejected = merge_skinning.load_cmangos_loot(path, {200, 201, 202})
+    assert sorted(creatures) == [200, 202], sorted(creatures)
+    c = creatures[200]
+    assert c["gold"] == 200
+    d = c["drops"]
+    assert d[1000] == (40, 1, 2) and d[1001][0] == 10
+    assert 1002 not in d and 1003 not in d and 1008 not in d, d
+    assert abs(d[1004][0] - 40) < 1e-6 and abs(d[1005][0] - 20) < 1e-6, d
+    assert abs(d[1006][0] - 50) < 1e-6 and abs(d[1007][0] - 50) < 1e-6
+    assert creatures[202]["drops"] == {} and creatures[202]["gold"] == 50
+    assert items[1004] == ("Green Boots", 2, 500) and 1002 not in items and 1003 not in items
+    assert rejected["quality 3"] == 1 and rejected["quest"] == 1, rejected
+    out = os.path.join(tmp, "loot.lua")
+    merge_skinning.write_loot_lua(out, items, creatures)
+    L = LuaRuntime(unpack_returned_tuples=True)
+    L.execute(open(out, encoding="utf8").read())
+    assert L.eval("SkinRoute_Loot.items[1000][2]") == 0 and L.eval("SkinRoute_Loot.items[1000][3]") == 25
+    assert L.eval("SkinRoute_Loot.creatures[200].g") == 200 and L.eval("SkinRoute_Loot.creatures[200].d[1004][1]") == 40
+    assert L.eval("SkinRoute_Loot.creatures[203]") is None
+    rows = {1: (1, 1)}
+    refs = {7: [(1, 100.0, 0, 1, 1)]}
+    got = merge_skinning.corpse_drops([(5, 100.0, 0, -7, 9)], refs)
+    assert got[1][0] == 100.0, got
+
+
 def keys(t):
     return sorted(list(t.keys()))
 
@@ -192,7 +268,7 @@ def check_wowhead(tmp, data):
 
 def main():
     for name, fn in [("base", lambda t: check_base(t)), ("ranks", lambda t: check_ranks(t)), ("skip zone", lambda t: check_skip_zone(t)),
-                     ("wowhead legacy", lambda t: check_wowhead(t, LEGACY)), ("wowhead v3", lambda t: check_wowhead(t, V3))]:
+                     ("loot", lambda t: check_loot(t)), ("wowhead legacy", lambda t: check_wowhead(t, LEGACY)), ("wowhead v3", lambda t: check_wowhead(t, V3))]:
         with tempfile.TemporaryDirectory() as tmp:
             fn(tmp)
     print("MERGE SKINNING TESTS OK")
