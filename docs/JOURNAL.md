@@ -4,6 +4,11 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 
 ## Journal
 
+### 2026-11-25 — SkinRoute 0.12.0 : fenêtre de stats avec le butin des cadavres (DS22)
+- **Demande du joueur** : la fenêtre de stats doit compter ce qu'on lâche sur les bêtes et pas seulement ce qu'on dépèce. Maquette validée. **Consigne du joueur : ne pas pousser ni faire de zip avant le résultat du script Wowhead, puis attendre son ordre explicite même après ce résultat.**
+- **Fait** : `Stats.lua` : deux sections avec sous-totaux, case « Count mob loot (gray, white, green) » (`statsWindow.countLoot`, activée par défaut), ligne du haut « N skinned, M kills », fenêtre de 262 × 354, bouton Reset en bas à droite. Événements `CHAT_MSG_MONEY`, `LOOT_OPENED`, `LOOT_CLOSED` ; la qualité de l'objet vient de la couleur du lien (gris 9d9d9d, blanc ffffff, vert 1eff00 ; le reste est écarté) ; les gris sont regroupés en une ligne au prix marchand ; une fenêtre de butin de cadavre compte jusqu'à 2 s après sa fermeture ; la fermeture de la fenêtre de butin du dépeçage clôt aussitôt la fenêtre de dépeçage (le butin du cadavre suivant n'est pas pris pour du dépeçage).
+- **Vérification** : tests hors jeu (or, gris, blancs, verts, bleus écartés, gisement ignoré, délai de grâce, priorité du dépeçage, case, session arrêtée). **Non vu en jeu** : `GetLootSourceInfo`, le format réel des messages d'or, l'ordre des événements d'ouverture du butin.
+
 ### 2026-11-25 — SkinRoute 0.11.0 : butin des bêtes dans la vue Profit (DS17 à DS21)
 - **Demande du joueur** : compter aussi ce que les bêtes lâchent elles-mêmes, pas seulement le dépeçage. Choix du joueur : **objets gris** au prix du marchand ; **objets blancs et verts** au plus haut du prix d'HV et du prix du marchand ; **bleus et violets écartés** (valeurs aberrantes) ; butin **activé par défaut** dans la vue Profit avec une **case pour le décocher** ; **cuir et butin séparés** à l'affichage.
 - **DS17** : le butin vient d'un fichier séparé `SkinRoute/Data/LootData.lua` (généré par `tools/merge_skinning.py --loot-out`, **non versionné**, ajouté au `.gitignore` et à la table des matières), lu depuis `creature_loot_template` de CMaNGOS avec les listes partagées (`reference_loot_template`) et l'or moyen (`MinLootGold`, `MaxLootGold`). Qualités 0 à 2 seulement, objets de quête exclus, chances inférieures à 0,5 % ignorées. Résultat sur la base actuelle : 515 créatures sur 651 ont un butin, 311 objets (142 gris, 144 blancs, 25 verts) ; les 136 autres n'ont pas de table CMaNGOS (ajouts de Forever ou bêtes sans butin). `SkinData.lua` reste identique octet pour octet.
@@ -370,7 +375,8 @@ Registre chronologique des décisions, constats et risques. À compléter à cha
 | DS18 | Prix du butin : manuel, sinon gris au prix marchand, blanc et vert au plus haut de l'HV et du marchand ; or des pièces compté | 2026-11-25 | Appliquée (or à confirmer) |
 | DS19 | Butin compté seulement dans la vue Profit, activé par défaut, case pour le décocher, `/sr loot` | 2026-11-25 | Appliquée (demande du joueur) |
 | DS20 | Cuir et butin séparés à l'affichage de la vue Profit (trois lignes par région) | 2026-11-25 | Appliquée (demande du joueur) |
-| DS21 | Butin des créatures de Forever par script Wowhead (141 pages : 72 absentes de CMaNGOS, 29 modifiées, 40 de contrôle) : script écrit et testé sur un faux navigateur ; lecture réelle et import à faire. Butin dans la fenêtre de stats : à faire | 2026-11-25 | Script livré, import prévu |
+| DS21 | Butin des créatures de Forever par script Wowhead (141 pages : 72 absentes de CMaNGOS, 29 modifiées, 40 de contrôle) : script écrit et testé sur un faux navigateur ; lecture réelle et import à faire. Butin dans la fenêtre de stats : codé (DS22) | 2026-11-25 | Script livré, import prévu |
+| DS22 | Fenêtre de stats : deux sections, « Skinning » (inchangée, pendant le sort) et « Kills (mob loot) » (or des pièces, objets gris, blancs et verts du cadavre, bleus et plus écartés), case « Count mob loot », nombre de bêtes tuées ; le butin n'est compté que dans une fenêtre de butin de créature (`LOOT_OPENED`, source `Creature-`), jamais pour un gisement ; prix du butin comme dans la vue Profit | 2026-11-25 | Appliquée hors jeu (demande du joueur), **à valider en jeu** |
 
 ## Risques et questions ouvertes
 | Réf. | Sujet | État |
