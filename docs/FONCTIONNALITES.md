@@ -223,6 +223,13 @@ Références **S**. « Hors jeu » = faux environnement WoW/TomTom (`tools/test_
 | S28 | Rayon 350 yd forcé une fois, butin dans toutes les vues, cases dans les Options | `Core.lua`, `Resolver.lua`, `UI.lua` | Oui | **Non vu** |
 | S29 | Vue Profit : gain par heure de la meilleure zone de chaque région, calcul des zones des 44 régions en arrière-plan, plus de règle des 70 % | `Rules.lua`, `Zones.lua`, `UI.lua` | Oui | **Non vu** |
 
+### S-F. Vie des mobs (v0.15.3)
+| Réf. | Fonctionnalité | Où | Hors jeu | En jeu |
+|---|---|---|---|---|
+| S30 | `/sr hp probe` : lecture de la vie de la cible (valeur réelle, pourcentage ou secrète) et recherche dans la base ; mesure automatique et calcul pas encore codés | `Probe.lua`, `Core.lua` | Oui | **Non vu** |
+
+Note : les versions 0.13.0 à 0.15.2 (cercles magenta, or par heure de toutes les zones, seuil 30, classement des stats par objet) sont décrites dans le journal (DS24 à DS36) mais pas encore dans ces tableaux.
+
 ### Idées et écarts
 - Plafond de réapparition et temps de recherche : écartés par le joueur (2026-11-24).
 - Commission d'HV : écartée par le joueur.

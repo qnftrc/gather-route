@@ -202,6 +202,7 @@ local function usage()
     SR:Say("/sr loot [on|off] - count what the mobs themselves drop (gold, gray, white and green items) in every view, on by default")
     SR:Say("/sr map - status of the map overlay and a test circle around you")
     SR:Say("/sr fill [test|<n>|path <texture>|on|off] - white transparent fill of the zones: run the test once, then pick the round disc")
+    SR:Say("/sr hp probe - read UnitHealthMax of your target and match it with the database (read-only)")
     SR:Say("/sr probe [env|ui|skill] - read-only diagnostic: libraries, map sizes, interface templates, how your skinning skill can be read")
     SR:Say("/sr chat [on|off] | setmap <region>: <mapID> | debug")
 end
@@ -479,6 +480,12 @@ local function handleSlash(msg)
         SR:FillStatus()
     elseif cmd == "probe" then
         SR:Probe(rest)
+    elseif cmd == "hp" then
+        if rest:lower() == "probe" then
+            SR:HpProbe()
+        else
+            SR:Say("Usage: /sr hp probe - read the health of your target (step 1: measurement and storage not coded yet)")
+        end
     elseif cmd == "prices" then
         SR:PricesProbe()
     elseif cmd == "stats" then

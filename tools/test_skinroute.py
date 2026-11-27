@@ -1386,6 +1386,47 @@ def check_probe():
     assert "DATA FILE MISSING" in out and "RESULT: Skinning 130" in out
 
 
+def check_hp_probe():
+    def run(extra):
+        lua = probe_env(extra=extra)
+        out = lines(lua, 'return Slash("hp probe")')
+        return lua, re.sub(r"\|cff33ff99SkinRoute\|r: ", "", out)
+
+    base = ("UnitExists = function() return true end; UnitName = function() return 'Gray Bear' end; "
+            "UnitLevel = function() return 21 end; UnitClassification = function() return 'normal' end; "
+            "UnitCreatureType = function() return 'Beast' end; UnitIsDead = function() return false end; "
+            "UnitCanAttack = function() return true end; UnitIsPlayer = function() return false end; "
+            "UnitGUID = function() return 'Creature-0-1-2-3-1-0' end; UnitHealth = function() return 480 end; ")
+    lua, out = run(base + "UnitHealthMax = function() return 480 end")
+    for expected in ('UnitName("target") -> "Gray Bear"', "UnitHealthMax(\"target\") -> 480",
+                     "RESULT: real health value readable (max 480, current 480)",
+                     "database: 1 match(es): id 1 level 21-22"):
+        assert expected in out, (expected, out)
+    assert lua.eval("#SR.db.hpProbe.lines") > 8
+
+    _, out = run(base + "UnitHealthMax = function() return 100 end")
+    assert "looks like a percentage" in out, out
+
+    _, out = run(base + "issecretvalue = function(v) return v == 480 end; UnitHealthMax = function() return 480 end")
+    assert "RESULT: UnitHealthMax is a SECRET value" in out, out
+
+    _, out = run(base + "UnitHealthMax = nil")
+    assert "UnitHealthMax(\"target\"): not available" in out and "RESULT: UnitHealthMax not usable" in out, out
+
+    _, out = run(base + "UnitHealthMax = function() error('boom') end")
+    assert "ERROR" in out and "RESULT: UnitHealthMax not usable" in out, out
+
+    _, out = run(base + "UnitName = function() return 'Unknown Thing' end; UnitHealthMax = function() return 900 end")
+    assert "database: no creature named" in out, out
+
+    _, out = run("UnitExists = function() return false end")
+    assert "no target" in out, out
+    _, out = run("UnitExists = nil")
+    assert "no target" in out, out
+    lua = probe_env()
+    assert "Usage: /sr hp probe" in lines(lua, 'return Slash("hp")')
+
+
 PROF_API = r"""
 GetProfessions = function() return table.unpack(PIDX, 1, 6) end
 GetProfessionInfo = function(i) return table.unpack(PROFS[i], 1, 8) end
@@ -2042,6 +2083,7 @@ def main():
     check_ui_buttons()
     check_ui_region_popup()
     check_probe()
+    check_hp_probe()
     check_skill_reading()
     check_player_skill()
     check_ui_skill()

@@ -241,3 +241,50 @@ function SR:Probe(arg)
     for _, l in ipairs(lines) do self:Say(l) end
     self:Say(("Probe done: %d line(s), also saved in SkinRouteDB.probe (SavedVariables, written at logout or /reload)."):format(#lines))
 end
+
+function SR:HpProbe()
+    local out = {}
+    local function put(fmt, ...) out[#out + 1] = select("#", ...) > 0 and fmt:format(...) or fmt end
+    if type(UnitExists) ~= "function" or not UnitExists("target") then
+        return self:Say("hp probe: no target. Target a creature and run /sr hp probe again.")
+    end
+    local function read(label, fn, ...)
+        if type(fn) ~= "function" then put("%s: not available", label) return nil end
+        local ok, v = pcall(fn, ...)
+        if not ok then put("%s: ERROR %s", label, tostring(v):sub(1, 90)) return nil end
+        put("%s -> %s", label, show(v))
+        return v
+    end
+    local name = read('UnitName("target")', UnitName, "target")
+    local level = read('UnitLevel("target")', UnitLevel, "target")
+    read('UnitClassification("target")', UnitClassification, "target")
+    read('UnitCreatureType("target")', UnitCreatureType, "target")
+    read('UnitIsDead("target")', UnitIsDead, "target")
+    read('UnitCanAttack("player", "target")', UnitCanAttack, "player", "target")
+    read('UnitIsPlayer("target")', UnitIsPlayer, "target")
+    read('UnitGUID("target")', UnitGUID, "target")
+    local hp = read('UnitHealth("target")', UnitHealth, "target")
+    local max = read('UnitHealthMax("target")', UnitHealthMax, "target")
+    if type(max) == "number" and not isSecret(max) then
+        if max <= 100 and max > 0 then
+            put("RESULT: UnitHealthMax is %d: this looks like a percentage, not a real health value", max)
+        else
+            put("RESULT: real health value readable (max %d%s)", max, type(hp) == "number" and not isSecret(hp) and (", current %d"):format(hp) or "")
+        end
+    elseif max ~= nil then
+        put("RESULT: UnitHealthMax is a SECRET value: health cannot be measured by an addon")
+    else
+        put("RESULT: UnitHealthMax not usable")
+    end
+    if type(name) == "string" and not isSecret(name) then
+        local found = {}
+        for id, c in pairs(self.Data.creatures) do
+            if c.n == name then found[#found + 1] = ("id %s level %s-%s%s"):format(tostring(id), tostring(c.l[1]), tostring(c.l[2]), c.e and " elite" or "") end
+        end
+        table.sort(found)
+        if #found == 0 then put("database: no creature named %s", show(name))
+        else put("database: %d match(es): %s", #found, table.concat(found, "; ")) end
+    end
+    self.db.hpProbe = {date = date and date("%Y-%m-%d %H:%M") or "", lines = out}
+    for _, l in ipairs(out) do self:Say(l) end
+end
